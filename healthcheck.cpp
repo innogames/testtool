@@ -139,12 +139,24 @@ void Healthcheck::handle_result() {
 			parent->healthchecks_ok++;
 			parent->all_down_notified = false;
 
-			/* Add the IP to this pool. */
-			pf_table_add(parent->name, address);
+			/* Add the node back to pool if it is in normal (not backup) operation. */
+			if (parent->switched_to_backup == false) {
+				pf_table_add(parent->name, address);
+			}
 
 			/* Switch parent pool from backup pool's nodes to normal nodes. */
 			if (parent->backup_pool && parent->healthchecks_ok >= parent->backup_pool_trigger && parent->switched_to_backup == true) {
-				showStatus(CL_WHITE"%s"CL_RESET" - More than %d nodes alive, removing backup_pool "CL_BLUE"%s"CL_RESET"\n", parent->name.c_str(), parent->backup_pool_trigger, parent->backup_pool->name.c_str());
+				showStatus(CL_WHITE"%s"CL_RESET" - At least %d nodes alive, removing backup_pool "CL_BLUE"%s"CL_RESET"\n", parent->name.c_str(), parent->backup_pool_trigger, parent->backup_pool->name.c_str());
+
+				/* Add original nodes back when leaving the backup pool mode. */
+				for (unsigned int i=0; i<parent->healthchecks.size(); i++) {
+					/* Add only the ones which were not STATE_UP. */
+					if (parent->healthchecks[i]->hard_state == STATE_UP) {
+						pf_table_add(parent->name, parent->healthchecks[i]->address);
+					}
+				}
+
+				/* Remove backup nodes. */
 				for (unsigned int i=0; i<parent->backup_pool->healthchecks.size(); i++) {
 					if (parent->backup_pool->healthchecks[i]->hard_state == STATE_UP) {
 						string address = parent->backup_pool->healthchecks[i]->address;
@@ -169,7 +181,8 @@ void Healthcheck::handle_result() {
 			/* Finally rebalance traffic in this pool.
 			   This must be done after traffic to removed backup nodes was killed
 			   (killing, like rebalacing is done for src_nodes). */
-			pf_table_rebalance(parent->name, address);
+			if (parent->switched_to_backup == false)
+				pf_table_rebalance(parent->name, address);
 		}
 
 		failure_counter = 0;
@@ -188,19 +201,31 @@ void Healthcheck::handle_result() {
 			hard_state = STATE_DOWN;
 			parent->healthchecks_ok--;
 
+			/* Remove the node from its primary pool if the pool is in normal (not backup) operation. */
+			if (parent->switched_to_backup == false) {
+				pf_table_del(parent->name, address);
+				pf_kill_src_nodes_to(address, true);
+			}
+
 			if (!parent->backup_pool && parent->healthchecks_ok == 0 && parent->all_down_notified == false) {
 				parent->all_down_notified = true;
 				showWarning(CL_WHITE"%s"CL_RESET" - No nodes left to serve the traffic!\n", parent->name.c_str());
 			}
 
-			/* Remove the node's IP from parent pool. */
-			pf_table_del(parent->name, address);
-			pf_kill_src_nodes_to(address, true);
-
 			/* Switch parent pool to backup pool's nodes if needed. */
 			if (parent->backup_pool && parent->healthchecks_ok < parent->backup_pool_trigger && parent->switched_to_backup == false) {
 				showStatus(CL_WHITE"%s"CL_RESET" - Less than %d nodes alive, switching to backup_pool "CL_BLUE"%s"CL_RESET"\n", parent->name.c_str(), parent->backup_pool_trigger, parent->backup_pool->name.c_str());
 
+				/* Remove original nodes if there any left, we are switching to backup pool! */
+				for (unsigned int i=0; i<parent->healthchecks.size(); i++) {
+					/* Remove only nodes which are STATE_UP, the ones in STATE_DOWN were already removed. */
+					if (parent->healthchecks[i]->hard_state == STATE_UP) {
+						pf_table_del(parent->name, parent->healthchecks[i]->address);
+						pf_kill_src_nodes_to(parent->healthchecks[i]->address, true);
+					}
+				}
+
+				/* Add backup nodes, should there be any alive. Complain, if not. */
 				if (parent->backup_pool->healthchecks_ok>0)
 				{
 					for (unsigned int i=0; i<parent->backup_pool->healthchecks.size(); i++) {

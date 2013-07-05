@@ -52,6 +52,8 @@ void pf_table_add(string &table, string &ip){
 	char	 cmd[1024];
 	int	 ret;
 
+	showStatus(CL_WHITE"%s"CL_RESET" - Adding node "CL_BLUE"%s"CL_RESET"\n", table.c_str(), ip.c_str());
+
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T add '%s'", table.c_str(), ip.c_str());
 	
 	if (verbose_pfctl)
@@ -82,6 +84,8 @@ void pf_table_del(string &table,  string &ip){
 	FILE	*fp;
 	char	 cmd[1024];
 	int	 ret;
+
+	showStatus(CL_WHITE"%s"CL_RESET" - Removing node "CL_BLUE"%s"CL_RESET"\n", table.c_str(), ip.c_str());
 
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T del '%s'", table.c_str(), ip.c_str());
 
