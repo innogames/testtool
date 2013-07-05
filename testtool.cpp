@@ -1,0 +1,269 @@
+#include <iostream>
+#include <fstream>
+#include <list>
+#include <sstream>
+#include <map>
+#include <vector>
+
+#include <signal.h>
+
+#include <event2/event.h>
+
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+
+#include "service.h"
+#include "healthcheck.h"
+#include "msg.h"
+
+using namespace std;
+
+/* Global variables, some are exported to other modules. */
+struct event_base	*eventBase = NULL;
+SSL_CTX			*sctx = NULL;
+bool			 run_main_loop = true;
+int			 verbose = 0;
+int			 verbose_pfctl = 0;
+bool			 pf_action = true;
+
+void signal_handler(int signum) {
+
+	switch (signum) {
+		case SIGPIPE:
+			/* This will happen on failed SSL tests. */
+			break;
+		case SIGTERM:
+		case SIGINT:
+		/*
+		   Config reloading will be added later. For now terminating
+		   the program is fine as watchdog script will re-launch it.
+		*/
+		case SIGHUP: 
+			run_main_loop = false;
+			break;
+	}
+}
+
+
+/*
+   Load services from given configuration file.
+   Return a list of loaded services.
+*/
+list<Service*> * load_services(ifstream &config_file) {
+
+	string line;
+
+	/* Allocate an empty list of services. */
+	list<Service*> * services = new list<Service*>;
+
+	map<Service*,vector<string> > services_backup_pools;
+
+	Service * new_service = NULL;
+
+	while (getline(config_file, line)) {
+		Healthcheck * new_healthcheck;
+
+		if (line.empty())
+			continue;
+
+		const char * c_line = line.c_str();
+		string service_name;
+		int default_hwlb;
+		istringstream istr_service;
+
+		switch (c_line[0]) {
+			case '[':
+				istr_service.str(line.substr(1, line.length()-2));
+				istr_service >> service_name >> default_hwlb;
+				new_service = new Service(service_name, default_hwlb);
+				services->push_back(new_service);
+				break;
+			case '#':
+			case ';':
+				/* It's a comment line */
+				continue;
+				break;
+			default:
+				if (line.find("healthcheck") == 0)
+					new_healthcheck = Healthcheck::healthcheck_factory(line, *new_service);
+
+				if (line.find("backup_pool") == 0)
+					if (new_service) {
+						/* Read backup_pool parameters from the line. */
+						string skip; /* word "backup_pool" will go here */
+						int backup_pool_trigger;
+
+						string backup_pool;
+						vector<string> backup_pools;
+						istringstream istr_line(line);
+
+						/* Read most of the parameters to proper variables, then load all the backup_pools to vector<>.
+						   Not all backup_pools are valid for this pool, as they might be on other HWLB.
+						   This will be verified later. */
+						istr_line >> skip >> backup_pool_trigger;
+						while (istr_line >> backup_pool)
+							backup_pools.push_back(backup_pool);
+
+						services_backup_pools.insert(pair<Service*,vector<string> >(new_service,backup_pools));
+						new_service->backup_pool_trigger = backup_pool_trigger;
+					}
+
+				break;
+		}
+	}
+
+	/* Join backup pools to pools. Iterate over mappings found in the config file. Each mapping gives
+	   all possible backup_pools, but not all exist on this HWLB. */
+	map<Service*,vector<string> >::iterator service_it;
+	for (service_it=services_backup_pools.begin(); service_it!=services_backup_pools.end(); service_it++) {
+
+		/* Iterate over all backup_pools mapped to the current backup_pool. */
+		for (unsigned int i=0; i<service_it->second.size(); i++) {
+			string backup_pool_name = service_it->second[i];
+
+			/* We have the backup_pool name, let's try to find pool object matching that name. */
+			for(list<Service*>::iterator all_services_it = services->begin(); all_services_it != services->end(); all_services_it++) {
+				/* Check if the found object has a matching name and ensure that its default HWLB is the same as of current pool. */
+				if ((*all_services_it)->name == backup_pool_name && (*all_services_it)->default_hwlb == (*service_it->first).default_hwlb) {
+
+					/* Append the service to "used by" field of backup_pool. */
+					(*all_services_it)->used_as_backup.push_back(service_it->first);
+
+					/* Use the servce as a backup_pool. */
+					service_it->first->backup_pool = (*all_services_it);
+					break;
+				}
+			}
+			/* Was an object found for this name? The first one will do just fine, stop searching. */
+			if (service_it->first->backup_pool) {
+				if (verbose>0)
+					cout << "Pool " << service_it->first->name << " uses backup_pool " << service_it->first->backup_pool->name << endl; 
+				break;
+			}
+		}
+	}
+
+	return services;
+}
+
+
+void main_loop(list<Service *> * services) {
+
+	/* Sleep time for the main loop:
+	    10 000 μs =  10ms = 100/s
+	   100 000 μs = 100ms =  10/s
+	 */
+	struct timeval interval;
+	interval.tv_sec  = 0;
+	interval.tv_usec = 10000;
+
+	while(run_main_loop) {
+		/* Iterate over all services and hosts and schedule tests. */
+		for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
+			(*service)->schedule_healthchecks();
+		}
+
+		event_base_loopexit(eventBase, &interval);
+		event_base_dispatch(eventBase);
+	}
+}
+
+
+void init_libevent() {
+	eventBase = event_base_new();
+	printf(" * libevent method: %s\n", event_base_get_method(eventBase));
+}
+
+
+void finish_libevent() {
+	event_base_free(eventBase);
+}
+
+
+int init_libssl() {
+	SSL_library_init (); 
+	SSL_load_error_strings (); 
+	OpenSSL_add_all_algorithms (); 
+
+	printf (" * OpenSSL version: %s\n", SSLeay_version (SSLEAY_VERSION) );
+
+	sctx = SSL_CTX_new (SSLv23_client_method ());
+	if (!sctx) {
+		return false;
+	}   
+
+	SSL_CTX_set_verify(sctx, SSL_VERIFY_NONE, NULL);
+
+	return true;
+}   
+
+
+void finish_libssl() {
+	EVP_cleanup();
+	ERR_free_strings();
+	SSL_CTX_free(sctx);
+}  
+
+
+void usage() {
+	cout << "Hi, I'm testtool-ng and my arguments are:" << endl;
+	cout << " -h  - helps you with this helpful help message" << endl;
+	cout << " -n  - do not perform any pfctl actions" << endl;
+	cout << " -v  - be verbose - display loaded services list" << endl;
+	cout << " -vv - be more verbose - display every scheduling of a test and test result" << endl;
+	cout << " -p  - display pfctl commands even if skipping pfctl actions" << endl;
+}
+
+
+int main (int argc, char *argv[]) {
+	show("Built on %s - %s %s\n", __HOSTNAME__, __DATE__, __TIME__);
+
+	list<Service *> * services = NULL;
+	srand(time(NULL));;
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGHUP, signal_handler);
+	signal(SIGPIPE, signal_handler);
+
+	int opt;
+	while ((opt = getopt(argc, argv, "hnpv")) != -1) {
+		switch (opt) {
+			case 'n':
+				pf_action = false;
+				break;
+			case 'v':
+				verbose++;
+				break;
+			case 'p':
+				verbose_pfctl++;
+				break;
+			case 'h':
+				usage();
+				exit(0);
+				break;
+		}
+	}
+
+
+	if (!init_libssl()) {
+		printf("Unable to initialise OpenSSL!\n");
+		exit(-1);
+	}
+	init_libevent();
+
+	/* Load services and healthchecks. */
+	ifstream config_file("/root/lb/services.conf.new");
+	services = load_services(config_file);
+	config_file.close();
+
+	cout << "Entering the main loop..." << endl;
+	main_loop(services);
+	cout << "Left the main loop." << endl;
+
+	cout << "Bye, see you next time!" << endl;
+
+	finish_libevent();
+	finish_libssl();
+}
+
