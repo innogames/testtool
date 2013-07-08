@@ -20,12 +20,6 @@ int timespec_diffms(struct timespec *a, struct timespec *b) {
 }
 
 
-int Healthcheck::schedule_healthcheck() {
-	cout << "dummy schedule healthcheck" << endl;
-	return false;
-}
-
-
 /*
    General constructor for Healthcheck objects.
    - read common parameters and set object's properties
@@ -100,7 +94,7 @@ Healthcheck *Healthcheck::healthcheck_factory(string &definition, class Service 
 }
 
 
-bool Healthcheck::can_run_now() {
+int Healthcheck::schedule_healthcheck() {
 	struct timespec now;
 
 	if (is_running)
@@ -113,6 +107,9 @@ bool Healthcheck::can_run_now() {
 
 	last_checked = now;
 	is_running = true;
+
+	if (verbose>1)
+		showStatus(CL_WHITE"%s"CL_RESET" - Scheduling healthcheck_%s %s:%u...\n", parent->name.c_str(), type.c_str(), address.c_str(), port);
 
 	return true;
 }
@@ -254,6 +251,6 @@ void Healthcheck::handle_result() {
 	}
 
 	/* Mark the check as not running, so it can be scheduled again. */
-	is_running=0;
+	is_running = false;
 }
 

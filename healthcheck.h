@@ -25,7 +25,6 @@ class Healthcheck {
 	public:
 		/* The check factory, which returns proper check object based its name. */
 		static Healthcheck *healthcheck_factory(string &definition, class Service &service);
-		bool can_run_now();
 		virtual int schedule_healthcheck();
 		Healthcheck(string &parameters, class Service &service);
 		void handle_result();

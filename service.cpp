@@ -30,11 +30,7 @@ Service::Service(string &name, int default_hwlb) {
 
 void Service::schedule_healthchecks() {
 	for(unsigned int i=0; i<healthchecks.size(); i++) {
-		if (healthchecks[i]->can_run_now()) {
-			if (verbose>1)
-				showStatus(CL_WHITE"%s"CL_RESET" - Scheduling healthcheck_%s %s:%u...\n", healthchecks[i]->parent->name.c_str(), healthchecks[i]->type.c_str(), healthchecks[i]->address.c_str(), healthchecks[i]->port);
-			healthchecks[i]->schedule_healthcheck();
-		}
+		healthchecks[i]->schedule_healthcheck();
 	}
 }
 
