@@ -52,6 +52,8 @@ Healthcheck::Healthcheck(string &definition, class Service &service) {
 	this->timeout.tv_sec   = 1;
 	this->timeout.tv_usec  = 500 * 1000;
 
+	this->downtime = false; /* The real value for this flag is set right after testtool is started. */
+
 	/* Check if the IP address is in pf table. This determines the initial state. */
 	if (pf_is_in_table(this->parent->name ,this->address)) {
 		this->last_state         = STATE_UP;
@@ -97,7 +99,8 @@ Healthcheck *Healthcheck::healthcheck_factory(string &definition, class Service 
 int Healthcheck::schedule_healthcheck() {
 	struct timespec now;
 
-	if (is_running)
+	/* Do not schedule the healthcheck twice nor when there is a downtime. */
+	if (is_running || downtime)
 		return false;
 
 	/* Check if host should be checked at this time. */
@@ -189,12 +192,14 @@ void Healthcheck::handle_result() {
 		
 		failure_counter++;
 
-		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - handle_check_result: "CL_RED"down for the %d time"CL_RESET"\n",
-			parent->name.c_str(), address.c_str(), port, failure_counter);
+		if (!downtime)
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - handle_check_result: "CL_RED"down for the %d time"CL_RESET"\n",
+				parent->name.c_str(), address.c_str(), port, failure_counter);
 
 		if (failure_counter >= max_failed_tests) {
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - handle_check_result: "CL_RED"permanenty down"CL_RESET"\n",
-				parent->name.c_str(), address.c_str(), port);
+			if (!downtime)
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - handle_check_result: "CL_RED"permanenty down"CL_RESET"\n",
+					parent->name.c_str(), address.c_str(), port);
 			hard_state = STATE_DOWN;
 			parent->healthchecks_ok--;
 
@@ -252,5 +257,46 @@ void Healthcheck::handle_result() {
 
 	/* Mark the check as not running, so it can be scheduled again. */
 	is_running = false;
+}
+
+
+/*
+   Start a downtime.
+*/
+void Healthcheck::start_downtime() {
+
+	/* Do not mark the node down twice. */
+	if (downtime)
+		return;
+	downtime = true;
+
+	showStatus(CL_WHITE"%s"CL_RESET" - Starting downtime for %s:%u...\n", parent->name.c_str(), address.c_str(), port);
+
+	/* If the node is in hard STATE_UP state at the moment, pretend there was a maximum
+	   number of failures and enforce handle_result to take care of performing the usual
+	   actions. Should there happen a normal handle_result later (as a result of a test
+	   running in the meantime), it will just see the node already down. If the node
+	   is not in hard STATE_UP state, the traffic to it is already stopped the usual way. */
+	if (hard_state == STATE_UP) {
+		last_state = STATE_DOWN;
+		failure_counter = max_failed_tests;
+		handle_result();
+	}
+}
+
+
+/*
+   End a downtime.
+*/
+void Healthcheck::end_downtime() {
+
+	/* Remove downtime only once. */
+	if (!downtime)
+		return;
+	
+	showStatus(CL_WHITE"%s"CL_RESET" - Ending downtime for %s:%u...\n", parent->name.c_str(), address.c_str(), port);
+
+	/* Make the service checkable again. */
+	downtime = false;
 }
 

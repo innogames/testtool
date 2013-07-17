@@ -28,6 +28,8 @@ class Healthcheck {
 		virtual int schedule_healthcheck();
 		Healthcheck(string &parameters, class Service &service);
 		void handle_result();
+		void start_downtime();
+		void end_downtime();
 
 	/* Members */
 	public:
@@ -44,6 +46,7 @@ class Healthcheck {
 		unsigned short		 extra_delay;      // Additional delay to spread tests uniformly (ms).
 		int			 max_failed_tests; // Take action only after this number of contiguous tests fail.
 		unsigned short		 failure_counter;  // This many tests have failed until now.
+		bool			 downtime;
 
 	protected:
 		string			 parameters;

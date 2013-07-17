@@ -4,6 +4,7 @@
 #include <sstream>
 #include <map>
 #include <vector>
+#include <set>
 
 #include <signal.h>
 
@@ -25,6 +26,7 @@ bool			 run_main_loop = true;
 int			 verbose = 0;
 int			 verbose_pfctl = 0;
 bool			 pf_action = true;
+bool			 check_downtimes = true; /* Start with true, so downtimes will be loaded on startup. */
 
 void signal_handler(int signum) {
 
@@ -41,6 +43,47 @@ void signal_handler(int signum) {
 		case SIGHUP: 
 			run_main_loop = false;
 			break;
+		case SIGUSR1:
+			check_downtimes = true;
+	}
+}
+
+
+/*
+   Load downtime list and dowtime specified nodes in a specified service.
+   A downtime means that:
+   - The specified nodes are immediately marked as "down" with all the consequences.
+   - They will not be tested anymore until the downtime is removed.
+   - After the downtime is removed, they will be subject to normal healthchecks before getting traffic again.
+*/
+void load_downtimes(list<Service *> * services) {
+
+	showStatus("Reloading downtime list.\n");
+
+	string line;
+
+	set<string> downtimes;
+
+	/* Read all the service-node pairs and store them. */
+	ifstream downtime_file("/tmp/testtool_downtimes");
+	if (downtime_file) {
+		while (getline(downtime_file, line)) {
+			downtimes.insert(line);
+		}
+		downtime_file.close();
+	} else {
+		showWarning("Could not load downtime list file.\n");
+	}
+
+	/* Iterate over all services and nodes, start downtime for the loaded ones, end for the ones not in the set. */
+	for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
+		for(unsigned int i=0; i<(*service)->healthchecks.size(); i++) {
+
+			if ( downtimes.count((*service)->name + " " + (*service)->healthchecks[i]->address) )
+				(*service)->healthchecks[i]->start_downtime();
+			else
+				(*service)->healthchecks[i]->end_downtime();
+		}
 	}
 }
 
@@ -158,6 +201,10 @@ void main_loop(list<Service *> * services) {
 	interval.tv_usec = 10000;
 
 	while(run_main_loop) {
+		if (check_downtimes) {
+			load_downtimes(services);
+			check_downtimes = false;
+		}
 		/* Iterate over all services and hosts and schedule tests. */
 		for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
 			(*service)->schedule_healthchecks();
@@ -225,6 +272,7 @@ int main (int argc, char *argv[]) {
 	signal(SIGTERM, signal_handler);
 	signal(SIGHUP, signal_handler);
 	signal(SIGPIPE, signal_handler);
+	signal(SIGUSR1, signal_handler);
 
 	int opt;
 	while ((opt = getopt(argc, argv, "hnpv")) != -1) {
