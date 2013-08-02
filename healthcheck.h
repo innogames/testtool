@@ -18,6 +18,34 @@
 #define CONNECTION_TIMEOUT 2
 #define CONNECTION_FAILED  3
 
+/* Those quite useful macros are available in sys/time.h but
+   only for _KERNEL, at least in FreeBSD. */
+#define	timespecclear(tvp)	((tvp)->tv_sec = (tvp)->tv_nsec = 0)
+#define	timespecisset(tvp)	((tvp)->tv_sec || (tvp)->tv_nsec)
+#define	timespeccmp(tvp, uvp, cmp)					\
+	(((tvp)->tv_sec == (uvp)->tv_sec) ?				\
+	    ((tvp)->tv_nsec cmp (uvp)->tv_nsec) :			\
+	    ((tvp)->tv_sec cmp (uvp)->tv_sec))
+#define timespecadd(vvp, uvp)						\
+	do {								\
+		(vvp)->tv_sec += (uvp)->tv_sec;				\
+		(vvp)->tv_nsec += (uvp)->tv_nsec;			\
+		if ((vvp)->tv_nsec >= 1000000000) {			\
+			(vvp)->tv_sec++;				\
+			(vvp)->tv_nsec -= 1000000000;			\
+		}							\
+	} while (0)
+#define timespecsub(vvp, uvp)						\
+	do {								\
+		(vvp)->tv_sec -= (uvp)->tv_sec;				\
+		(vvp)->tv_nsec -= (uvp)->tv_nsec;			\
+		if ((vvp)->tv_nsec < 0) {				\
+			(vvp)->tv_sec--;				\
+			(vvp)->tv_nsec += 1000000000;			\
+		}							\
+	} while (0)
+
+
 using namespace std;
 
 class Healthcheck {
@@ -41,7 +69,6 @@ class Healthcheck {
 		int			 port;    /* because they are often printed and libevent expects them to be char[] and int. */
 
 	private:
-		struct timespec		 last_checked;     // The last time this host was checked.
 		int			 check_interval;   // Perform a test every n seconds (s).
 		unsigned short		 extra_delay;      // Additional delay to spread tests uniformly (ms).
 		int			 max_failed_tests; // Take action only after this number of contiguous tests fail.
@@ -49,8 +76,9 @@ class Healthcheck {
 		bool			 downtime;
 
 	protected:
+		struct timespec		 last_checked;     // The last time this host was checked.
+		struct timespec		 timeout;
 		string			 parameters;
-		struct timeval		 timeout;
 		bool			 is_running;
 };
 

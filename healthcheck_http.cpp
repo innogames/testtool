@@ -84,7 +84,7 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 			if (EVUTIL_SOCKET_ERROR() == 36 || EVUTIL_SOCKET_ERROR() == 9) {
 				/* Connect timeout or connecting interrupted by libevent timeout. */
 				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"timeout after %d,%ds"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_usec/10000));
+						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
 			} else if (EVUTIL_SOCKET_ERROR() == 32) {
 				/* Connection refused on a ssl check. */
 				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"ssl connection refused"CL_RESET"\n",
@@ -155,7 +155,10 @@ int Healthcheck_http::schedule_healthcheck() {
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, address.c_str(), port);
 
-	evhttp_connection_set_timeout_tv(conn, &timeout);
+	struct timeval timeout_tv;
+	timeout_tv.tv_sec  = timeout.tv_sec;
+	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
+	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
 
 	req = evhttp_request_new(&callback, (void *)this);
 	evhttp_add_header(req->output_headers, "Host", address.c_str());
@@ -178,7 +181,10 @@ int Healthcheck_https::schedule_healthcheck() {
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, address.c_str(), port);
 
-	evhttp_connection_set_timeout_tv(conn, &timeout);
+	struct timeval timeout_tv;
+	timeout_tv.tv_sec  = timeout.tv_sec;
+	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
+	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
 
 	req = evhttp_request_new(&callback, (void *)this);
 	evhttp_add_header(req->output_headers, "Host", address.c_str());

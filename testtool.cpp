@@ -15,6 +15,7 @@
 
 #include "service.h"
 #include "healthcheck.h"
+#include "healthcheck_ping.h"
 #include "msg.h"
 
 using namespace std;
@@ -22,7 +23,6 @@ using namespace std;
 /* Global variables, some are exported to other modules. */
 struct event_base	*eventBase = NULL;
 SSL_CTX			*sctx = NULL;
-bool			 run_main_loop = true;
 int			 verbose = 0;
 int			 verbose_pfctl = 0;
 bool			 pf_action = true;
@@ -41,7 +41,7 @@ void signal_handler(int signum) {
 		   the program is fine as watchdog script will re-launch it.
 		*/
 		case SIGHUP: 
-			run_main_loop = false;
+			event_base_loopbreak(eventBase);
 			break;
 		case SIGUSR1:
 			check_downtimes = true;
@@ -190,29 +190,40 @@ list<Service*> * load_services(ifstream &config_file) {
 }
 
 
-void main_loop(list<Service *> * services) {
+void main_loop_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
 
-	/* Sleep time for the main loop:
-	    10 000 μs =  10ms = 100/s
-	   100 000 μs = 100ms =  10/s
+	list<Service *> * services = (list<Service *> *)arg;
+
+	if (check_downtimes) {
+		load_downtimes(services);
+		check_downtimes = false;
+	}
+	
+	/* Iterate over all services and hosts and schedule tests. */
+	for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
+		(*service)->schedule_healthchecks();
+	}
+}
+
+void main_loop(list<Service *> * services) {
+	struct event		*main_loop_event;
+	/*
+	   Sleep time for the main loop (by the way, using unicode micro sign breaks my vim).
+	    1 000 us =   1ms = 1000/s
+	   10 000 us =  10ms =  100/s
+	  100 000 us = 100ms =   10/s
 	 */
+	
 	struct timeval interval;
 	interval.tv_sec  = 0;
 	interval.tv_usec = 10000;
-
-	while(run_main_loop) {
-		if (check_downtimes) {
-			load_downtimes(services);
-			check_downtimes = false;
-		}
-		/* Iterate over all services and hosts and schedule tests. */
-		for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
-			(*service)->schedule_healthchecks();
-		}
-
-		event_base_loopexit(eventBase, &interval);
-		event_base_dispatch(eventBase);
-	}
+	
+	main_loop_event = event_new(eventBase, -1, EV_PERSIST, main_loop_callback, services);
+	event_add(main_loop_event, &interval);
+	event_base_dispatch(eventBase);
 }
 
 
@@ -299,6 +310,11 @@ int main (int argc, char *argv[]) {
 		exit(-1);
 	}
 	init_libevent();
+	
+	if (!Healthcheck_ping::initialize()) {
+		printf("Unable to initialize Healthcheck_ping!\n");
+		exit(-1);
+	}
 
 	/* Load services and healthchecks. */
 	ifstream config_file("/root/lb/services.conf.new");
@@ -313,5 +329,6 @@ int main (int argc, char *argv[]) {
 
 	finish_libevent();
 	finish_libssl();
+	Healthcheck_ping::destroy();
 }
 
