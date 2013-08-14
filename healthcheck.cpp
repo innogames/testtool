@@ -71,7 +71,9 @@ Healthcheck::Healthcheck(string &definition, class Service &service) {
 	}
 
 	if (verbose>0)
-		cout << "  New healthcheck: type:" << type << " address:" << address << ":" << port << " interval:" << this->check_interval << " max_fail:" << this->max_failed_tests << " current_state:" << (this->hard_state==STATE_DOWN?"D":"U") << " " << endl;
+		/* This is the general information so no newline here.
+		   The healthcheck constructor should write anything he has to to the screen and then write the newline */
+		cout << "  New healthcheck: type:" << type << " address:" << address << ":" << port << " interval:" << this->check_interval << " max_fail:" << this->max_failed_tests << " current_state:" << (this->hard_state==STATE_DOWN?"D":"U") << " ";
 }
 
 

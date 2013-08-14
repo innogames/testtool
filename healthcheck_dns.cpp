@@ -96,6 +96,9 @@ Healthcheck_dns::Healthcheck_dns(string &definition, class Service &service): He
 	getline(s_parameters, dns_query, ':');
 	this->dns_query = new char[dns_query.length()+1];
 	strcpy(this->dns_query, dns_query.c_str());
+
+	if (verbose>0)
+		cout << "query: " << dns_query << endl;
 }
 
 

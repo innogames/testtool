@@ -128,6 +128,9 @@ void Healthcheck_ping::destroy() {
 */
 Healthcheck_ping::Healthcheck_ping(string &definition, class Service &service): Healthcheck(definition, service) {
 	/* Oh wait, there are none for this test! */
+
+	if (verbose>0)
+		cout << endl;
 }
 
 
