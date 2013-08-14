@@ -312,13 +312,13 @@ int main (int argc, char *argv[]) {
 
 
 	if (!init_libssl()) {
-		printf("Unable to initialise OpenSSL!\n");
+		cerr << "Unable to initialise OpenSSL!" << endl;
 		exit(-1);
 	}
 	init_libevent();
 	
 	if (!Healthcheck_ping::initialize()) {
-		printf("Unable to initialize Healthcheck_ping!\n");
+		cerr << "Unable to initialize Healthcheck_ping!" << endl;
 		exit(-1);
 	}
 
