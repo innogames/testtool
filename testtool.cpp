@@ -265,11 +265,12 @@ void finish_libssl() {
 
 void usage() {
 	cout << "Hi, I'm testtool-ng and my arguments are:" << endl;
+	cout << " -f  - specify an alternate configuration file to load" << endl;
 	cout << " -h  - helps you with this helpful help message" << endl;
 	cout << " -n  - do not perform any pfctl actions" << endl;
+	cout << " -p  - display pfctl commands even if skipping pfctl actions" << endl;
 	cout << " -v  - be verbose - display loaded services list" << endl;
 	cout << " -vv - be more verbose - display every scheduling of a test and test result" << endl;
-	cout << " -p  - display pfctl commands even if skipping pfctl actions" << endl;
 }
 
 
@@ -285,17 +286,22 @@ int main (int argc, char *argv[]) {
 	signal(SIGPIPE, signal_handler);
 	signal(SIGUSR1, signal_handler);
 
+	string config_file_name = "/root/lb/services.conf.new";
+
 	int opt;
-	while ((opt = getopt(argc, argv, "hnpv")) != -1) {
+	while ((opt = getopt(argc, argv, "hnpvf:")) != -1) {
 		switch (opt) {
+			case 'f':
+				config_file_name = optarg;
+				break;
 			case 'n':
 				pf_action = false;
 				break;
-			case 'v':
-				verbose++;
-				break;
 			case 'p':
 				verbose_pfctl++;
+				break;
+			case 'v':
+				verbose++;
 				break;
 			case 'h':
 				usage();
@@ -317,7 +323,11 @@ int main (int argc, char *argv[]) {
 	}
 
 	/* Load services and healthchecks. */
-	ifstream config_file("/root/lb/services.conf.new");
+	ifstream config_file(config_file_name.c_str());
+	if (!config_file) {
+		cerr << "Unable to load configuration file!" << endl;
+		exit(-1);
+	}
 	services = load_services(config_file);
 	config_file.close();
 
