@@ -88,8 +88,6 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 Healthcheck_dns::Healthcheck_dns(string &definition, class Service &service): Healthcheck(definition, service) {
 	std::stringstream s_parameters(parameters);
 
-	port = 53;
-
 	/* Read record type. */
 	std::string dns_query;
 
@@ -120,7 +118,14 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
 
-		if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
+		if (bytes_received == -1) {
+			/* This happens when the target host is not in the arp table and therefore nothing was even sent to it.
+			   Although sending send() returns no error. */
+			healthcheck->last_state = STATE_DOWN;
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"connection rejected"CL_RESET"\n",
+					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+		}
+		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* There should be at least dns_header received. */
 			healthcheck->last_state = STATE_DOWN;
 			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"received malformed data"CL_RESET"\n",
@@ -210,8 +215,11 @@ int Healthcheck_dns::schedule_healthcheck() {
 	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
 
 	/* Create an event and make it pending. */
+	struct timeval timeout_tv;
+	timeout_tv.tv_sec  = timeout.tv_sec;
+	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
 	ev = event_new(eventBase, socket_fd, EV_READ|EV_TIMEOUT, Healthcheck_dns::callback, this);
-	event_add(ev, NULL);
+	event_add(ev, &timeout_tv);
 
 	/* On connected socket we use send, not sendto. */
 	if (send(socket_fd, (void *) raw_packet, total_length, 0)<0)
