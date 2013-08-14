@@ -7,7 +7,7 @@ LDFLAGS=-L/usr/local/lib
 #DLIBS=-lssl -lcrypto -levent
 DLIBS=-lssl -lcrypto
 SLIBS=/opt/libevent/lib/libevent_core.a /opt/libevent/lib/libevent.a /opt/libevent/lib/libevent_openssl.a
-ALLOBJS=testtool.o service.o healthcheck.o healthcheck_http.o healthcheck_ping.o msg.o pfctl.o
+ALLOBJS=testtool.o service.o healthcheck.o healthcheck_http.o healthcheck_ping.o healthcheck_dns.o msg.o pfctl.o
 
 all: testtool
 
@@ -33,6 +33,7 @@ service.o: service.cpp service.h healthcheck.h healthcheck_*.h msg.h pfctl.h
 healthcheck.o: healthcheck.cpp healthcheck.h service.h msg.h pfctl.h healthcheck_*.h
 healthcheck_http.o: healthcheck_http.cpp healthcheck_http.h healthcheck.h service.h msg.h
 healthcheck_ping.o: healthcheck_ping.cpp healthcheck_ping.h healthcheck.h service.h msg.h
+healthcheck_dns.o: healthcheck_dns.cpp healthcheck_dns.h healthcheck.h service.h msg.h
 msg.o: msg.cpp msg.h
 
 #tick.o: tick.c tick.h

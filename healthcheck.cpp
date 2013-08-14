@@ -8,6 +8,7 @@
 #include "healthcheck.h"
 #include "healthcheck_http.h"
 #include "healthcheck_ping.h"
+#include "healthcheck_dns.h"
 
 using namespace std;
 
@@ -97,6 +98,8 @@ Healthcheck *Healthcheck::healthcheck_factory(string &definition, class Service 
 		new_healthcheck = new Healthcheck_https(definition, service);
 	else if (type=="ping")
 		new_healthcheck = new Healthcheck_ping(definition, service);
+	else if (type=="dns")
+		new_healthcheck = new Healthcheck_dns(definition, service);
 
 	return new_healthcheck;
 }
