@@ -190,6 +190,10 @@ list<Service*> * load_services(ifstream &config_file) {
 }
 
 
+/*
+   The real main loop happens here. The function goes over all services
+   and schedules the healthchecks to run.
+*/
 void main_loop_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */
 	(void)(fd);
@@ -208,21 +212,63 @@ void main_loop_callback(evutil_socket_t fd, short what, void *arg) {
 	}
 }
 
-void main_loop(list<Service *> * services) {
-	struct event		*main_loop_event;
+/*
+   Dump status to file. The status consists of:
+   - Pools with no nodes to serve the traffic.
+*/
+void dump_status_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
+
+	char buf[128];
+	struct timeval  tv;
+	struct tm      *tm;
+
+	list<Service *> * services = (list<Service *> *)arg;
+
+	ofstream status_file("/var/log/testtool.status",  ios_base::out |  ios_base::trunc);
+
+	gettimeofday(&tv, NULL);
+	tm = localtime(&tv.tv_sec);
+	strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S\0", tm);
+
+	status_file << "Testtool's log, stardate " << buf << ". Our mission is services' high availability." << endl;
+
+	/* Iterate over all services and write status of each one to the file. */
+	for(list<Service*>::iterator service = services->begin(); service != services->end(); service++) {
+		status_file << "service: " << (*service)->name;
+		status_file << " nodes_alive: " << (*service)->count_live_nodes();
+		status_file << " backup_pool: "  << ( (*service)->backup_pool ? ((*service)->switched_to_backup ? "active" : "configured") : "none" );
+		status_file << endl;
+	}
+
+	 status_file.close();
+}
+
+
+void setup_events(list<Service *> * services) {
 	/*
 	   Sleep time for the main loop (by the way, using unicode micro sign breaks my vim).
 	    1 000 us =   1ms = 1000/s
 	   10 000 us =  10ms =  100/s
 	  100 000 us = 100ms =   10/s
 	 */
-	
-	struct timeval interval;
-	interval.tv_sec  = 0;
-	interval.tv_usec = 10000;
-	
-	main_loop_event = event_new(eventBase, -1, EV_PERSIST, main_loop_callback, services);
-	event_add(main_loop_event, &interval);
+
+	/* Run the main loop multiple times per second. */
+	struct timeval main_loop_interval;
+	main_loop_interval.tv_sec  = 0;
+	main_loop_interval.tv_usec = 10000;
+	struct event *main_loop_event = event_new(eventBase, -1, EV_PERSIST, main_loop_callback, services);
+	event_add(main_loop_event, &main_loop_interval);
+
+	/* Dump the status to a file every 45 seconds */
+	struct timeval dump_status_interval;
+	dump_status_interval.tv_sec  = 45;
+	dump_status_interval.tv_usec = 0;
+	struct event *dump_status_event = event_new(eventBase, -1, EV_PERSIST, dump_status_callback, services);
+	event_add(dump_status_event, &dump_status_interval);
+
 	event_base_dispatch(eventBase);
 }
 
@@ -332,7 +378,7 @@ int main (int argc, char *argv[]) {
 	config_file.close();
 
 	cout << "Entering the main loop..." << endl;
-	main_loop(services);
+	setup_events(services);
 	cout << "Left the main loop." << endl;
 
 	cout << "Bye, see you next time!" << endl;

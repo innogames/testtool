@@ -35,3 +35,17 @@ void Service::schedule_healthchecks() {
 }
 
 
+/*
+   Count nodes in hard STATE_UP state.
+*/
+int Service::count_live_nodes() {
+	int ret = 0;
+	for(unsigned int hc=0; hc<healthchecks.size(); hc++) {
+		if (healthchecks[hc]->hard_state == STATE_UP)
+			ret++;
+	}
+
+	return ret;
+}
+
+

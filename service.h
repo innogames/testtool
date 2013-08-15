@@ -13,6 +13,7 @@ class Service {
 	public:
 		Service(std::string &name, int default_hwlb);
 		void schedule_healthchecks();
+		int count_live_nodes();
 
 	/* Members */
 	public:
