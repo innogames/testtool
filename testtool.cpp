@@ -165,10 +165,9 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 
 
 /*
-   The real main loop happens here. The function goes over all pools
-   and schedules the healthchecks to run.
+   This function schedules healthchecks on all lbnodes.
 */
-void main_loop_callback(evutil_socket_t fd, short what, void *arg) {
+void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */
 	(void)(fd);
 	(void)(what);
@@ -184,13 +183,25 @@ void main_loop_callback(evutil_socket_t fd, short what, void *arg) {
 	for(list<LbPool*>::iterator lbpool = lbpools->begin(); lbpool != lbpools->end(); lbpool++) {
 		(*lbpool)->schedule_healthchecks();
 	}
+}
+
+
+/*
+   This function parses results of healthchecks for all lbpools.
+*/
+void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
+
+	list<LbPool *> *lbpools = (list<LbPool *> *)arg;
 
 	/* Iterate over all lbpools parse healthcheck results. */
 	for(list<LbPool*>::iterator lbpool = lbpools->begin(); lbpool != lbpools->end(); lbpool++) {
 		(*lbpool)->parse_healthchecks_results();
 	}
-
 }
+
 
 /*
    Dump status to file. The status consists of:
@@ -235,12 +246,19 @@ void setup_events(list<LbPool *> * lbpools) {
 	  100 000 us = 100ms =   10/s
 	 */
 
-	/* Run the main loop multiple times per second. */
-	struct timeval main_loop_interval;
-	main_loop_interval.tv_sec  = 0;
-	main_loop_interval.tv_usec = 10000;
-	struct event *main_loop_event = event_new(eventBase, -1, EV_PERSIST, main_loop_callback, lbpools);
-	event_add(main_loop_event, &main_loop_interval);
+	/* Run the healthcheck scheduler multiple times per second. */
+	struct timeval healthcheck_scheduler_interval;
+	healthcheck_scheduler_interval.tv_sec  = 0;
+	healthcheck_scheduler_interval.tv_usec = 10000;
+	struct event *healthcheck_scheduler_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_scheduler_callback, lbpools);
+	event_add(healthcheck_scheduler_event, &healthcheck_scheduler_interval);
+
+	/* Run the healthcheck result parser multiple times per second. */
+	struct timeval healthcheck_parser_interval;
+	healthcheck_parser_interval.tv_sec  = 0;
+	healthcheck_parser_interval.tv_usec = 100000;
+	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, lbpools);
+	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
 
 	/* Dump the status to a file every 45 seconds */
 	struct timeval dump_status_interval;
