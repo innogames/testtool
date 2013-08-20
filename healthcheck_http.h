@@ -2,6 +2,7 @@
 #define _CHECK_HTTP_HPP_
 
 #include <vector>
+#include <sstream>
 
 #include <event2/http.h>
 #include <event2/http_struct.h>
@@ -11,7 +12,7 @@
 
 class Healthcheck_http: public Healthcheck {
 	public:
-		Healthcheck_http(string &definition, class Service &service);
+		Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode);
 		static void check_http_callback(struct evhttp_request *req, void *arg);
 		int schedule_healthcheck();
 
@@ -29,7 +30,7 @@ class Healthcheck_http: public Healthcheck {
 
 class Healthcheck_https: public Healthcheck_http {
 	public:
-		Healthcheck_https(string &definition, class Service &service);
+		Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode);
 		int schedule_healthcheck();
 
 	private:

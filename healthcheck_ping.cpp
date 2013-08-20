@@ -15,6 +15,8 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "lb_pool.h"
+#include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_ping.h"
 #include "msg.h"
@@ -126,7 +128,7 @@ void Healthcheck_ping::destroy() {
 /*
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
-Healthcheck_ping::Healthcheck_ping(string &definition, class Service &service): Healthcheck(definition, service) {
+Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("ping"), _parent_lbnode) {
 	/* Oh wait, there are none for this test! */
 
 	if (verbose>0)
@@ -211,8 +213,8 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 			return;
 
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"Received a Destination Unreachable message, seq: %d."CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), ntohs(icmp_packet->icmp_header.icmp_seq));
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"Received a Destination Unreachable message, seq: %d."CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_DOWN;
 		healthcheck->handle_result();
@@ -239,8 +241,8 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
 
 		if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_GREEN"got ICMP Echo Reply in: %d.%dms, seq: %d"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), ms_full, ms_dec, ntohs(icmp_packet->icmp_header.icmp_seq));
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_GREEN"got ICMP Echo Reply in: %d.%dms, seq: %d"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ms_full, ms_dec, ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_UP;
 		healthcheck->handle_result();
@@ -266,8 +268,8 @@ int Healthcheck_ping::schedule_healthcheck() {
 
 		if (timespeccmp(&timediff, &timeout ,> )) {
 			if (verbose>1 || hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
-						parent->name.c_str(), address.c_str(), port, type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
+						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
 
 			ping_my_seq = 0;	
 			last_state = STATE_DOWN;
@@ -308,7 +310,7 @@ int Healthcheck_ping::schedule_healthcheck() {
 	/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
 	memset(&to_addr, 0, sizeof(sockaddr_in));
 	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(address.c_str());
+	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
 	to_addr.sin_port = htons(port);
 
 	/* Send the echo request. */

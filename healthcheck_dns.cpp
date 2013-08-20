@@ -18,6 +18,8 @@
 #include <arpa/nameser.h>
 #include <arpa/nameser_compat.h>
 
+#include "lb_pool.h"
+#include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_dns.h"
 #include "msg.h"
@@ -85,13 +87,15 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 /*
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
-Healthcheck_dns::Healthcheck_dns(string &definition, class Service &service): Healthcheck(definition, service) {
-	std::stringstream s_parameters(parameters);
+Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("dns"), _parent_lbnode) {
+
+	/* The string "parameters" was filled in by Healthcheck constructor, now turing it into a stream to read all the params. */
+	istringstream ss_parameters(parameters);
 
 	/* Read record type. */
 	std::string dns_query;
 
-	getline(s_parameters, dns_query, ':');
+	getline(ss_parameters, dns_query, ':');
 	this->dns_query = new char[dns_query.length()+1];
 	strcpy(this->dns_query, dns_query.c_str());
 
@@ -112,8 +116,8 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 
 	if (what & EV_TIMEOUT) {
 		healthcheck->last_state = STATE_DOWN;
-		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"timeout after %d,%ds"CL_RESET"\n",
-			healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
+		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds"CL_RESET"\n",
+			healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
@@ -122,31 +126,31 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			/* This happens when the target host is not in the arp table and therefore nothing was even sent to it.
 			   Although sending send() returns no error. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"connection rejected"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection rejected"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* There should be at least dns_header received. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"received malformed data"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received malformed data"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
 			/* No answers means that the server knows nothing about the domain. Therefore it fails the test. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"received no DNS answers"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received no DNS answers"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id ) {
 			/* Received transaction id must be the same as in the last query sent to the server. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"received wrong transaction id"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received wrong transaction id"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		} else {
 			/* Finally it seems that all is fine. */
 			if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_GREEN"received a DNS answer"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_GREEN"received a DNS answer"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 			healthcheck->last_state = STATE_UP; /* Service is UP */
 
 			/*
@@ -199,7 +203,7 @@ int Healthcheck_dns::schedule_healthcheck() {
 	/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
 	memset(&to_addr, 0, sizeof(sockaddr_in));
 	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(address.c_str());
+	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
 	to_addr.sin_port = htons(port);
 
 	/* Create a socket. */

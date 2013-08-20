@@ -2,6 +2,7 @@
 #define _CHECK_DNS_H_
 
 #include <vector>
+#include <sstream>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
@@ -50,7 +51,7 @@ struct dns_header {
 
 class Healthcheck_dns: public Healthcheck {
 	public:
-		Healthcheck_dns(string &definition, class Service &service);
+		Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode);
 		int schedule_healthcheck();
 
 	protected:

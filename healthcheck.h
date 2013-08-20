@@ -2,11 +2,12 @@
 #define _HEALTHCHECK_H_
 
 #include <iostream>
+#include <sstream>
 
 #include <event2/event.h>
 #include <netinet/in.h>
 
-#include "service.h"
+#include "lb_node.h"
 
 #define STATE_DOWN       0
 #define STATE_UP         1
@@ -52,34 +53,31 @@ class Healthcheck {
 	/* Methods */
 	public:
 		/* The check factory, which returns proper check object based its name. */
-		static Healthcheck *healthcheck_factory(string &definition, class Service &service);
+		static Healthcheck *healthcheck_factory(istringstream &definition, class LbNode *_parent_lbnode);
 		virtual int schedule_healthcheck();
-		Healthcheck(string &parameters, class Service &service);
+		Healthcheck(istringstream &definition, string _type, class LbNode *_parent_lbnode);
 		void handle_result();
-		void start_downtime();
-		void end_downtime();
+		void downtime_failure();
 
 	/* Members */
 	public:
-		class Service		*parent;
+		class LbNode		*parent_lbnode;
 		char			 last_state;
 		char			 hard_state;
 		string			 type;
-		string			 address; /* Address and port are not of any "network" type */
-		int			 port;    /* because they are often printed and libevent expects them to be char[] and int. */
 
 	private:
 		int			 check_interval;   // Perform a test every n seconds (s).
 		unsigned short		 extra_delay;      // Additional delay to spread tests uniformly (ms).
 		int			 max_failed_tests; // Take action only after this number of contiguous tests fail.
 		unsigned short		 failure_counter;  // This many tests have failed until now.
-		bool			 downtime;
 
 	protected:
+		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timespec		 timeout;
-		string			 parameters;
 		bool			 is_running;
+		string			 parameters;
 };
 
 #endif

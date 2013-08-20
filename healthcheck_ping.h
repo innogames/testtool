@@ -2,6 +2,7 @@
 #define _CHECK_PING_H_
 
 #include <vector>
+#include <sstream>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
@@ -27,7 +28,7 @@ struct icmp_echo_struct {
 
 class Healthcheck_ping: public Healthcheck {
 	public:
-		Healthcheck_ping(string &definition, class Service &service);
+		Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode);
 		int schedule_healthcheck();
 		static int initialize();
 		static void destroy();

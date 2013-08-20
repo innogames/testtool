@@ -8,6 +8,8 @@
 #include <event2/bufferevent_ssl.h>
 #include <openssl/ssl.h>
 
+#include "lb_pool.h"
+#include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_http.h"
 #include "msg.h"
@@ -21,19 +23,20 @@ extern int			 verbose;
 /*
    Constructor for HTTP healthcheck. Parses http(s)-specific parameters.
 */
-Healthcheck_http::Healthcheck_http(string &definition, class Service &service): Healthcheck(definition, service) {
+Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("http"), _parent_lbnode) {
 
-	std::stringstream s_parameters(parameters);
+	/* The string "parameters" was filled in by Healthcheck constructor, now turing it into a stream to read all the params. */
+	istringstream ss_parameters(parameters);
 
 	/* Read test URL. */
 	std::string url;
-	getline(s_parameters, url, ':');
+	getline(ss_parameters, url, ':');
 	this->url = new char[url.length()+1];
 	strcpy(this->url, url.c_str());
 
 	/* Read the list of OK HTTP codes. */
 	std::string st_http_ok_codes; 
-	getline(s_parameters, st_http_ok_codes, ':');
+	getline(ss_parameters, st_http_ok_codes, ':');
 
 	/* Split the list by ".", convert each element to int and copy it into a vector. */
 	stringstream ss_http_ok_codes(st_http_ok_codes);
@@ -42,7 +45,8 @@ Healthcheck_http::Healthcheck_http(string &definition, class Service &service): 
 		http_ok_codes.push_back(atoi(http_ok_code.c_str()));
 
 	if (verbose>0) {
-		cout << "http_ok_codes:";
+		cout << "url:" << url;
+		cout << " http_ok_codes:";
 		for (unsigned int i = 0; i<http_ok_codes.size(); i++)
 			cout << (int)http_ok_codes[i] << ",";
 		cout << endl;
@@ -52,7 +56,7 @@ Healthcheck_http::Healthcheck_http(string &definition, class Service &service): 
 /*
    Constructor for HTTPS healthcheck. It only calls HTTP constructor. Now that's what I call inheritance!
 */
-Healthcheck_https::Healthcheck_https(string &definition, class Service &service): Healthcheck_http(definition, service) {
+Healthcheck_https::Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck_http(definition, _parent_lbnode) {
 
 }
 
@@ -83,23 +87,23 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 
 			if (EVUTIL_SOCKET_ERROR() == 36 || EVUTIL_SOCKET_ERROR() == 9) {
 				/* Connect timeout or connecting interrupted by libevent timeout. */
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"timeout after %d,%ds"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
 			} else if (EVUTIL_SOCKET_ERROR() == 32) {
 				/* Connection refused on a ssl check. */
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"ssl connection refused"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"ssl connection refused"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 			} else if (EVUTIL_SOCKET_ERROR() == 54) {
 				/* Connection refused. */
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"connection refused"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection refused"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 			} else if (EVUTIL_SOCKET_ERROR() == 64) {
 				/* Host down immediately reported by system. */
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"host down"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"host down"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 			} else {
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"other error (socket error: %d)"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR());
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"other error (socket error: %d)"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR());
 			}
 
 		}
@@ -109,8 +113,8 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 		healthcheck->last_state = STATE_DOWN;
 
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN) {
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"http protocol error"CL_RESET"\n",
-					healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"http protocol error"CL_RESET"\n",
+					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 
 	} else { /* The http request finished properly. */
@@ -123,8 +127,8 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 			if (req->response_code == healthcheck->http_ok_codes[i]) {
 
 				if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-					showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_GREEN"good HTTP code: %ld"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
+					showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_GREEN"good HTTP code: %ld"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
 
 				healthcheck->last_state = STATE_UP; /* Service is UP */
 				break;
@@ -135,8 +139,8 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 		if (i == healthcheck->http_ok_codes.size()) {
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN) {
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - healthcheck_%s "CL_RED"bad HTTP code: %ld"CL_RESET"\n",
-						healthcheck->parent->name.c_str(), healthcheck->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"bad HTTP code: %ld"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
 			}
 		}
 	}
@@ -153,7 +157,7 @@ int Healthcheck_http::schedule_healthcheck() {
 
 	bev = bufferevent_socket_new ( eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
 
-	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, address.c_str(), port);
+	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;
@@ -161,7 +165,7 @@ int Healthcheck_http::schedule_healthcheck() {
 	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
 
 	req = evhttp_request_new(&callback, (void *)this);
-	evhttp_add_header(req->output_headers, "Host", address.c_str());
+	evhttp_add_header(req->output_headers, "Host", parent_lbnode->address.c_str());
 	evhttp_add_header(req->output_headers, "Connection", "close");
 
 	evhttp_make_request(conn, req, EVHTTP_REQ_HEAD, url);
@@ -179,7 +183,7 @@ int Healthcheck_https::schedule_healthcheck() {
 	ssl = SSL_new (sctx);
 	bev = bufferevent_openssl_socket_new ( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS );
 
-	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, address.c_str(), port);
+	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;
@@ -187,7 +191,7 @@ int Healthcheck_https::schedule_healthcheck() {
 	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
 
 	req = evhttp_request_new(&callback, (void *)this);
-	evhttp_add_header(req->output_headers, "Host", address.c_str());
+	evhttp_add_header(req->output_headers, "Host", parent_lbnode->address.c_str());
 	evhttp_add_header(req->output_headers, "Connection", "close");
 
 	evhttp_make_request(conn, req, EVHTTP_REQ_HEAD, url);
