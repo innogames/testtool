@@ -104,7 +104,7 @@ require_pf_table_equals () {
 		[ $ret -eq 0 ] && return 0
 	done
 
-	[ $VERBOSE ] && ( echo "diff for table $1 said:" ; cat /tmp/testtooltests_pfctl_tablediff )
+	[ $VERBOSE ] && ( echo "diff for table $table said:" ; cat /tmp/testtooltests_pfctl_tablediff )
 
 	return 1
 }

@@ -9,7 +9,17 @@ fi
 export ALL_TESTS=0
 export OK_TESTS=0
 
-killall testtool 2> /dev/null
+# Kill original testtool, should there be any
+TT_SCCOMM="screen -dmS testtool -s /root/lb/testtool.sh"
+TT_WDCOMM="/bin/sh /root/lb/testtool.sh"
+
+TT_SCPID=`pgrep -f "^${TT_SCCOMM}$"`
+TT_WDPID=`pgrep -f "^${TT_WDCOMM}$"`
+TT_TTPID=`pgrep -f '^/root(/lb)?/testtool$'`
+
+[ "$TT_SCPID" ] && kill -9 $TT_SCPID
+[ "$TT_WDPID" ] && kill -9 $TT_WDPID
+[ "$TT_TTPID" ] && kill $TT_TTPID
 
 for i in tests/*sh; do
 	ALL_TESTS=$(($ALL_TESTS+1))
