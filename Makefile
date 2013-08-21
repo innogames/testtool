@@ -27,6 +27,9 @@ clean:
 #	@echo '@' the name of the target: $@
 #	$(LD) $(LDFLAGS) $(LIBS) $(DLIBS) $(SLIBS) $(ALLOBJS) -o $@
 
+test:
+	./runtests.sh
+
 	
 testtool.o: testtool.cpp lb_pool.h lb_node.h healthcheck.h healthcheck_*.h msg.h
 lb_pool: lb_pool.cpp lb_pool.h lb_node.h msg.h
