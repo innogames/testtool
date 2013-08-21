@@ -64,6 +64,12 @@ void LbNode::parse_healthchecks_results() {
 	unsigned int all_healthchecks = healthchecks.size();
 	unsigned int ok_healthchecks = 0;
 
+	/* Some typs of healthchecks might require additional work to fully finish their job.
+	   This is particulary true for ping test which requires manual intervetion to check for timeouts. */
+	for (unsigned int hc=0; hc<all_healthchecks; hc++) {
+		healthchecks[hc]->finalize_result();
+	}
+
 	/* If a downtime is scheduled, pretend that all healthchecks have failed. */
 	if (downtime == true)
 		ok_healthchecks = 0;

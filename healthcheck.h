@@ -60,6 +60,7 @@ class Healthcheck {
 		Healthcheck(istringstream &definition, string _type, class LbNode *_parent_lbnode);
 		void handle_result();
 		void force_failure();
+		virtual void finalize_result();
 
 
 	/* Members */

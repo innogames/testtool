@@ -35,6 +35,8 @@ class Healthcheck_ping: public Healthcheck {
 		int schedule_healthcheck();
 		static int initialize();
 		static void destroy();
+		void finalize_result();
+
 
 	protected:
 		static void callback(evutil_socket_t fd, short what, void *arg);

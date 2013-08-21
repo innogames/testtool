@@ -249,36 +249,36 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 
 
 /*
-   The "schedule" method differs for ping healthcheck from the usual one.
-   Due to lack of possibility to use typical libevent timeout mechanism,
-   a manual healthcheck on timeout is performed.
+   Due to lack of possibility to use typical libevent timeout mechanism on raw sockets,
+   it is necessary to check timeout of this healthcheck manually.
 */
+void Healthcheck_ping::finalize_result() {
+	struct timespec now;
+
+	/* Check for timeouts only for checks that are still running. */
+	if (is_running == false)
+		return;
+
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	timespecsub(&now, &last_checked);
+
+	if (timespeccmp(&now, &timeout ,> )) {
+		if (verbose>1 || hard_state != STATE_DOWN)
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
+					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
+		ping_my_seq = 0;
+		last_state = STATE_DOWN;
+		handle_result();
+	}
+}
+
+
 int Healthcheck_ping::schedule_healthcheck() {
 	struct sockaddr_in	 to_addr;
 	struct icmp_echo_struct	 echo_request;
 
-	struct timespec		 timediff;
 	struct timespec		 now;
-
-	/* Special case for raw sockets where no proper timeout callback is possible.
-	   Check when was the last ping sent for this Healthcheck instance and generate a timeout error if too much time has passed. */
-	if (is_running) {
-		clock_gettime(CLOCK_MONOTONIC, &now);
-		timediff = now; /* Don't break "now", it is needed later. */
-
-		timespecsub(&timediff, &last_checked);
-
-		if (timespeccmp(&timediff, &timeout ,> )) {
-			if (verbose>1 || hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
-						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
-
-			ping_my_seq = 0;
-			last_state = STATE_DOWN;
-			handle_result();
-			return false;
-		}
-	}
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck() == false)

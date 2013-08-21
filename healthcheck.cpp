@@ -148,6 +148,14 @@ int Healthcheck::schedule_healthcheck() {
 
 
 /*
+   This metod allows the check to have some final thoughts on its result.
+*/
+void Healthcheck::finalize_result() {
+	/* Nothing to do here, it is used only for some types of healthchecks. */
+}
+
+
+/*
    This method handles the change betwen UP and DOWN hard_state.
    It performs no pf actions, this is to be done via lb_node or lb_pool!
 */
