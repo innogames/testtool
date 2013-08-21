@@ -4,15 +4,17 @@
 
 #include <errno.h>
 
+#include <openssl/ssl.h>
+
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
-#include <openssl/ssl.h>
+
+#include "msg.h"
 
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_http.h"
-#include "msg.h"
 
 using namespace std;
 
@@ -20,15 +22,16 @@ extern struct event_base	*eventBase;
 extern SSL_CTX			*sctx;
 extern int			 verbose;
 
+
 /*
    Constructor for HTTP healthcheck. Parses http(s)-specific parameters.
 */
 Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("http"), _parent_lbnode) {
 
-	/* The string "parameters" was filled in by Healthcheck constructor, now turing it into a stream to read all the params. */
+	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
 	istringstream ss_parameters(parameters);
 
-	/* Read test URL. */
+	/* Read healthcheck URL. */
 	std::string url;
 	getline(ss_parameters, url, ':');
 	this->url = new char[url.length()+1];
@@ -52,6 +55,7 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 		cout << endl;
 	}
 }
+
 
 /*
    Constructor for HTTPS healthcheck. It only calls HTTP constructor. Now that's what I call inheritance!

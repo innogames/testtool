@@ -34,7 +34,7 @@ void signal_handler(int signum) {
 
 	switch (signum) {
 		case SIGPIPE:
-			/* This will happen on failed SSL tests. */
+			/* This will happen on failed SSL checks. */
 			break;
 		case SIGTERM:
 		case SIGINT:
@@ -55,7 +55,7 @@ void signal_handler(int signum) {
    Load downtime list and dowtime specified nodes in a specified lbpool.
    A downtime means that:
    - The specified nodes are immediately marked as "down" with all the consequences.
-   - They will not be tested anymore until the downtime is removed.
+   - They will not be checked anymore until the downtime is removed.
    - After the downtime is removed, they will be subject to normal healthchecks before getting traffic again.
 */
 void load_downtimes(list<LbPool *> * lbpools) {
@@ -120,9 +120,12 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 
 		istr_line >> command;
 
+		/* For all the types of objects created, pass the istr_line to them.
+		   They can read next parameters from it after we have read the first word. */
 		if (command=="pool") {
 			new_lbpool = new LbPool(istr_line);
 			lbpools->push_back(new_lbpool);
+			/* Insert mapping of name (string) to lbpool (object). */
 			lbpool_name_to_lbpool_obj.insert(pair<string, LbPool*>(new_lbpool->name,new_lbpool));
 		}
 		else if (command=="node") {
@@ -137,15 +140,16 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 		}
 	}
 
-	/* Iterate over all configured lbpools. */
+	/* Fill in lbpool->backup_pool and lbpool->used_as_backup.
+	   For all lbpools... */
 	for(list<LbPool*>::iterator lbpool_it = lbpools->begin(); lbpool_it != lbpools->end(); lbpool_it++) {
 		
-		/* Iterate over all possible backup_lb_pools proposed for this lb_pool.
+		/* ... iterate over all possible backup_lb_pools proposed for this lb_pool.
 		   There can be multiple of them and some might be on other HWLBs!  */
 		stringstream ss_backup_pools_names((*lbpool_it)->backup_pool_names);
 		string s_backup_pool_name;
 		while(getline(ss_backup_pools_names, s_backup_pool_name, ',')) {
-			/* */
+			/* Get the object from name-to-object map. */
 			LbPool *proposed_backup_pool = lbpool_name_to_lbpool_obj[s_backup_pool_name];
 
 			/* Pick the first one located on proper HWLB. */
@@ -155,9 +159,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 				proposed_backup_pool->used_as_backup.push_back((*lbpool_it));
 				break;
 			}
-
 		}
-
 	}
 
 	return lbpools;
@@ -187,7 +189,7 @@ void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
 
 
 /*
-   This function parses results of healthchecks for all lbpools.
+   This function parses the results of healthchecks for all lbpools.
 */
 void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */

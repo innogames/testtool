@@ -16,7 +16,7 @@
 */
 #define DNS_BUFFER_SIZE 512
 
-/* All the structs and defines come from libdns. */
+/* This struct comes from libdns. */
 struct dns_header {
 		unsigned qid:16;
 
@@ -50,20 +50,27 @@ struct dns_header {
 
 
 class Healthcheck_dns: public Healthcheck {
+
+	/* Methods */
 	public:
 		Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode);
-		int schedule_healthcheck();
 
 	protected:
 		static void callback(evutil_socket_t fd, short what, void *arg);
 
+
+	/* Members */
+	public:
+		int schedule_healthcheck();
+
 	private:
-		/* Some variables and functions are static for all dns healthchecks. */
 		int		 socket_fd;
 		struct event	*ev;
 		char		*dns_query;
-		static uint16_t	 global_transaction_id;
+
+		/* Each check is run with different transaction id. */
 		uint16_t	 my_transaction_id;
+		static uint16_t	 global_transaction_id;
 
 };
 

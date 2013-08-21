@@ -15,11 +15,12 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "msg.h"
+
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_ping.h"
-#include "msg.h"
 
 using namespace std;
 
@@ -27,7 +28,7 @@ extern struct event_base	*eventBase;
 extern int			 verbose;
 
 
-/* In the .h file there are only declarations, here we have definitions. */
+/* In the .h file there are only declarations of static variables, here we have definitions. */
 int			 Healthcheck_ping::socket_fd;
 struct event		*Healthcheck_ping::ev;
 uint16_t		 Healthcheck_ping::ping_id;
@@ -115,7 +116,7 @@ int Healthcheck_ping::initialize() {
 
 
 /*
-   A common destructor for all healthchecks of this type. Should be called when testtool terminates.
+   A common "destructor" for all healthchecks of this type. Should be called when testtool terminates.
 */
 void Healthcheck_ping::destroy() {
 	event_del(ev);
@@ -129,7 +130,7 @@ void Healthcheck_ping::destroy() {
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
 Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("ping"), _parent_lbnode) {
-	/* Oh wait, there are none for this test! */
+	/* Oh wait, there are none for this healthcheck! */
 
 	if (verbose>0)
 		cout << endl;
@@ -138,7 +139,7 @@ Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_par
 
 /*
    The callback is called by libevent, it's a static method.
-   Unfortunately for ping tests there is only one socket so it is impossible
+   Unfortunately for ping checks there is only one socket so it is impossible
    to pass a Healthcheck object related to a given event. Therefore this callback
    function must parse the received packet and map it to one of Healthcheck objects.
    Should such parsing or mapping be impossible, due to some transmission errors or
@@ -191,7 +192,6 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	icmp_packet = (struct icmp_echo_struct *)(raw_packet + ip_header_len);
 
 	/* A destination unreachable packet contains the IP header of the original request.
-
 	   We have to move our pointers a bit. */
 	if (icmp_packet->icmp_header.icmp_type == ICMP_UNREACH) {
 		ip_packet = (struct ip*)&icmp_packet->icmp_header.icmp_data; /* Move to place after icmp header. */
@@ -217,10 +217,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_DOWN;
-		healthcheck->handle_result();
-		return;
 	}
-
 	
 	/* Finally! The answer we are waiting for! Yay! */
 	if (icmp_packet->icmp_header.icmp_type == ICMP_ECHOREPLY) {
@@ -245,12 +242,17 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ms_full, ms_dec, ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_UP;
-		healthcheck->handle_result();
-		return;
 	}
+
+	healthcheck->handle_result();
 }
 
 
+/*
+   The "schedule" method differs for ping healthcheck from the usual one.
+   Due to lack of possibility to use typical libevent timeout mechanism,
+   a manual healthcheck on timeout is performed.
+*/
 int Healthcheck_ping::schedule_healthcheck() {
 	struct sockaddr_in	 to_addr;
 	struct icmp_echo_struct	 echo_request;
@@ -271,7 +273,7 @@ int Healthcheck_ping::schedule_healthcheck() {
 				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
 						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
 
-			ping_my_seq = 0;	
+			ping_my_seq = 0;
 			last_state = STATE_DOWN;
 			handle_result();
 			return false;
@@ -282,7 +284,7 @@ int Healthcheck_ping::schedule_healthcheck() {
 	if (Healthcheck::schedule_healthcheck() == false)
 		return false;
 
-	/* Increase the ICMP sequence number. It is zeroed elsewehere, so we always start with 1.*/
+	/* Increase the ICMP sequence number. It is zeroed elsewehere, so we always start with 1. */
 	ping_global_seq ++;
 
 	/* Create the mapping between the ping Sequence Number and the object. */

@@ -37,6 +37,9 @@ LbPool::LbPool(istringstream &parameters) {
 }
 
 
+/*
+   Go over all healthchecks and try to schedule them.
+*/
 void LbPool::schedule_healthchecks() {
 
 	for(unsigned int nd=0; nd<nodes.size(); nd++) {
@@ -50,12 +53,12 @@ void LbPool::schedule_healthchecks() {
 */
 void LbPool::parse_healthchecks_results() {
 
-	/* Go over all nodes in this pool, each node will perform all required pf operations. */
+	/* Go over all nodes in this pool, each node will gather state from its healthchecks and update its own state. */
 	for (unsigned int nd=0; nd<nodes.size(); nd++) {
 		nodes[nd]->parse_healthchecks_results();
 	}
 
-	/* Enough dead nodes to switch to backup pool? */
+	/* Backup pool configured and enough dead nodes to switch to backup pool? */
 	if (backup_pool && nodes_alive < backup_pool_trigger && switched_to_backup == false) {
 		showStatus(CL_WHITE"%s"CL_RESET" - Less than %d nodes alive, switching to backup_pool "CL_BLUE"%s"CL_RESET"\n", name.c_str(), backup_pool_trigger, backup_pool->name.c_str());
 
@@ -68,7 +71,7 @@ void LbPool::parse_healthchecks_results() {
 			}
 		}
 
-		/* Add backup nodes, should there be any alive. Complain, if not. */
+		/* Add backup nodes, should there be any alive. */
 		if (backup_pool->nodes_alive > 0) {
 			for (unsigned int nd=0; nd<backup_pool->nodes.size(); nd++) {
 				if (backup_pool->nodes[nd]->hard_state == STATE_UP) {
@@ -80,19 +83,20 @@ void LbPool::parse_healthchecks_results() {
 
 		switched_to_backup = true;
 	}
+
 	/* Enough nodes alive to switch back to normal pool? */
 	else if (backup_pool && nodes_alive >= backup_pool_trigger && switched_to_backup == true) {
 		showStatus(CL_WHITE"%s"CL_RESET" - At least %d nodes alive, removing backup_pool "CL_BLUE"%s"CL_RESET"\n", name.c_str(), backup_pool_trigger, backup_pool->name.c_str());
 
 		/* Add original nodes back when leaving the backup pool mode. */
 		for (unsigned int nd=0; nd<nodes.size(); nd++) {
-			/* Add only the ones which were not STATE_UP. */
+			/* Add only the ones which were STATE_UP. */
 			if (nodes[nd]->hard_state == STATE_UP) {
 				pf_table_add(name, nodes[nd]->address);
 			}
 		}
 
-		/* Remove backup nodes. */
+		/* Remove backup nodes, only the ones which are STATE_UP. The ones in STATE_DOWN were already removed. */
 		for (unsigned int nd=0; nd<backup_pool->nodes.size(); nd++) {
 			if (backup_pool->nodes[nd]->hard_state == STATE_UP) {
 				string address = backup_pool->nodes[nd]->address;
@@ -103,8 +107,9 @@ void LbPool::parse_healthchecks_results() {
 
 		switched_to_backup = false;
 	}
-	
-	if (nodes_alive <= 0 && all_down_noticed == false) {
+
+	/* Complain if there are no nodes alive in the pool or backup pool, should it be used. */
+	if ( (nodes_alive <= 0 || (switched_to_backup && backup_pool->nodes_alive <= 0) ) && all_down_noticed == false ) {
 		all_down_noticed = true;
 		showWarning(CL_WHITE"%s"CL_RESET" - no nodes left to serve the traffic!\n", name.c_str());
 	}

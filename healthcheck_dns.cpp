@@ -15,27 +15,27 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
-#include <arpa/nameser.h>
-#include <arpa/nameser_compat.h>
+#include "msg.h"
 
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
 #include "healthcheck_dns.h"
-#include "msg.h"
 
 using namespace std;
 
 extern struct event_base	*eventBase;
 extern int			 verbose;
 
+
+/* In the .h file there are only declarations of static variables, here we have definitions. */
 uint16_t			 Healthcheck_dns::global_transaction_id;
 
 
 /*
    The DNS healthcheck. It has the following limitations:
    - Does not support truncated messages. Only the first answering datagram is parsed.
-   - Does not really check for what is in the answer. It only checks if the number of answer sections is bigger than 0.
+   - Does not really check for what is in the answer. It only checks if the number of answer sections is bigger than 0 and the transaction number.
 */
 
 
@@ -62,7 +62,6 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 	strcpy(question_buffer+1,dns_query);
 	question_buffer[origlen]='.';
 
-
 	/* Replace dots with lenght of labels after them. See RFC1035 4.1.2. */
 	for (int i=1; i<origlen+2; i++) {
 		if (i==origlen+1 || question_buffer[i] == '.') {
@@ -85,11 +84,11 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 
 
 /*
-   Constructor for ping healthcheck. Parses ping-specific parameters.
+   Constructor for DNS healthcheck. Parses DNS-specific parameters.
 */
 Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("dns"), _parent_lbnode) {
 
-	/* The string "parameters" was filled in by Healthcheck constructor, now turing it into a stream to read all the params. */
+	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
 	istringstream ss_parameters(parameters);
 
 	/* Read record type. */
@@ -104,6 +103,9 @@ Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_paren
 }
 
 
+/*
+   The callback function for DNS check.
+*/
 void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg) {
 	Healthcheck_dns *healthcheck = (Healthcheck_dns *)arg;
 
@@ -123,20 +125,21 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
 
 		if (bytes_received == -1) {
-			/* This happens when the target host is not in the arp table and therefore nothing was even sent to it.
-			   Although sending send() returns no error. */
+			/* This happens when the target host is not in the arp table and therefore nothing was ever sent to it.
+			   Although sending send() returns no error.
+			   Or when an ICMP dst unreachable is received */
 			healthcheck->last_state = STATE_DOWN;
 			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection rejected"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
-			/* There should be at least dns_header received. */
+			/* Size of the received message shall be between the size of header and the maximum dns packet size. */
 			healthcheck->last_state = STATE_DOWN;
 			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received malformed data"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
-			/* No answers means that the server knows nothing about the domain. Therefore it fails the test. */
+			/* No answers means that the server knows nothing about the domain. Therefore it fails the check. */
 			healthcheck->last_state = STATE_DOWN;
 			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received no DNS answers"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
@@ -151,7 +154,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			if (verbose>1 || healthcheck->last_state == STATE_DOWN)
 				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_GREEN"received a DNS answer"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
-			healthcheck->last_state = STATE_UP; /* Service is UP */
+			healthcheck->last_state = STATE_UP;
 
 			/*
 			   We do not really check the contents of the answer sections.
@@ -160,6 +163,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 		}
 	}
 
+	/* Be sure to free the memory! */
 	event_del(healthcheck->ev);
 	close(socket_fd);
 	healthcheck->handle_result();
@@ -212,6 +216,7 @@ int Healthcheck_dns::schedule_healthcheck() {
 		printf("socket(): %s\n", strerror(errno));
 		return false;
 	}
+	/* In fact I'm not really sure if it needs to be nonblocking. */
 	evutil_make_socket_nonblocking(socket_fd);
 
 	/* Sending to host is one thing, but we want answers only from our target in this socket.

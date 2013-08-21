@@ -4,8 +4,9 @@
 #include <iostream>
 #include <sstream>
 
-#include <event2/event.h>
 #include <netinet/in.h>
+
+#include <event2/event.h>
 
 #include "lb_node.h"
 
@@ -50,6 +51,7 @@
 using namespace std;
 
 class Healthcheck {
+
 	/* Methods */
 	public:
 		/* The check factory, which returns proper check object based its name. */
@@ -57,7 +59,8 @@ class Healthcheck {
 		virtual int schedule_healthcheck();
 		Healthcheck(istringstream &definition, string _type, class LbNode *_parent_lbnode);
 		void handle_result();
-		void downtime_failure();
+		void force_failure();
+
 
 	/* Members */
 	public:
@@ -66,18 +69,19 @@ class Healthcheck {
 		char			 hard_state;
 		string			 type;
 
-	private:
-		int			 check_interval;   // Perform a test every n seconds (s).
-		unsigned short		 extra_delay;      // Additional delay to spread tests uniformly (ms).
-		int			 max_failed_tests; // Take action only after this number of contiguous tests fail.
-		unsigned short		 failure_counter;  // This many tests have failed until now.
-
 	protected:
 		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timespec		 timeout;
 		bool			 is_running;
-		string			 parameters;
+		string			 parameters;       // Parameters read from the configuration file, to be parsed by check-specific constructor.
+
+	private:
+		int			 check_interval;    // Perform a check every n seconds (s).
+		unsigned short		 extra_delay;       // Additional delay to spread checks uniformly (ms).
+		int			 max_failed_checks; // Take action only after this number of contiguous checks fail.
+		unsigned short		 failure_counter;   // This many checks have failed until now.
+
 };
 
 #endif

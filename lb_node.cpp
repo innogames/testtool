@@ -17,8 +17,7 @@ extern int	 	 verbose;
 
 
 /*
-   The constructor has not much work to do, init some variables
-   and display the LbNode address if verbose.
+   Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
 LbNode::LbNode(istringstream &parameters, class LbPool *_parent_lbpool) {
 	parent_lbpool = _parent_lbpool;
@@ -42,7 +41,7 @@ LbNode::LbNode(istringstream &parameters, class LbPool *_parent_lbpool) {
 
 
 /*
-   Try to schedule each healthcheck. Do not try if there is a downtime for this node.
+   Try to schedule all healthcheck of this node. Do not try if there is a downtime for this node.
 */
 void LbNode::schedule_healthchecks() {
 	if (downtime == true)
@@ -56,6 +55,7 @@ void LbNode::schedule_healthchecks() {
 
 /*
    Check results of all healthchecks for this node and act accordingly:
+   - set hard_state
    - display messages
    - perform pf operations
 */
@@ -64,7 +64,7 @@ void LbNode::parse_healthchecks_results() {
 	unsigned int all_healthchecks = healthchecks.size();
 	unsigned int ok_healthchecks = 0;
 
-	/* Downtime feature - pretend that this node has just failed. */
+	/* If a downtime is scheduled, pretend that all healthchecks have failed. */
 	if (downtime == true)
 		ok_healthchecks = 0;
 	else
@@ -87,7 +87,7 @@ void LbNode::parse_healthchecks_results() {
 		/* Remove the node from its primary pool if the pool is in normal (not backup) operation. */
 		if (parent_lbpool->switched_to_backup == false) {
 			pf_table_del(parent_lbpool->name, address);
-			pf_kill_src_nodes_to(address, true);
+			pf_kill_src_nodes_to(address, true); /* Kill all states to this node. */
 		}
 
 		/* Remove the node from other pools when parent pool is used as backup_pool anywhere. */
@@ -101,8 +101,8 @@ void LbNode::parse_healthchecks_results() {
 			}
 		}
 
+		/* Finally mark the current state. */
 		parent_lbpool->nodes_alive--;
-
 		hard_state = STATE_DOWN;
 	}
 	/* This node is down and and all healthchecks have recently passed. */
@@ -111,7 +111,6 @@ void LbNode::parse_healthchecks_results() {
 		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - LbNode:"CL_GREEN" the node is up, %d of %d checks passed"CL_RESET"\n",
 			parent_lbpool->name.c_str(), address.c_str(), ok_healthchecks, all_healthchecks) ;
 
-		parent_lbpool->all_down_noticed = false;
 		/* Add the node to its primary pool if the pool is in normal (not backup) operation. */
 		if (parent_lbpool->switched_to_backup == false) {
 			pf_table_add(parent_lbpool->name, address);
@@ -119,7 +118,7 @@ void LbNode::parse_healthchecks_results() {
 		}
 
 		/* Add this node to all pools */
-		if (parent_lbpool->used_as_backup.size())
+		if (parent_lbpool->used_as_backup.size()) {
 			for (unsigned int bpl=0; bpl<parent_lbpool->used_as_backup.size(); bpl++) {
 				if (parent_lbpool->used_as_backup[bpl]->switched_to_backup) {
 					showStatus(CL_WHITE"%s"CL_RESET" - Used as backup, adding to other pool: "CL_BLUE"%s"CL_RESET"\n", parent_lbpool->name.c_str(), parent_lbpool->used_as_backup[bpl]->name.c_str());
@@ -128,9 +127,11 @@ void LbNode::parse_healthchecks_results() {
 					   so killing traffic to backup nodes will be possible later. */
 				}
 			}
-
+		}
+	
+		/* Finally mark the current state. */
+		parent_lbpool->all_down_noticed = false;
 		parent_lbpool->nodes_alive++;
-
 		hard_state = STATE_UP;
 	}
 
@@ -163,10 +164,10 @@ void LbNode::end_downtime() {
 
 	downtime = false;
 
-	/* Pretend that this host was fully down. */
+	/* Pretend that this host is fully down. */
 	hard_state = STATE_DOWN;
 	for (unsigned int hc=0; hc<healthchecks.size(); hc++) {
-		healthchecks[hc]->downtime_failure();
+		healthchecks[hc]->force_failure();
 	}
 	
 }

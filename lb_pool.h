@@ -24,7 +24,7 @@ class LbPool {
 		bool			 	 switched_to_backup;
 		unsigned int			 backup_pool_trigger;
 		class LbPool			*backup_pool;
-		string				 backup_pool_names; /* Temporary place to store the list of possible backup_pools. */
+		string				 backup_pool_names; /* Temporary place to store the list (coma-separated string) of possible backup_pools. */
 		vector<class LbPool*>		 used_as_backup;
 		unsigned int			 nodes_alive;
 		bool				 all_down_noticed;
