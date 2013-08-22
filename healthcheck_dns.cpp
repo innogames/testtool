@@ -118,8 +118,10 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 
 	if (what & EV_TIMEOUT) {
 		healthcheck->last_state = STATE_DOWN;
-		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds"CL_RESET"\n",
-			healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
+		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
+			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds"CL_RESET"\n",
+				healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
+	
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
@@ -129,25 +131,29 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			   Although sending send() returns no error.
 			   Or when an ICMP dst unreachable is received */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection rejected"CL_RESET"\n",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection rejected"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* Size of the received message shall be between the size of header and the maximum dns packet size. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received malformed data"CL_RESET"\n",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received malformed data"CL_RESET"\n",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
 			/* No answers means that the server knows nothing about the domain. Therefore it fails the check. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received no DNS answers"CL_RESET"\n",
+			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received no DNS answers"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id ) {
 			/* Received transaction id must be the same as in the last query sent to the server. */
 			healthcheck->last_state = STATE_DOWN;
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received wrong transaction id"CL_RESET"\n",
+			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
+				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received wrong transaction id"CL_RESET"\n",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		} else {
 			/* Finally it seems that all is fine. */

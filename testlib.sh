@@ -1,6 +1,7 @@
 #!/bin/sh
 
-CONFFILE="/tmp/testtool.test.conf"
+CONFIG_FILE="/tmp/testtool.test.conf"
+DOWNTIMES_FILE="/tmp/testtool_downtimes"
 
 CRED='\e[0;31m'
 CGREEN='\e[0;32m'
@@ -13,7 +14,7 @@ firewall () {
 	# $3 = drop or reject
 
 	CMD="iptables"
-		
+
 	case "$1" in
 		add)
 			CMD="$CMD -A INPUT"
@@ -67,7 +68,11 @@ require_ip_not_in_pf_table () {
 	pf_table_show $1 | grep -q $2
 }
 
-require_pf_table_equals () {
+#
+# Require that the given table equals given hosts.
+# Try the test multiple times before giving up, thus giving testtool time to react.
+#
+require_pf_table_waitfor_equal () {
 	table=$1
 	shift
 	HOSTS=$@
@@ -109,6 +114,55 @@ require_pf_table_equals () {
 	return 1
 }
 
+#
+# Require that the given table equals given hosts.
+# Try the test multiple times and fail on first difference
+# thus testig if testtool keeps the state.
+#
+require_pf_table_stays_equal () {
+	table=$1
+	shift
+	HOSTS=$@
+
+	cnt=0
+	while [ $cnt -le 20 ]; do
+		sleep 0.25
+		cnt=$(($cnt+1))
+		TABLE=`pf_table_show $table`
+
+		echo > /tmp/testtooltests_pfctl_table
+		for HOST in $TABLE; do
+			echo $HOST >> /tmp/testtooltests_pfctl_table
+		done
+
+		echo > /tmp/testtooltests_expected_hosts
+		for HOST in $HOSTS; do
+			echo $HOST >> /tmp/testtooltests_expected_hosts
+		done
+
+		sort /tmp/testtooltests_pfctl_table > /tmp/testtooltests_pfctl_table1
+		mv /tmp/testtooltests_pfctl_table1 /tmp/testtooltests_pfctl_table
+		sort /tmp/testtooltests_expected_hosts > /tmp/testtooltests_expected_hosts1
+		mv /tmp/testtooltests_expected_hosts1 /tmp/testtooltests_expected_hosts
+
+		if [ $VERBOSE ]; then
+			diff -u /tmp/testtooltests_expected_hosts /tmp/testtooltests_pfctl_table 2>&1 >/tmp/testtooltests_pfctl_tablediff
+			ret=$?
+		else
+			diff -u /tmp/testtooltests_expected_hosts /tmp/testtooltests_pfctl_table 2>&1 >/tmp/testtooltests_pfctl_tablediff
+			ret=$?
+		fi
+
+		if [ $ret -ne 0 ]; then
+			[ $VERBOSE ] && ( echo "diff for table $table said:" ; cat /tmp/testtooltests_pfctl_tablediff )
+			return 1
+		fi
+	done
+
+	return 0
+}
+
+
 
 pf_table_flush () {
 	pfctl -q -t $1 -T flush
@@ -124,6 +178,9 @@ flush_all () {
 		ssh $host `firewall flush`
 		ssh $host /etc/init.d/lighttpd restart > /dev/null
 	done
+
+	rm -f $CONFIG_FILE
+	rm -f $DOWNTIMES_FILE
 }
 
 
@@ -140,7 +197,7 @@ exit_ok () {
 	kill $TTPID
 	wait
 	flush_all
-	echo -e "${CGREEN}Success${NOCOL}"
+	echo -e "${CGREEN}Test successful${NOCOL}"
 	exit 0
 }
 
@@ -148,28 +205,27 @@ exit_ok () {
 stage () {
 	STAGE_START="$1"
 	STAGE_END="$2"
-	if [ $VERBOSE ]; then
-		echo -e "${CCYAN}Starting stage:${NOCOL}"
-		echo             " * Conditions: $STAGE_START"
-		echo             " * Expecting: $STAGE_END"
-	fi
+	echo -e "${CCYAN}Starting stage:${NOCOL}"
+	echo             " * Conditions: $STAGE_START"
+	echo             " * Expecting: $STAGE_END"
 }
 
 stage_end () {
-	if [ $VERBOSE ]; then
-		echo -e "${CGREEN}Stage successful${NOCOL}"
-	fi
+	echo -e "${CGREEN}Stage successful${NOCOL}"
 }
 
 
 
 launch_testtool () {
 	if [ $VERBOSE ]; then
-		./testtool -f $CONFFILE &
+		./testtool -v -f $CONFIG_FILE &
 	else
-		./testtool -f $CONFFILE > /dev/null &
+		./testtool -f $CONFIG_FILE > /dev/null &
 	fi
 
 	export TTPID="$!"
 }
 
+reload_testtool_downtimes () {
+	kill -SIGUSR1 $TTPID
+}

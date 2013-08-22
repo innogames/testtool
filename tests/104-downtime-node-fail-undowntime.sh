@@ -18,40 +18,45 @@ flush_all
 
 # Write the configuration file
 cat > $CONFIG_FILE << EOF
-pool $TABLE1 3
+pool $TABLE1 3 1 $TABLE2
 	node $TABLE1_HOST1
 		healthcheck http 80 1 2 /:200
 	node $TABLE1_HOST2
 		healthcheck http 80 1 2 /:200
 	node $TABLE1_HOST3
 		healthcheck http 80 1 2 /:200
+
 EOF
 
-stage "add 3 nodes to pool" "3 hosts in pool"
+stage "add 3 hosts to pool" "3 hosts in the pool"
+rm -f $DOWNTIMES_FILE
 launch_testtool
 require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST2 $TABLE1_HOST3 || exit_fail
 stage_end
 
-stage "fail the 1st node" "2 nodes left in pool"
-ssh $TABLE1_HOST1 `firewall add http reject`
-require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST2 $TABLE1_HOST3 || exit_fail
+stage "downtime 2nd node" "nodes 1 and 3 in pool"
+cat > $DOWNTIMES_FILE << EOF
+$TABLE1 $TABLE1_HOST2
+EOF
+reload_testtool_downtimes
+require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST3 || exit_fail
 stage_end
 
-stage "fail the 2nd node" "1 node left in pool"
-ssh $TABLE1_HOST2 `firewall add http reject`
-require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST3 || exit_fail
+stage "fail the 2nd node" "keep only nodes 1 and 3 in pool"
+ssh $TABLE1_HOST2 `firewall add http drop`
+require_pf_table_stays_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST3 || exit_fail
 stage_end
 
-stage "fail the 3rd node" "pool is empty"
-ssh $TABLE1_HOST3 `firewall add http reject`
-require_pf_table_waitfor_equal $TABLE1 || exit_fail
+stage "end downtime for 2nd node" "keep only nodes 1 and 3 in pool"
+rm -f $DOWNTIMES_FILE
+reload_testtool_downtimes
+require_pf_table_stays_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST3 || exit_fail
 stage_end
 
-stage "restore 3 nodes" "all 3 nodes back in pool"
-ssh $TABLE1_HOST1 `firewall del http reject`
-ssh $TABLE1_HOST2 `firewall del http reject`
-ssh $TABLE1_HOST3 `firewall del http reject`
+stage "restore 2nd node" "all 3 nodes in pool"
+ssh $TABLE1_HOST2 `firewall del http drop`
 require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST2 $TABLE1_HOST3 || exit_fail
 stage_end
 
 exit_ok
+

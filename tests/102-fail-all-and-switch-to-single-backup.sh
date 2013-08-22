@@ -20,7 +20,7 @@ TABLE2_HOST1="10.7.0.44"
 flush_all
 
 # Write the configuration file
-cat > $CONFFILE << EOF
+cat > $CONFIG_FILE << EOF
 pool $TABLE1 3 1 $TABLE2
 	node $TABLE1_HOST1
 		healthcheck http 80 1 2 /:200
@@ -36,25 +36,23 @@ pool $TABLE2 3
 
 EOF
 
-stage "adding 3 hosts to master pool and 1 to backup pool" "4 hosts in respective pools"
+stage "add 3 nodes to master pool and 1 node to backup pool" "4 nodes in respective pools"
 launch_testtool
-require_pf_table_equals $TABLE1 $TABLE1_HOST1 $TABLE1_HOST2 $TABLE1_HOST3 || exit_fail
-require_pf_table_equals $TABLE2 $TABLE2_HOST1 || exit_fail
+require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST2 $TABLE1_HOST3 || exit_fail
+require_pf_table_waitfor_equal $TABLE2 $TABLE2_HOST1 || exit_fail
 stage_end
 
-stage "killing two nodes" "single master node in pool"
+stage "kill 2 nodes in master pool" "single master node in pool"
 ssh $TABLE1_HOST1 `firewall add http reject`
 ssh $TABLE1_HOST2 `firewall add http reject`
-require_pf_table_equals $TABLE1 $TABLE1_HOST3 || exit_fail
-require_pf_table_equals $TABLE2 $TABLE2_HOST1 || exit_fail
+require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST3 || exit_fail
+require_pf_table_waitfor_equal $TABLE2 $TABLE2_HOST1 || exit_fail
 stage_end
 
-
-stage "killing the last node" "only backup node in pool"
+stage "kill the last node in master pool" "only backup node in pool"
 ssh $TABLE1_HOST3 `firewall add http reject`
-require_pf_table_equals $TABLE1 $TABLE2_HOST1 || exit_fail
-require_pf_table_equals $TABLE2 $TABLE2_HOST1 || exit_fail
+require_pf_table_waitfor_equal $TABLE1 $TABLE2_HOST1 || exit_fail
+require_pf_table_waitfor_equal $TABLE2 $TABLE2_HOST1 || exit_fail
 stage_end
 
 exit_ok
-
