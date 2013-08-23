@@ -60,7 +60,7 @@ void signal_handler(int signum) {
 */
 void load_downtimes(list<LbPool *> * lbpools) {
 
-	showStatus("Reloading downtime list.\n");
+	show_message(MSG_TYPE_NOTICE, "Reloading downtime list.");
 
 	string line;
 
@@ -74,7 +74,7 @@ void load_downtimes(list<LbPool *> * lbpools) {
 		}
 		downtime_file.close();
 	} else {
-		showWarning("Could not load downtime list file.\n");
+		show_message(MSG_TYPE_WARNING, "Could not load downtime list file.");
 	}
 
 	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
@@ -96,6 +96,7 @@ void load_downtimes(list<LbPool *> * lbpools) {
    Return a list of loaded lbpools.
 */
 list<LbPool*> * load_lbpools(ifstream &config_file) {
+	show_message(MSG_TYPE_NOTICE, "Loading configration file...");
 
 	string line;
 
@@ -154,7 +155,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 
 			/* Pick the first one located on proper HWLB. */
 			if (proposed_backup_pool && proposed_backup_pool->default_hwlb == (*lbpool_it)->default_hwlb) {
-				cout << "Mapping backup_pool " << proposed_backup_pool->name << " to " << (*lbpool_it)->name << endl;
+				show_message(MSG_TYPE_NONE, " Mapping backup_pool %s to %s", proposed_backup_pool->name.c_str(), (*lbpool_it)->name.c_str());
 				(*lbpool_it)->backup_pool = proposed_backup_pool;
 				proposed_backup_pool->used_as_backup.push_back((*lbpool_it));
 				break;
@@ -275,7 +276,7 @@ void setup_events(list<LbPool *> * lbpools) {
 
 void init_libevent() {
 	eventBase = event_base_new();
-	printf(" * libevent method: %s\n", event_base_get_method(eventBase));
+	show_message(MSG_TYPE_NONE, " * libevent method: %s", event_base_get_method(eventBase));
 }
 
 
@@ -289,7 +290,7 @@ int init_libssl() {
 	SSL_load_error_strings (); 
 	OpenSSL_add_all_algorithms (); 
 
-	printf (" * OpenSSL version: %s\n", SSLeay_version (SSLEAY_VERSION) );
+	show_message(MSG_TYPE_NONE, " * OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
 
 	sctx = SSL_CTX_new (SSLv23_client_method ());
 	if (!sctx) {
@@ -321,7 +322,8 @@ void usage() {
 
 
 int main (int argc, char *argv[]) {
-	show("Built on %s - %s %s\n", __HOSTNAME__, __DATE__, __TIME__);
+	start_logging();
+	show_message(MSG_TYPE_NONE, "Built on %s - %s %s", __HOSTNAME__, __DATE__, __TIME__);
 
 	list<LbPool *> * lbpools = NULL;
 	srand(time(NULL));;
@@ -356,32 +358,32 @@ int main (int argc, char *argv[]) {
 		}
 	}
 
-
+	show_message(MSG_TYPE_NONE, "Initializing various stuff...");
 	if (!init_libssl()) {
-		cerr << "Unable to initialise OpenSSL!" << endl;
+		show_message(MSG_TYPE_ERROR, "Unable to initialise OpenSSL!");
 		exit(-1);
 	}
 	init_libevent();
 	
 	if (!Healthcheck_ping::initialize()) {
-		cerr << "Unable to initialize Healthcheck_ping!" << endl;
+		show_message(MSG_TYPE_ERROR, "Unable to initialize Healthcheck_ping!");
 		exit(-1);
 	}
 
 	/* Load lbpools and healthchecks. */
 	ifstream config_file(config_file_name.c_str());
 	if (!config_file) {
-		cerr << "Unable to load configuration file!" << endl;
+		show_message(MSG_TYPE_ERROR, "Unable to load configuration file!");
 		exit(-1);
 	}
 	lbpools = load_lbpools(config_file);
 	config_file.close();
 
-	cout << "Entering the main loop..." << endl;
+	show_message(MSG_TYPE_NONE, "Entering the main loop...");
 	setup_events(lbpools);
-	cout << "Left the main loop." << endl;
+	show_message(MSG_TYPE_NONE, "Left the main loop.");
 
-	cout << "Bye, see you next time!" << endl;
+	show_message(MSG_TYPE_NONE, "Bye, see you next time!");
 
 	finish_libevent();
 	finish_libssl();

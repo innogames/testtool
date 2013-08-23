@@ -86,7 +86,7 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 /*
    Constructor for DNS healthcheck. Parses DNS-specific parameters.
 */
-Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("dns"), _parent_lbnode) {
+Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
 
 	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
 	istringstream ss_parameters(parameters);
@@ -98,8 +98,8 @@ Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_paren
 	this->dns_query = new char[dns_query.length()+1];
 	strcpy(this->dns_query, dns_query.c_str());
 
-	if (verbose>0)
-		cout << "query: " << dns_query << endl;
+	show_message(MSG_TYPE_NONE, "      query: %s", dns_query.c_str());
+	type = "dns";
 }
 
 
@@ -119,7 +119,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	if (what & EV_TIMEOUT) {
 		healthcheck->last_state = STATE_DOWN;
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds"CL_RESET"\n",
+			show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - timeout after %d,%ds",
 				healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
 	
 	}
@@ -132,33 +132,33 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			   Or when an ICMP dst unreachable is received */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"connection rejected"CL_RESET"\n",
+				show_message(MSG_TYPE_HC_FAIL, "%s - %s:%d - Healthcheck_%s: connection rejected",
 						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* Size of the received message shall be between the size of header and the maximum dns packet size. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received malformed data"CL_RESET"\n",
+				show_message(MSG_TYPE_HC_FAIL, "%s - %s:%d - Healthcheck_%s: received malformed data",
 						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
 			/* No answers means that the server knows nothing about the domain. Therefore it fails the check. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received no DNS answers"CL_RESET"\n",
+				show_message(MSG_TYPE_HC_FAIL, "%s - %s:%d - Healthcheck_%s: received no DNS answers",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id ) {
 			/* Received transaction id must be the same as in the last query sent to the server. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_RED"received wrong transaction id"CL_RESET"\n",
+				show_message(MSG_TYPE_HC_FAIL, "%s - %s:%d - Healthcheck_%s: received wrong transaction id",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 		} else {
 			/* Finally it seems that all is fine. */
 			if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%d"CL_RESET" - Healthcheck_%s: "CL_GREEN"received a DNS answer"CL_RESET"\n",
+				show_message(MSG_TYPE_HC_PASS, "%s - %s:%d - Healthcheck_%s: received a DNS answer",
 					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
 			healthcheck->last_state = STATE_UP;
 
@@ -219,7 +219,7 @@ int Healthcheck_dns::schedule_healthcheck() {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (socket_fd == -1) {
-		printf("socket(): %s\n", strerror(errno));
+		show_message(MSG_TYPE_ERROR, "socket(): %s", strerror(errno));
 		return false;
 	}
 	/* In fact I'm not really sure if it needs to be nonblocking. */

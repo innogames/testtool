@@ -21,22 +21,14 @@
 
 
 typedef enum msgType {
-	MSG_TYPE_NONE = 0x00,
-	MSG_TYPE_MSG = 0x01,
-	MSG_TYPE_STATUS = 0x02,
-	MSG_TYPE_WARN = 0x04,
-	MSG_TYPE_ERROR = 0x08
+	MSG_TYPE_NONE, MSG_TYPE_NOTICE, MSG_TYPE_WARNING, MSG_TYPE_ERROR,
+	MSG_TYPE_NODE_UP, MSG_TYPE_NODE_DOWN,
+	MSG_TYPE_HC_PASS, MSG_TYPE_HC_FAIL, MSG_TYPE_HC_HFAIL,
+	MSG_TYPE_PFCTL
 } msgType;
 
 
-
-void show(const char *fmt, ...);
-void showMessage(const char *fmt, ...);
-void showStatus(const char *fmt, ...);
-void showWarning(const char *fmt, ...);
-void showError(const char *fmt, ...);
-
-
-
+void start_logging();
+void show_message(msgType type, const char *fmt, ...);
 
 #endif

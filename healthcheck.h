@@ -57,7 +57,7 @@ class Healthcheck {
 		/* The check factory, which returns proper check object based its name. */
 		static Healthcheck *healthcheck_factory(istringstream &definition, class LbNode *_parent_lbnode);
 		virtual int schedule_healthcheck();
-		Healthcheck(istringstream &definition, string _type, class LbNode *_parent_lbnode);
+		Healthcheck(istringstream &definition, class LbNode *_parent_lbnode);
 		void handle_result();
 		void force_failure();
 		virtual void finalize_result();

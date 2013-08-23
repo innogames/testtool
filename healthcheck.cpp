@@ -39,7 +39,7 @@ void Healthcheck::force_failure() {
    Remember that this constructor is called from each healthcheck's type-specific constructor!
    And it is called *before* that constructor does its own work!
 */
-Healthcheck::Healthcheck(istringstream &definition, string _type, class LbNode *_parent_lbnode) {
+Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode) {
 	/* Pretend that the healthcheck was performed just a moment ago.
 	   This is necessary to perform the check in proper time. */
 	clock_gettime(CLOCK_MONOTONIC, &last_checked);
@@ -52,9 +52,6 @@ Healthcheck::Healthcheck(istringstream &definition, string _type, class LbNode *
 	   "parameters" is the last word on the line, type-specific constructor will read
 	   its ":"-separated list of parameters from there. */
 	definition >> port >> check_interval >> max_failed_checks >> parameters;
-
-	/* Type is passed from type-specific constructor as a string. */
-	this->type = _type;
 
 	/* Random delay to spread healthchecks in space-time continuum. */
 	this->extra_delay = rand() % 1000;
@@ -78,14 +75,8 @@ Healthcheck::Healthcheck(istringstream &definition, string _type, class LbNode *
 		failure_counter = max_failed_checks;
 	}
 
-	if (verbose>0) {
-		/* Start the line "new healthcheck", do not end it with a newline!
-		   The healthcheck constructor should write anything he has to to the screen and then write the newline */
-		cout << "    New healthcheck: type:" << type;
-		if (port>0)
-			cout << " port:" << port;
-		cout << " interval:" << this->check_interval << " max_fail:" << this->max_failed_checks << " ";
-	}
+	show_message(MSG_TYPE_NONE, "    * New healthcheck:");
+	show_message(MSG_TYPE_NONE, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
 }
 
 
@@ -140,8 +131,13 @@ int Healthcheck::schedule_healthcheck() {
 	last_checked = now;
 	is_running = true;
 
-	if (verbose>1)
-		showStatus(CL_WHITE"%s"CL_RESET" - Scheduling healthcheck_%s %s:%u...\n", parent_lbnode->parent_lbpool->name.c_str(), type.c_str(), parent_lbnode->address.c_str(), port);
+	if (verbose>1) {
+		if (port>0)
+			show_message(MSG_TYPE_NOTICE, "%s %s:%u - Scheduling healthcheck_%s...", parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, type.c_str());
+		else
+			show_message(MSG_TYPE_NOTICE, "%s %s - Scheduling healthcheck_%s...", parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str());
+
+	}
 
 	return true;
 }
@@ -163,8 +159,12 @@ void Healthcheck::handle_result() {
 
 	/* Change from DOWN to UP. The healthcheck has passed again. */
 	if (hard_state == STATE_DOWN && last_state == STATE_UP) {
-		showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - Healthcheck: "CL_GREEN"passed again"CL_RESET"\n",
-			parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
+		if (port>0)
+			show_message(MSG_TYPE_HC_PASS, "%s %s:%u - passed again",
+				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
+		else
+			show_message(MSG_TYPE_HC_PASS, "%s %s - passed again",
+				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str());
 
 		hard_state = STATE_UP;
 		failure_counter = 0;
@@ -174,15 +174,26 @@ void Healthcheck::handle_result() {
 
 		failure_counter++;
 
-		if (!parent_lbnode->downtime)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - Healthcheck: "CL_RED"failed for the %d time"CL_RESET"\n",
-				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, failure_counter);
+		if (!parent_lbnode->downtime) {
+			if (port>0)
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%u - failed for the %d time",
+					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, failure_counter);
+			else
+				show_message(MSG_TYPE_HC_FAIL, "%s %s - failed for the %d time",
+					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), failure_counter);
+
+		}
 
 		/* Mark the hard DOWN state only after the number of failed checks is reached. */
 		if (failure_counter >= max_failed_checks) {
-			if (!parent_lbnode->downtime)
-				showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s:%u"CL_RESET" - Healthcheck: "CL_RED"hard failure reached"CL_RESET"\n",
-					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
+			if (!parent_lbnode->downtime) {
+				if (port>0)
+					show_message(MSG_TYPE_HC_HFAIL, "%s %s:%u - hard failure reached",
+						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
+				else
+					show_message(MSG_TYPE_HC_HFAIL, "%s %s - hard failure reached",
+						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str());
+			}
 
 			hard_state = STATE_DOWN;
 		}

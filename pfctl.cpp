@@ -18,27 +18,31 @@ void pf_states_kill(string &from, string &to){
 	int	 ret;
 	char	 cmd[1024];
 
-	if(to.length() == 0)
+
+	if(to.length() == 0) {
+		show_message(MSG_TYPE_PFCTL, "any_pool any_ip - killing states from %s", from.c_str());
 		snprintf(cmd, sizeof(cmd), "pfctl -q -k '%s'", from.c_str());
-	else
+	} else {
+		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing states from %s", to.c_str(), from.c_str());
 		snprintf(cmd, sizeof(cmd), "pfctl -q -k '%s' -k '%s'", from.c_str(), to.c_str());
+	}
 
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 
 	if(!pf_action)
 		return;
 
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to kill states %s => %s\n", from.c_str(), to.c_str());
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to kill states %s => %s", from.c_str(), to.c_str());
 		return;
 	}
 	
 	ret = pclose(fp);
 	if(ret == -1 || ret != 0){
 			
-		showWarning("pf_states_kill('%s', '%s'): returned bad status (%d)\n", from.c_str(), to.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_states_kill('%s', '%s'): returned bad status (%d)", from.c_str(), to.c_str(), ret);
 	}
 	
 }//end: pf_states_kill
@@ -52,26 +56,26 @@ void pf_table_add(string &table, string &ip){
 	char	 cmd[1024];
 	int	 ret;
 
-	showStatus(CL_WHITE"%s"CL_RESET" - pfctl: adding node "CL_BLUE"%s"CL_RESET"\n", table.c_str(), ip.c_str());
+	show_message(MSG_TYPE_PFCTL, "%s %s - adding node", table.c_str(), ip.c_str());
 
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T add '%s'", table.c_str(), ip.c_str());
 	
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 
 	if(!pf_action)
 		return;
 	
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to add ip '%s' to table '%s'\n", ip.c_str(), table.c_str());
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to add ip '%s' to table '%s'", ip.c_str(), table.c_str());
 		return;
 	}
 	
 	ret = pclose(fp);
 
 	if(ret == -1 || ret != 0){
-		showWarning("pf_table_add('%s', '%s'): returned bad status (%d)\n", table.c_str(), ip.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_table_add('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
 	}
 
 }//end: pf_table_add
@@ -85,26 +89,26 @@ void pf_table_del(string &table,  string &ip){
 	char	 cmd[1024];
 	int	 ret;
 
-	showStatus(CL_WHITE"%s"CL_RESET" - pfctl: removing node "CL_BLUE"%s"CL_RESET"\n", table.c_str(), ip.c_str());
+	show_message(MSG_TYPE_PFCTL, "%s %s - removing node", table.c_str(), ip.c_str());
 
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T del '%s'", table.c_str(), ip.c_str());
 
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 
 	if(!pf_action)
 		return;
 
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to del ip '%s' from table '%s'\n", ip.c_str(), table.c_str());
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to del ip '%s' from table '%s'", ip.c_str(), table.c_str());
 		return;
 	}
 	
 	ret = pclose(fp);
 	
 	if(ret == -1 || ret != 0){
-		showWarning("pf_table_del('%s', '%s'): returned bad status (%d)\n", table.c_str(), ip.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_table_del('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
 	}
 	
 }//end: pf_table_del
@@ -119,24 +123,29 @@ void pf_kill_src_nodes_to(string &ip, bool with_states){
 	char	 cmd[1024];
 	int	 ret;
 
+	if (with_states)
+		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing src_nodes and states to node with RST", ip.c_str());
+	else
+		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing src_nodes to node", ip.c_str());
+
 	snprintf(cmd, sizeof(cmd), "pfctl -q -K 0.0.0.0/0 -K '%s' %s", ip.c_str(), with_states?"-c -S":"" );
 
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 
 	if(!pf_action)
 		return;
 	
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to kill src_nodes to '%s'\n", ip.c_str());
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to kill src_nodes to '%s'", ip.c_str());
 		return;
 	}
 	
 	ret = pclose(fp);
 	
 	if(ret == -1 || ret != 0){
-		showWarning("pf_kill_src_nodes_to('%s'): returned bad status (%d)\n", ip.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_kill_src_nodes_to('%s'): returned bad status (%d)", ip.c_str(), ret);
 	}
 	
 }
@@ -155,11 +164,11 @@ int pf_is_in_table(string &table, string &ip){
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T show", table.c_str());
 
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 	
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to show table contents.\n");
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to show table contents.");
 		return 0; // not in table; error	
 	}
 
@@ -171,7 +180,7 @@ int pf_is_in_table(string &table, string &ip){
 	ret = pclose(fp);
 
 	if (ret != 0) {
-		showWarning("pf_is_in_table('%s', '%s'): returned bad status (%d)\n", table.c_str(), ip.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_is_in_table('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
 		return 0;
 	}
 
@@ -194,17 +203,19 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	FILE	*fp;
 	char	 cmd[1024];
 	int	 ret;
+	
+	show_message(MSG_TYPE_PFCTL, "%s %s - rebalancing table", table.c_str(), skip_ip.c_str());
 
 	/* Do not skip this function even if pf_action is false, this one is passive, it calls active ones. */
 
 	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T show", table.c_str());
 
 	if (verbose_pfctl)
-		cout << cmd << endl;
+		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
 
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		showError("cannot spawn pfctl process to show table contents.\n");
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to show table contents.");
 		return;
 	}
 
@@ -216,7 +227,7 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	ret = pclose(fp);
 
 	if (ret != 0) {
-		showWarning("pf_table_rebalance('%s', '%s'): returned bad status (%d)\n", table.c_str(), skip_ip.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_table_rebalance('%s', '%s'): returned bad status (%d)", table.c_str(), skip_ip.c_str(), ret);
 		return;
 	}
 
@@ -224,7 +235,7 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	string found_ip;
 	while (istr_output >> found_ip ) {
 		if (verbose_pfctl)
-			cout << found_ip << endl;
+			show_message(MSG_TYPE_PFCTL, "%s %s - node found in table", table.c_str(), found_ip.c_str());
 		if (found_ip != skip_ip)
 			pf_kill_src_nodes_to(found_ip, false);
 	}

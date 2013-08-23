@@ -94,7 +94,7 @@ int Healthcheck_ping::initialize() {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (socket_fd == -1) {
-		printf("socket(): %s\n", strerror(errno));
+		show_message(MSG_TYPE_ERROR, "socket(): %s", strerror(errno));
 		return false;
 	}
 
@@ -105,7 +105,7 @@ int Healthcheck_ping::initialize() {
 	int bufsize;
 	socklen_t bufbuflen;
 	getsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, (char*)&bufsize, &bufbuflen);
-	printf ("The Healthcheck_ping's socket buffer is %d bytes long.\n", bufsize);
+	show_message(MSG_TYPE_NONE, " * Healthcheck_ping's socket buffer is %d bytes.", bufsize);
 
 	/* Create an event and make it pending. */
 	ev = event_new(eventBase, socket_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);
@@ -129,11 +129,9 @@ void Healthcheck_ping::destroy() {
 /*
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
-Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, string("ping"), _parent_lbnode) {
+Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
 	/* Oh wait, there are none for this healthcheck! */
-
-	if (verbose>0)
-		cout << endl;
+	type = "ping";
 }
 
 
@@ -170,8 +168,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	/* Read a packet from the socket. */
 	received_bytes = recvfrom(socket_fd, raw_packet, sizeof(raw_packet), 0, NULL, NULL);
 	if (received_bytes <=0 ) {
-		printf("recvfrom error\n");
-		perror("recvfrom");
+		show_message(MSG_TYPE_ERROR, "recvfrom(): %s", strerror(errno));
 	}
 
 	ip_packet = (struct ip *)raw_packet;
@@ -213,8 +210,8 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 			return;
 
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"Received a Destination Unreachable message, seq: %d."CL_RESET"\n",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ntohs(icmp_packet->icmp_header.icmp_seq));
+			show_message(MSG_TYPE_HC_FAIL, "%s %s - Healthcheck_%s: Received a Destination Unreachable message, seq: %d.",
+				healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_DOWN;
 	}
@@ -238,8 +235,8 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
 
 		if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_GREEN"got ICMP Echo Reply in: %d.%dms, seq: %d"CL_RESET"\n",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ms_full, ms_dec, ntohs(icmp_packet->icmp_header.icmp_seq));
+			show_message(MSG_TYPE_HC_PASS, "%s %s - Healthcheck_%s: got ICMP Echo Reply in: %d.%dms, seq: %d",
+				healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->type.c_str(), ms_full, ms_dec, ntohs(icmp_packet->icmp_header.icmp_seq));
 
 		healthcheck->last_state = STATE_UP;
 	}
@@ -265,8 +262,8 @@ void Healthcheck_ping::finalize_result() {
 
 	if (timespeccmp(&now, &timeout ,> )) {
 		if (verbose>1 || hard_state != STATE_DOWN)
-			showStatus(CL_WHITE"%s"CL_RESET" - "CL_CYAN"%s"CL_RESET" - Healthcheck_%s: "CL_RED"timeout after %d,%ds, seq %d"CL_RESET"\n",
-					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
+			show_message(MSG_TYPE_HC_FAIL, "%s %s - Healthcheck_%s: timeout after %d,%ds, seq %d",
+				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str(), timeout.tv_sec, (timeout.tv_nsec/10000000), ping_my_seq);
 		ping_my_seq = 0;
 		last_state = STATE_DOWN;
 		handle_result();
