@@ -241,7 +241,8 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		healthcheck->last_state = STATE_UP;
 	}
 
-	healthcheck->handle_result();
+	if (healthcheck)
+		healthcheck->handle_result();
 }
 
 
