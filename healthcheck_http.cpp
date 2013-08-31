@@ -52,7 +52,7 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%d,", http_ok_codes[i]);
 	}
-	show_message(MSG_TYPE_NONE, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
+	show_message(MSG_TYPE_DEBUG, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
 
 	type = "http";
 }

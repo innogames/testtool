@@ -20,7 +20,7 @@ void pf_states_kill(string &from, string &to){
 
 
 	if(to.length() == 0) {
-		show_message(MSG_TYPE_PFCTL, "any_pool any_ip - killing states from %s", from.c_str());
+		show_message(MSG_TYPE_PFCTL, "any_pool any_node - killing states from %s", from.c_str());
 		snprintf(cmd, sizeof(cmd), "pfctl -q -k '%s'", from.c_str());
 	} else {
 		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing states from %s", to.c_str(), from.c_str());

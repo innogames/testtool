@@ -155,7 +155,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 
 			/* Pick the first one located on proper HWLB. */
 			if (proposed_backup_pool && proposed_backup_pool->default_hwlb == (*lbpool_it)->default_hwlb) {
-				show_message(MSG_TYPE_NONE, " Mapping backup_pool %s to %s", proposed_backup_pool->name.c_str(), (*lbpool_it)->name.c_str());
+				show_message(MSG_TYPE_DEBUG, " Mapping backup_pool %s to %s", proposed_backup_pool->name.c_str(), (*lbpool_it)->name.c_str());
 				(*lbpool_it)->backup_pool = proposed_backup_pool;
 				proposed_backup_pool->used_as_backup.push_back((*lbpool_it));
 				break;
@@ -276,7 +276,7 @@ void setup_events(list<LbPool *> * lbpools) {
 
 void init_libevent() {
 	eventBase = event_base_new();
-	show_message(MSG_TYPE_NONE, " * libevent method: %s", event_base_get_method(eventBase));
+	show_message(MSG_TYPE_DEBUG, " * libevent method: %s", event_base_get_method(eventBase));
 }
 
 
@@ -290,7 +290,7 @@ int init_libssl() {
 	SSL_load_error_strings (); 
 	OpenSSL_add_all_algorithms (); 
 
-	show_message(MSG_TYPE_NONE, " * OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
+	show_message(MSG_TYPE_DEBUG, " * OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
 
 	sctx = SSL_CTX_new (SSLv23_client_method ());
 	if (!sctx) {
@@ -323,7 +323,7 @@ void usage() {
 
 int main (int argc, char *argv[]) {
 	start_logging();
-	show_message(MSG_TYPE_NONE, "Built on %s - %s %s", __HOSTNAME__, __DATE__, __TIME__);
+	show_message(MSG_TYPE_NOTICE, "Starting testtool, built on %s %s",  __DATE__, __TIME__);
 
 	list<LbPool *> * lbpools = NULL;
 	srand(time(NULL));;
@@ -358,7 +358,7 @@ int main (int argc, char *argv[]) {
 		}
 	}
 
-	show_message(MSG_TYPE_NONE, "Initializing various stuff...");
+	show_message(MSG_TYPE_DEBUG, "Initializing various stuff...");
 	if (!init_libssl()) {
 		show_message(MSG_TYPE_ERROR, "Unable to initialise OpenSSL!");
 		exit(-1);
@@ -379,11 +379,11 @@ int main (int argc, char *argv[]) {
 	lbpools = load_lbpools(config_file);
 	config_file.close();
 
-	show_message(MSG_TYPE_NONE, "Entering the main loop...");
+	show_message(MSG_TYPE_DEBUG, "Entering the main loop...");
 	setup_events(lbpools);
-	show_message(MSG_TYPE_NONE, "Left the main loop.");
+	show_message(MSG_TYPE_DEBUG, "Left the main loop.");
 
-	show_message(MSG_TYPE_NONE, "Bye, see you next time!");
+	show_message(MSG_TYPE_NOTICE, "Ending testtool, bye!");
 
 	finish_libevent();
 	finish_libssl();

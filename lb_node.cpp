@@ -35,7 +35,7 @@ LbNode::LbNode(istringstream &parameters, class LbPool *_parent_lbpool) {
 		hard_state  = STATE_DOWN;
 	}
 
-	show_message(MSG_TYPE_NONE, "  * New LbNode %s, pf_state: %s", address.c_str(), (hard_state==STATE_DOWN?"DOWN":"UP"));
+	show_message(MSG_TYPE_DEBUG, "  * New LbNode %s, pf_state: %s", address.c_str(), (hard_state==STATE_DOWN?"DOWN":"UP"));
 }
 
 

@@ -75,8 +75,8 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 		failure_counter = max_failed_checks;
 	}
 
-	show_message(MSG_TYPE_NONE, "    * New healthcheck:");
-	show_message(MSG_TYPE_NONE, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
+	show_message(MSG_TYPE_DEBUG, "    * New healthcheck:");
+	show_message(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
 }
 
 

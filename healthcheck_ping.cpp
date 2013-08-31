@@ -105,7 +105,7 @@ int Healthcheck_ping::initialize() {
 	int bufsize;
 	socklen_t bufbuflen;
 	getsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, (char*)&bufsize, &bufbuflen);
-	show_message(MSG_TYPE_NONE, " * Healthcheck_ping's socket buffer is %d bytes.", bufsize);
+	show_message(MSG_TYPE_DEBUG, " * Healthcheck_ping's socket buffer is %d bytes.", bufsize);
 
 	/* Create an event and make it pending. */
 	ev = event_new(eventBase, socket_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);

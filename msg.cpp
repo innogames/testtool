@@ -89,8 +89,8 @@ void show_message(msgType type, const char *fmt, ...) {
 			snprintf(msgtype_buf, sizeof(msgtype_buf), "pfctl");
 		break;
 
-		default:
-			loglevel = LOG_NOTICE;
+		case MSG_TYPE_DEBUG:
+			loglevel = LOG_DEBUG;
 		break;
 	}
 
@@ -103,7 +103,7 @@ void show_message(msgType type, const char *fmt, ...) {
 	off = strftime(timebuf, sizeof(timebuf), "(%Y-%m-%d %H:%M:%S", tm);
 	snprintf(timebuf+off, sizeof(timebuf)-off, ".%06u)", (int)tv.tv_usec);
 
-	if (type == MSG_TYPE_NONE) {
+	if (type == MSG_TYPE_DEBUG) {
 		printf("%s\n", message_buf);
 		syslog(loglevel | LOG_LOCAL3, message_buf);
 	} else {

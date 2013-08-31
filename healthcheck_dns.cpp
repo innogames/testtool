@@ -98,7 +98,7 @@ Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_paren
 	this->dns_query = new char[dns_query.length()+1];
 	strcpy(this->dns_query, dns_query.c_str());
 
-	show_message(MSG_TYPE_NONE, "      query: %s", dns_query.c_str());
+	show_message(MSG_TYPE_DEBUG, "      query: %s", dns_query.c_str());
 	type = "dns";
 }
 

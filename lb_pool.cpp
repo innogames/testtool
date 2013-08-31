@@ -27,9 +27,9 @@ LbPool::LbPool(istringstream &parameters) {
 	nodes_alive = 0;
 	all_down_noticed = false;
 
-	show_message(MSG_TYPE_NONE, "* New LbPool %s on HWLB %d", name.c_str(), default_hwlb);
+	show_message(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %d", name.c_str(), default_hwlb);
 	if (backup_pool_trigger)
-		show_message(MSG_TYPE_NONE, "  backup lbpools %s below %d nodes", backup_pool_names.c_str(), backup_pool_trigger);
+		show_message(MSG_TYPE_DEBUG, "  backup lbpools %s below %d nodes", backup_pool_names.c_str(), backup_pool_trigger);
 }
 
 
