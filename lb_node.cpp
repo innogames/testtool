@@ -92,7 +92,7 @@ void LbNode::parse_healthchecks_results() {
 		/* Remove the node from its primary pool if the pool is in normal (not backup) operation. */
 		if (parent_lbpool->switched_to_backup == false) {
 			pf_table_del(parent_lbpool->name, address);
-			pf_kill_src_nodes_to(address, true); /* Kill all states to this node. */
+			pf_kill_src_nodes_to(parent_lbpool->name, address, true); /* Kill all states to this node. */
 		}
 
 		/* Remove the node from other pools when parent pool is used as backup_pool anywhere. */
@@ -101,7 +101,7 @@ void LbNode::parse_healthchecks_results() {
 				if (parent_lbpool->used_as_backup[bpl]->switched_to_backup) {
 					show_message(MSG_TYPE_NODE_DOWN, "%s %s - used as backup, removing from another pool: %s", parent_lbpool->name.c_str(), address.c_str(), parent_lbpool->used_as_backup[bpl]->name.c_str());
 					pf_table_del(parent_lbpool->used_as_backup[bpl]->name, address);
-					pf_kill_src_nodes_to(address, true);
+					pf_kill_src_nodes_to(parent_lbpool->used_as_backup[bpl]->name, address, true);
 				}
 			}
 		}

@@ -115,20 +115,20 @@ void pf_table_del(string &table,  string &ip){
 
 
 /*
-   Kill src_nodes pointing to a given gateway IP.
+   Kill src_nodes pointing to a given gateway IP in given pool
    Optionally kill pf states using those src_nodes.
 */
-void pf_kill_src_nodes_to(string &ip, bool with_states){
+void pf_kill_src_nodes_to(string &pool, string &ip, bool with_states){
 	FILE	*fp;
 	char	 cmd[1024];
 	int	 ret;
 
 	if (with_states)
-		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing src_nodes and states to node with RST", ip.c_str());
+		show_message(MSG_TYPE_PFCTL, "%s %s - killing src_nodes and states to node with RST", pool.c_str(), ip.c_str());
 	else
-		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing src_nodes to node", ip.c_str());
+		show_message(MSG_TYPE_PFCTL, "%s %s - killing src_nodes to node", pool.c_str(), ip.c_str());
 
-	snprintf(cmd, sizeof(cmd), "pfctl -q -K 0.0.0.0/0 -K '%s' %s", ip.c_str(), with_states?"-c -S":"" );
+	snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K %s -K 0.0.0.0/0 -K '%s' %s", pool.c_str(), ip.c_str(), with_states?"-c -S":"" );
 
 	if (verbose_pfctl)
 		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
@@ -237,7 +237,7 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 		if (verbose_pfctl)
 			show_message(MSG_TYPE_PFCTL, "%s %s - node found in table", table.c_str(), found_ip.c_str());
 		if (found_ip != skip_ip)
-			pf_kill_src_nodes_to(found_ip, false);
+			pf_kill_src_nodes_to(table, found_ip, false);
 	}
 }
 
