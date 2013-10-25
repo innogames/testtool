@@ -11,21 +11,16 @@ extern bool	 pf_action;
 extern int	 verbose_pfctl;
 
 /*
-   Kill states between given IPs, or from the first given IP (with second one being an empty string).
+   Kill states created by pf rules using given table and IP address for redirection.
 */
-void pf_states_kill(string &from, string &to){
+void pf_kill_states_rdr(string &pool, string &rdr_ip) {
 	FILE	*fp;
 	int	 ret;
 	char	 cmd[1024];
 
 
-	if(to.length() == 0) {
-		show_message(MSG_TYPE_PFCTL, "any_pool any_node - killing states from %s", from.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k '%s'", from.c_str());
-	} else {
-		show_message(MSG_TYPE_PFCTL, "any_pool %s - killing states from %s", to.c_str(), from.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k '%s' -k '%s'", from.c_str(), to.c_str());
-	}
+	show_message(MSG_TYPE_PFCTL, "%s %s - killing all states with RST", pool.c_str(), rdr_ip.c_str());
+	snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k '%s' -S", pool.c_str(), rdr_ip.c_str());
 
 	if (verbose_pfctl)
 		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);
@@ -35,14 +30,14 @@ void pf_states_kill(string &from, string &to){
 
 	fp = popen(cmd, "r");
 	if(fp == NULL){
-		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to kill states %s => %s", from.c_str(), to.c_str());
+		show_message(MSG_TYPE_ERROR, "cannot spawn pfctl process to kill states %s %s", pool.c_str(), rdr_ip.c_str());
 		return;
 	}
 	
 	ret = pclose(fp);
 	if(ret == -1 || ret != 0){
 			
-		show_message(MSG_TYPE_WARNING, "pf_states_kill('%s', '%s'): returned bad status (%d)", from.c_str(), to.c_str(), ret);
+		show_message(MSG_TYPE_WARNING, "pf_kill_states_rdr('%s', '%s'): returned bad status (%d)", pool.c_str(), rdr_ip.c_str(), ret);
 	}
 	
 }//end: pf_states_kill
@@ -128,7 +123,7 @@ void pf_kill_src_nodes_to(string &pool, string &ip, bool with_states){
 	else
 		show_message(MSG_TYPE_PFCTL, "%s %s - killing src_nodes to node", pool.c_str(), ip.c_str());
 
-	snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K %s -K 0.0.0.0/0 -K '%s' %s", pool.c_str(), ip.c_str(), with_states?"-c -S":"" );
+	snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K '%s' %s", pool.c_str(), ip.c_str(), with_states?"-c -S":"" );
 
 	if (verbose_pfctl)
 		show_message(MSG_TYPE_PFCTL, "command: %s", cmd);

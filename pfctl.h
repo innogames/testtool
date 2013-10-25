@@ -6,6 +6,7 @@
 using namespace std;
 
 void pf_kill_src_nodes_to(string &pool, string &ip, bool with_states);
+void pf_kill_states_rdr(string &pool, string &redirection);
 void pf_table_add(string &table, string &ip);
 void pf_table_del(string &table, string &ip);
 int  pf_is_in_table(string &table, string &ip);
