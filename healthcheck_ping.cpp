@@ -12,6 +12,9 @@
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 
+#include <sys/types.h>
+#include <unistd.h>
+
 #include <event2/event.h>
 #include <event2/event_struct.h>
 

@@ -6,6 +6,8 @@
 #include <vector>
 #include <set>
 
+#include <unistd.h>
+#include <sys/types.h>
 #include <signal.h>
 
 #include <event2/event.h>

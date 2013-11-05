@@ -4,6 +4,8 @@
 #include <vector>
 #include <sstream>
 
+#include <unistd.h>
+
 #include <event2/event.h>
 #include <event2/event_struct.h>
 #include <event2/util.h>
