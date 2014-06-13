@@ -259,7 +259,7 @@ void setup_events(list<LbPool *> * lbpools) {
 	/* Run the healthcheck scheduler multiple times per second. */
 	struct timeval healthcheck_scheduler_interval;
 	healthcheck_scheduler_interval.tv_sec  = 0;
-	healthcheck_scheduler_interval.tv_usec = 10000;
+	healthcheck_scheduler_interval.tv_usec = 100000;
 	struct event *healthcheck_scheduler_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_scheduler_callback, lbpools);
 	event_add(healthcheck_scheduler_event, &healthcheck_scheduler_interval);
 
