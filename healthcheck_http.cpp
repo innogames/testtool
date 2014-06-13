@@ -155,9 +155,9 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 }
 
 
-int Healthcheck_http::schedule_healthcheck() {
+int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck() == false)
+	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
 	bev = bufferevent_socket_new ( eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
@@ -179,9 +179,9 @@ int Healthcheck_http::schedule_healthcheck() {
 }
 
 
-int Healthcheck_https::schedule_healthcheck() {
+int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck() == false)
+	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
 	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */                                                                         

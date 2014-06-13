@@ -12,7 +12,7 @@ class LbPool {
 	/* Methods */ 
 	public:
 		LbPool(istringstream &parameters);
-		void schedule_healthchecks();
+		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 		int count_live_nodes();
 

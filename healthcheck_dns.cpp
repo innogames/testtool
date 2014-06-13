@@ -176,14 +176,14 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 }
 
 
-int Healthcheck_dns::schedule_healthcheck() {
+int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	char			raw_packet[DNS_BUFFER_SIZE]; /* This should be enough for our purposes. */
 	struct sockaddr_in	to_addr;
 	unsigned int		question_length;
 	unsigned int		total_length;
 
 	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck() == false)
+	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
 	/* Prepare memory. It must be pure and clean. */

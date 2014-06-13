@@ -116,19 +116,17 @@ Healthcheck *Healthcheck::healthcheck_factory(istringstream &definition, class L
    This method checks if the healthcheck can be run now.
    Sub-class method should terminate if this one forbids the check from being run.
 */
-int Healthcheck::schedule_healthcheck() {
-	struct timespec now;
+int Healthcheck::schedule_healthcheck(struct timespec *now) {
 
 	/* Do not schedule the healthcheck twice nor when there is a downtime. */
 	if (is_running || parent_lbnode->downtime)
 		return false;
 
 	/* Check if host should be checked at this time. */
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	if( timespec_diffms(&now, &last_checked) < check_interval*1000 + extra_delay)
+	if( timespec_diffms(now, &last_checked) < check_interval*1000 + extra_delay)
 		return false;
 
-	last_checked = now;
+	memcpy(&last_checked, now, sizeof(struct timespec));
 	is_running = true;
 
 	if (verbose>1) {

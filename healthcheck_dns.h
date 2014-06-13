@@ -63,7 +63,7 @@ class Healthcheck_dns: public Healthcheck {
 
 	/* Members */
 	public:
-		int schedule_healthcheck();
+		int schedule_healthcheck(struct timespec *now);
 
 	private:
 		int		 socket_fd;

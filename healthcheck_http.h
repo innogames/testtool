@@ -18,7 +18,7 @@ class Healthcheck_http: public Healthcheck {
 	public:
 		Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode);
 		static void check_http_callback(struct evhttp_request *req, void *arg);
-		int schedule_healthcheck();
+		int schedule_healthcheck(struct timespec *now);
 
 	protected:
 		static void callback(struct evhttp_request *req, void *arg);
@@ -42,7 +42,7 @@ class Healthcheck_https: public Healthcheck_http {
 	/* Methods */
 	public:
 		Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode);
-		int schedule_healthcheck();
+		int schedule_healthcheck(struct timespec *now );
 
 
 	/* Members */

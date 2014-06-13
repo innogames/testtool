@@ -36,10 +36,10 @@ LbPool::LbPool(istringstream &parameters) {
 /*
    Go over all healthchecks and try to schedule them.
 */
-void LbPool::schedule_healthchecks() {
+void LbPool::schedule_healthchecks(struct timespec *now) {
 
 	for(unsigned int nd=0; nd<nodes.size(); nd++) {
-		nodes[nd]->schedule_healthchecks();
+		nodes[nd]->schedule_healthchecks(now);
 	}
 }
 

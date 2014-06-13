@@ -275,14 +275,12 @@ void Healthcheck_ping::finalize_result() {
 }
 
 
-int Healthcheck_ping::schedule_healthcheck() {
+int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 	struct sockaddr_in	 to_addr;
 	struct icmp_echo_struct	 echo_request;
 
-	struct timespec		 now;
-
 	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck() == false)
+	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
 	/* Increase the ICMP sequence number. It is zeroed elsewehere, so we always start with 1. */
@@ -301,8 +299,8 @@ int Healthcheck_ping::schedule_healthcheck() {
 	echo_request.icmp_header.icmp_id = htons(ping_id);
 	echo_request.icmp_header.icmp_seq = htons(ping_my_seq);
 
-	clock_gettime(CLOCK_MONOTONIC, &now);
-	echo_request.timestamp = now;
+	/* Remember time when this request was sent. */
+	memcpy(&echo_request.timestamp, now, sizeof(struct timespec));
 
 	/* Fill in the data. */
 	memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE); 

@@ -12,7 +12,7 @@ class LbNode {
 	/* Methods */
 	public:
 		LbNode(istringstream &parameters, class LbPool *_parent_lbpool);
-		void schedule_healthchecks();
+		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 		void start_downtime();
 		void end_downtime();

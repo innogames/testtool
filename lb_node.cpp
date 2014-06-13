@@ -42,12 +42,12 @@ LbNode::LbNode(istringstream &parameters, class LbPool *_parent_lbpool) {
 /*
    Try to schedule all healthcheck of this node. Do not try if there is a downtime for this node.
 */
-void LbNode::schedule_healthchecks() {
+void LbNode::schedule_healthchecks(struct timespec *now) {
 	if (downtime == true)
 		return;
 
 	for(unsigned int hc=0; hc<healthchecks.size(); hc++) {
-		healthchecks[hc]->schedule_healthcheck();
+		healthchecks[hc]->schedule_healthcheck(now);
 	}
 }
 

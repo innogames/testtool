@@ -32,7 +32,7 @@ class Healthcheck_ping: public Healthcheck {
 	/* Methods */
 	public:
 		Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode);
-		int schedule_healthcheck();
+		int schedule_healthcheck(struct timespec *now);
 		static int initialize();
 		static void destroy();
 		void finalize_result();

@@ -177,16 +177,21 @@ void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
 	(void)(fd);
 	(void)(what);
 
+	struct timespec now;
+
 	list<LbPool *> *lbpools = (list<LbPool *> *)arg;
 
 	if (check_downtimes) {
 		load_downtimes(lbpools);
 		check_downtimes = false;
 	}
-	
+
+	/* Get time once and assume all checks started at this time. */
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
 	/* Iterate over all lbpools and schedule healthchecks. */
 	for(list<LbPool*>::iterator lbpool = lbpools->begin(); lbpool != lbpools->end(); lbpool++) {
-		(*lbpool)->schedule_healthchecks();
+		(*lbpool)->schedule_healthchecks(&now);
 	}
 }
 
