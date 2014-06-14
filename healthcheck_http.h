@@ -28,8 +28,6 @@ class Healthcheck_http: public Healthcheck {
 	/* Members */
 	protected:
 		struct evhttp_connection	*conn;
-		struct evhttp_request		*req;
-		struct bufferevent		*bev;
 		long				 http_result;
 		char				*url;
 		vector<int>			 http_ok_codes;
@@ -43,13 +41,6 @@ class Healthcheck_https: public Healthcheck_http {
 	public:
 		Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode);
 		int schedule_healthcheck(struct timespec *now );
-
-
-	/* Members */
-	private:
-		SSL	*ssl; /* Required only for https */
-
-
 };
 
 

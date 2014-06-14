@@ -27,6 +27,8 @@ extern int			 verbose;
    Constructor for HTTP healthcheck. Parses http(s)-specific parameters.
 */
 Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+	/* Initialize pointers to NULL, this is not done automatically. */
+	conn = NULL;
 
 	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
 	istringstream ss_parameters(parameters);
@@ -67,7 +69,8 @@ Healthcheck_https::Healthcheck_https(istringstream &definition, class LbNode *_p
 
 
 void Healthcheck_http::cleanup_connection() {
-	/* Only the connection has to be freed. */
+	/* Only the connection has to be explicitly freed.
+	 * Buffers will be freed by evhttp_connection_free. */
 	if (conn)
 		evhttp_connection_free(conn);
 	conn = NULL;
@@ -109,19 +112,10 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 			} else {
 				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: other error (socket error: %d)",
 						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR());
+
 			}
 
 		}
-
-	} else if (req->response_code == 0) { /* Connection not established or other http error. */
-
-		healthcheck->last_state = STATE_DOWN;
-
-		if (verbose>1 || healthcheck->hard_state != STATE_DOWN) {
-			show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: http protocol error",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
-		}
-
 	} else { /* The http request finished properly. */
 		healthcheck->http_result = req->response_code;
 
@@ -156,6 +150,9 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
+	struct bufferevent	*bev;
+	struct evhttp_request	*req;
+
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
@@ -180,11 +177,15 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 
 int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
+	struct bufferevent	*bev;
+	struct evhttp_request	*req;
+	SSL			*ssl;
+
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
-	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */                                                                         
+	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */
 	ssl = SSL_new (sctx);
 	bev = bufferevent_openssl_socket_new ( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS );
 
