@@ -157,7 +157,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
-	bev = bufferevent_socket_new ( eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
+	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_DEFER_CALLBACKS);
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
@@ -187,7 +187,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */
 	ssl = SSL_new (sctx);
-	bev = bufferevent_openssl_socket_new ( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS );
+	bev = bufferevent_openssl_socket_new( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_DEFER_CALLBACKS);
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
