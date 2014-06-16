@@ -95,23 +95,23 @@ void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
 
 			if (EVUTIL_SOCKET_ERROR() == 36 || EVUTIL_SOCKET_ERROR() == 9) {
 				/* Connect timeout or connecting interrupted by libevent timeout. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: timeout after %d,%ds",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: timeout after %d,%ds; message: %s",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 			} else if (EVUTIL_SOCKET_ERROR() == 32) {
 				/* Connection refused on a ssl check. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: ssl connection refused",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection refused, message: %s",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 			} else if (EVUTIL_SOCKET_ERROR() == 54) {
 				/* Connection refused. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection refused",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection refused, message: %s",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 			} else if (EVUTIL_SOCKET_ERROR() == 64) {
 				/* Host down immediately reported by system. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: host down",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: host down, message: %s",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 			} else {
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: other error (socket error: %d)",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR());
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: other error (socket error: %d, message: %s)",
+						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR(),  evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 
 			}
 
@@ -157,7 +157,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
-	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_DEFER_CALLBACKS);
+	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS | BEV_OPT_THREADSAFE);
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
@@ -180,6 +180,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 	struct bufferevent	*bev;
 	struct evhttp_request	*req;
 	SSL			*ssl;
+	return false;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
@@ -187,7 +188,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */
 	ssl = SSL_new (sctx);
-	bev = bufferevent_openssl_socket_new( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_DEFER_CALLBACKS);
+	bev = bufferevent_openssl_socket_new( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS | BEV_OPT_THREADSAFE);
 
 	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
 
