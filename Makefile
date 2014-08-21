@@ -1,8 +1,8 @@
 HOSTNAME!=hostname
 CC=c++
 
-#LIBEVENT=/opt/libevent-2.0
-LIBEVENT=/opt/libevent-2.1
+LIBEVENT=/opt/libevent-2.0
+#LIBEVENT=/opt/libevent-2.1
 
 GIT_BRANCH:=`git rev-parse --abbrev-ref HEAD`
 GIT_LAST_COMMIT:=`git log -1 --pretty='%H'`

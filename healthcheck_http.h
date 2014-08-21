@@ -21,16 +21,18 @@ class Healthcheck_http: public Healthcheck {
 		int schedule_healthcheck(struct timespec *now);
 
 	protected:
-		static void callback(struct evhttp_request *req, void *arg);
+		static void event_callback(struct bufferevent *bev, short events, void *arg);
+		static void read_callback(struct bufferevent *bev, void *arg);
 		void cleanup_connection();
 
 
 	/* Members */
 	protected:
-		struct evhttp_connection	*conn;
-		long				 http_result;
+		bufferevent			*bev;
 		char				*url;
-		vector<int>			 http_ok_codes;
+		vector<string>			 http_ok_codes;
+		struct addrinfo			*addrinfo;
+		string				 reply;
 
 };
 

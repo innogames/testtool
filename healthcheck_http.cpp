@@ -8,6 +8,7 @@
 
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
+#include <event2/buffer.h>
 
 #include "msg.h"
 
@@ -22,13 +23,12 @@ extern struct event_base	*eventBase;
 extern SSL_CTX			*sctx;
 extern int			 verbose;
 
-
 /*
    Constructor for HTTP healthcheck. Parses http(s)-specific parameters.
 */
 Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
 	/* Initialize pointers to NULL, this is not done automatically. */
-	conn = NULL;
+	bev = NULL;
 
 	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
 	istringstream ss_parameters(parameters);
@@ -39,20 +39,28 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	this->url = new char[url.length()+1];
 	strcpy(this->url, url.c_str());
 
+	/* Copy address to addrinfo struct for connect. I am aware that converting port number to text and back to int is stupid */
+	memset(&addrinfo, 0, sizeof(addrinfo));
+	char port_str[256];
+	memset(port_str, 0, sizeof(port_str));
+	snprintf(port_str, sizeof(port_str), "%d", port);
+	getaddrinfo(parent_lbnode->address.c_str(), port_str, NULL, &addrinfo);
+	
 	/* Read the list of OK HTTP codes. */
 	std::string st_http_ok_codes; 
 	getline(ss_parameters, st_http_ok_codes, ':');
 
-	/* Split the list by ".", convert each element to int and copy it into a vector. */
+	/* Split the list by ".", copy each found code into the vector. */
 	stringstream ss_http_ok_codes(st_http_ok_codes);
 	string http_ok_code;
 	while(getline(ss_http_ok_codes, http_ok_code, '.'))
-		http_ok_codes.push_back(atoi(http_ok_code.c_str()));
+		http_ok_codes.push_back(http_ok_code);
 
+	/* Print codes as they were parsed. */
 	char codes_buf[1024];
 	int offset = 0;
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
-		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%d,", http_ok_codes[i]);
+		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
 	show_message(MSG_TYPE_DEBUG, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
 
@@ -69,139 +77,164 @@ Healthcheck_https::Healthcheck_https(istringstream &definition, class LbNode *_p
 
 
 void Healthcheck_http::cleanup_connection() {
-	/* Only the connection has to be explicitly freed.
-	 * Buffers will be freed by evhttp_connection_free. */
-	if (conn)
-		evhttp_connection_free(conn);
-	conn = NULL;
+	if (bev)
+		bufferevent_free(bev);
+	bev = NULL;
 }
 
+void Healthcheck_http::read_callback(struct bufferevent *bev, void * arg) {
+	struct evbuffer *input = bufferevent_get_input(bev);
+	Healthcheck_http *hc = (Healthcheck_http *)arg;
+	char buf[1024];
+
+	memset(buf, 0, sizeof(buf));
+
+	while (evbuffer_remove(input, buf, sizeof(buf) > 0)) {
+		hc->reply.append(buf);
+	}
+}
 
 /*
    The callback is called by libevent, it's a static method that requires the Healthcheck object to be passed to it.
 */
-void Healthcheck_http::callback(struct evhttp_request *req, void *arg) {
+void Healthcheck_http::event_callback(struct bufferevent *bev, short events, void *arg) {
+	Healthcheck_http *hc = (Healthcheck_http *)arg;
 
-	Healthcheck_http * healthcheck = (Healthcheck_http *)arg;
+	/* Ignore READING, WRITING, CONNECTED events. */
+	if (events & (BEV_EVENT_ERROR|BEV_EVENT_TIMEOUT|BEV_EVENT_EOF)) {
 
-	/* Socket error would be the last encountered error in this connection and is not zeroed after success, so we can not relay on this function. */
-	if ( req == NULL || req->response_code == 0) { /* Libevent encountered some problem. */
-
-		healthcheck->last_state = STATE_DOWN;
-
-		if (verbose>1 || healthcheck->hard_state != STATE_DOWN) {
-
-			/* There is a function to translate error number to a meaningful information, but the meaning is usually quite confusing. */
-
-			if (EVUTIL_SOCKET_ERROR() == 36 || EVUTIL_SOCKET_ERROR() == 9) {
-				/* Connect timeout or connecting interrupted by libevent timeout. */
+		if (events & BEV_EVENT_TIMEOUT) {
+			hc->last_state = STATE_DOWN;
+			if (verbose>1 || hc->hard_state != STATE_DOWN)
 				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: timeout after %d,%ds; message: %s",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-			} else if (EVUTIL_SOCKET_ERROR() == 32) {
-				/* Connection refused on a ssl check. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection refused, message: %s",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-			} else if (EVUTIL_SOCKET_ERROR() == 54) {
-				/* Connection refused. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection refused, message: %s",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-			} else if (EVUTIL_SOCKET_ERROR() == 64) {
-				/* Host down immediately reported by system. */
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: host down, message: %s",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-			} else {
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: other error (socket error: %d, message: %s)",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), EVUTIL_SOCKET_ERROR(),  evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
-
-			}
+				    hc->parent_lbnode->parent_lbpool->name.c_str(),
+				    hc->parent_lbnode->address.c_str(),
+				    hc->port,
+				    hc->type.c_str(),
+				    hc->timeout.tv_sec,
+				    (hc->timeout.tv_nsec/10000000),
+				    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 
 		}
-	} else { /* The http request finished properly. */
-		healthcheck->http_result = req->response_code;
-
-		unsigned int i;
-		/*Check if resulting http code is a good one. */
-		for (i = 0; i<healthcheck->http_ok_codes.size(); i++) {
-
-			if (req->response_code == healthcheck->http_ok_codes[i]) {
-
-				if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-					show_message(MSG_TYPE_HC_PASS, "%s %s:%d - Healthcheck_%s: good HTTP code: %ld",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
-
-				healthcheck->last_state = STATE_UP; /* Service is UP */
-				break;
-			}
+		else if (events & BEV_EVENT_ERROR) {
+			hc->last_state = STATE_DOWN;
+			if (verbose>1 || hc->hard_state != STATE_DOWN)
+				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: error connecting; message: %s",
+				    hc->parent_lbnode->parent_lbpool->name.c_str(),
+				    hc->parent_lbnode->address.c_str(),
+				    hc->port,
+				    hc->type.c_str(),
+				    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 		}
+		else if (events & BEV_EVENT_EOF) {
+			/* Get 1st line of reply. */
+			stringstream replystream(hc->reply);
+			string statusline;
+			getline(replystream, statusline);
 
-		/* Have all http codes been checked? */
-		if (i == healthcheck->http_ok_codes.size()) {
-			healthcheck->last_state = STATE_DOWN;
-			if (verbose>1 || healthcheck->hard_state != STATE_DOWN) {
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: bad HTTP code: %ld",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->http_result);
-			}
-		}
-	}
+			/* A line goes like this:
+			 * HTTP/1.1 200 OK
+			 * Http code is the string between 1st and 2nd ' '.
+			 * It would be awesome to use regexp but then
+			 * we need boost or C++11 which is not in FreeBSD 9 (but is in 10).
+			 */ 
+			int pos;
+			pos = statusline.find(" ");
+			statusline = statusline.substr(pos+1);
+			pos = statusline.find(" ");
+			statusline = statusline.substr(0, pos);
+
+			unsigned int i;
+
+			for (i = 0; i<hc->http_ok_codes.size(); i++) {
+				if (statusline.compare(hc->http_ok_codes[i]) == 0) {
+					if (verbose>1 || hc->last_state == STATE_DOWN)
+						show_message(MSG_TYPE_HC_PASS, "%s %s:%d - Healthcheck_%s: good HTTP code: %s",
+						    hc->parent_lbnode->parent_lbpool->name.c_str(),
+						    hc->parent_lbnode->address.c_str(),
+						    hc->port,
+						    hc->type.c_str(),
+						    statusline.c_str());
 	
-	healthcheck->cleanup_connection();
-	healthcheck->handle_result();
+					hc->last_state = STATE_UP;
+					break;
+				}
+			}
+		
+			if (i == hc->http_ok_codes.size()) {
+				hc->last_state = STATE_DOWN;
+				if (verbose>1 || hc->hard_state != STATE_DOWN) {
+					show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: bad HTTP code: %s",
+					    hc->parent_lbnode->parent_lbpool->name.c_str(),
+					    hc->parent_lbnode->address.c_str(),
+					    hc->port,
+					    hc->type.c_str(),
+					    statusline.c_str());
+				}
+			}
+		}
+
+		hc->cleanup_connection();
+		hc->handle_result();
+	}
 }
 
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
-	struct bufferevent	*bev;
 	struct evhttp_request	*req;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
-	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS | BEV_OPT_THREADSAFE);
+	reply = "";
 
-	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
+	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
+	if (bev == NULL)
+		return false;
+
+	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
+	bufferevent_enable(bev, EV_READ|EV_WRITE);
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", url, parent_lbnode->address.c_str());
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;
 	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
-	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
+	bufferevent_set_timeouts(bev, &timeout_tv, &timeout_tv);
 
-	req = evhttp_request_new(&callback, (void *)this);
-	evhttp_add_header(req->output_headers, "Host", parent_lbnode->address.c_str());
-	evhttp_add_header(req->output_headers, "Connection", "close");
-
-	evhttp_make_request(conn, req, EVHTTP_REQ_HEAD, url);
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
+		return false;
 
 	return true;
 }
 
 
 int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
-	struct bufferevent	*bev;
 	struct evhttp_request	*req;
 	SSL			*ssl;
-	return false;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
-	/* Always create new ssl, the old one is freed somewhere in evhttp_connection_free, called in connection finish handler */
-	ssl = SSL_new (sctx);
-	bev = bufferevent_openssl_socket_new( eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE | BEV_OPT_DEFER_CALLBACKS | BEV_OPT_THREADSAFE);
+	reply = "";
 
-	conn = evhttp_connection_base_bufferevent_new(eventBase, NULL, bev, parent_lbnode->address.c_str(), port);
+	ssl = SSL_new(sctx);
+	bev = bufferevent_openssl_socket_new(eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE);
+	if (bev == NULL)
+		return false;
+
+	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
+	bufferevent_enable(bev, EV_READ|EV_WRITE);
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", url, parent_lbnode->address.c_str());
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;
 	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
-	evhttp_connection_set_timeout_tv(conn, &timeout_tv); /* We use timestruct everywhere but libevent wants timeval. */
+	bufferevent_set_timeouts(bev, &timeout_tv, &timeout_tv);
 
-	req = evhttp_request_new(&callback, (void *)this);
-	evhttp_add_header(req->output_headers, "Host", parent_lbnode->address.c_str());
-	evhttp_add_header(req->output_headers, "Connection", "close");
-
-	evhttp_make_request(conn, req, EVHTTP_REQ_HEAD, url);
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
+		return false;
 
 	return true;
 }
