@@ -98,6 +98,7 @@ void Healthcheck_http::read_callback(struct bufferevent *bev, void * arg) {
    The callback is called by libevent, it's a static method that requires the Healthcheck object to be passed to it.
 */
 void Healthcheck_http::event_callback(struct bufferevent *bev, short events, void *arg) {
+	(void)(bev);
 	Healthcheck_http *hc = (Healthcheck_http *)arg;
 
 	/* Ignore READING, WRITING, CONNECTED events. */
@@ -181,8 +182,6 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
-	struct evhttp_request	*req;
-
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
@@ -210,8 +209,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 
 int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
-	struct evhttp_request	*req;
-	SSL			*ssl;
+	SSL *ssl;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
