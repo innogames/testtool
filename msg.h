@@ -21,14 +21,15 @@
 
 
 typedef enum msgType {
-	MSG_TYPE_DEBUG, MSG_TYPE_NOTICE, MSG_TYPE_WARNING, MSG_TYPE_ERROR,
 	MSG_TYPE_NODE_UP, MSG_TYPE_NODE_DOWN,
 	MSG_TYPE_HC_PASS, MSG_TYPE_HC_FAIL, MSG_TYPE_HC_HFAIL,
-	MSG_TYPE_PFCTL
+	MSG_TYPE_PFCTL,
+	MSG_TYPE_DEBUG, MSG_TYPE_CRITICAL
 } msgType;
 
 
 void start_logging();
-void show_message(msgType type, const char *fmt, ...);
+void log_txt(msgType type, const char *fmt, ...);
+void log_lb(msgType type, const char *lb_pool, const char *lb_node, const int port, const  char *fmt, ...);
 
 #endif

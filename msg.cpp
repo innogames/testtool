@@ -7,110 +7,133 @@
 
 #include "msg.h"
 
+/*
+     LOG_EMERG     A panic condition.  This is normally broadcast to all
+                   users.
+
+     LOG_ALERT     A condition that should be corrected immediately, such as a
+                   corrupted system database.
+
+     LOG_CRIT      Critical conditions, e.g., hard device errors.
+
+     LOG_ERR       Errors.
+
+     LOG_WARNING   Warning messages.
+
+     LOG_NOTICE    Conditions that are not error conditions, but should possi-
+                   bly be handled specially.
+
+     LOG_INFO      Informational messages.
+
+     LOG_DEBUG     Messages that contain information normally of use only when
+                   debugging a program.
+*/
+
 void start_logging() {
 	openlog("testtool", LOG_PID, LOG_LOCAL3);
 }
 
-
-void show_message(msgType type, const char *fmt, ...) {
-	char message_buf[4096];
-	char cmsgtype_buf[128];
-	char msgtype_buf[128];
-	char timebuf[128];
-	int off = 0;
+void log_txt(msgType type, const char *fmt, ...) {
+	char mbuf[4096]; // Message body buffer.
+	char cbuf[128];  // Colourful stamp buffer.
+	char pbuf[128];  // Plaintext stamp buffer.
+	char tbuf[128];  // Timestamp buffer.
 	int loglevel;
 
-	message_buf[0] = 0;
-	cmsgtype_buf[0] = 0;
-	msgtype_buf[0] = 0;
+	memset(mbuf, 0, sizeof(mbuf));
+	memset(cbuf, 0, sizeof(cbuf));
+	memset(pbuf, 0, sizeof(pbuf));
+	memset(tbuf, 0, sizeof(tbuf));
+
+	va_list args;
+	va_start(args, fmt);
+	vsnprintf(mbuf, sizeof(mbuf), fmt, args);
+	va_end(args);
+
+	switch(type) {
+		/* Node state changes. */
+		case MSG_TYPE_NODE_UP:
+			loglevel = LOG_NOTICE;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_GREEN "  Node Up  "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Node up");
+		break;
+
+		case MSG_TYPE_NODE_DOWN:
+			loglevel = LOG_CRIT;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_YELLOW" Node Down "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Node down");
+		break;
+
+		/* Healthcheck results. */
+		case MSG_TYPE_HC_PASS:
+			loglevel = LOG_NOTICE;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_GREEN " HC Passed "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "HC Passed");
+		break;
+
+		case MSG_TYPE_HC_FAIL:
+			loglevel = LOG_ERR;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_RED   " HC Failed "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(mbuf), "HC Failed");
+		break;
+
+		case MSG_TYPE_HC_HFAIL:
+			loglevel = LOG_ERR;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_RED   "HC HardFail"CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(mbuf), "HC HardFail");
+		break;
+
+		/* pfctl operations */
+		case MSG_TYPE_PFCTL:
+			loglevel = LOG_NOTICE;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_CYAN  "   pfctl   "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "pfctl");
+		break;
+
+		case MSG_TYPE_DEBUG:
+			loglevel = LOG_DEBUG;
+		break;
+
+		case MSG_TYPE_CRITICAL:
+			loglevel = LOG_CRIT;
+		break;
+
+	}
+
+	/* Prepare timestamp for stdout output. */
+	struct timeval  tv;
+	struct tm      *tm;
+	int off;
+	gettimeofday(&tv, NULL);
+	tm = localtime(&tv.tv_sec);
+	off = strftime(tbuf, sizeof(tbuf), "(%Y-%m-%d %H:%M:%S", tm);
+	snprintf(tbuf+off, sizeof(tbuf)-off, ".%06u)", (int)tv.tv_usec);
+
+
+	/* Syslog gets plain text message with proper log level. */
+	syslog(loglevel | LOG_LOCAL3, "%s - %s", pbuf, mbuf);
+
+	/* Stdout gets a colourful message with timestamp. */
+	printf("%s %s %s\n", tbuf, cbuf, mbuf);
+
+	fflush(stdout);
+
+
+}
+
+void log_lb(msgType type, const char *lb_pool, const char *lb_node, const int port, const char *fmt, ...) {
+	char message_buf[4096];
 
 	va_list args;
 	va_start(args, fmt);
 	vsnprintf(message_buf, sizeof(message_buf), fmt, args);
 	va_end(args);
 
-	// Format on type:
-	switch(type) {
-		/* General messages. */
-		case MSG_TYPE_NOTICE:
-			loglevel = LOG_NOTICE;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_CYAN  "  Notice   "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "Notice");
-		break;
-		
-		case MSG_TYPE_WARNING:
-			loglevel = LOG_WARNING;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_YELLOW"  Warning  "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "Warning");
-		break;
-		
-		case MSG_TYPE_ERROR:
-			loglevel = LOG_ERR;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_RED   "   Error   "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "Error");
-		break;
-
-		/* Node state changes. */
-		case MSG_TYPE_NODE_UP:
-			loglevel = LOG_NOTICE;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_GREEN "  Node Up  "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "Node Up");
-		break;
-
-		case MSG_TYPE_NODE_DOWN:
-			loglevel = LOG_WARNING;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_YELLOW" Node Down "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "Node Down");
-		break;
-
-		/* Healthcheck results. */
-		case MSG_TYPE_HC_PASS:
-			loglevel = LOG_NOTICE;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_GREEN " HC Passed "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "HC Passed");
-		break;
-
-		case MSG_TYPE_HC_FAIL:
-			loglevel = LOG_ERR;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_RED   " HC Failed "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "HC Failed");
-		break;
-
-		case MSG_TYPE_HC_HFAIL:
-			loglevel = LOG_ERR;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_RED   "HC HardFail"CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "HC HardFail");
-		break;
-
-		/* pfctl operations */
-		case MSG_TYPE_PFCTL:
-			loglevel = LOG_NOTICE;
-			snprintf(cmsgtype_buf, sizeof(cmsgtype_buf), CL_WHITE"["CL_CYAN  "   pfctl   "CL_WHITE"]"CL_RESET);
-			snprintf(msgtype_buf, sizeof(msgtype_buf), "pfctl");
-		break;
-
-		case MSG_TYPE_DEBUG:
-			loglevel = LOG_DEBUG;
-		break;
-	}
-
-	struct timeval  tv;
-	struct tm      *tm;
-
-	gettimeofday(&tv, NULL);
-	tm = localtime(&tv.tv_sec);
-				
-	off = strftime(timebuf, sizeof(timebuf), "(%Y-%m-%d %H:%M:%S", tm);
-	snprintf(timebuf+off, sizeof(timebuf)-off, ".%06u)", (int)tv.tv_usec);
-
-	if (type == MSG_TYPE_DEBUG) {
-		printf("%s\n", message_buf);
-		syslog(loglevel | LOG_LOCAL3, message_buf);
-	} else {
-		syslog(loglevel | LOG_LOCAL3, "%s - %s", msgtype_buf, message_buf);
-		printf("%s %s %s\n", timebuf, cmsgtype_buf, message_buf);
-	}
-	fflush(stdout);
+	/* This one is to be parsed by logstash. */
+	if (port)
+		log_txt(type, "%s - %s:%d - %s", lb_pool, lb_node, port, message_buf);
+	else
+		log_txt(type, "%s - %s - %s", lb_pool, lb_node, message_buf);
 
 }
 

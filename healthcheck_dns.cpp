@@ -98,7 +98,7 @@ Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_paren
 	this->dns_query = new char[dns_query.length()+1];
 	strcpy(this->dns_query, dns_query.c_str());
 
-	show_message(MSG_TYPE_DEBUG, "      query: %s", dns_query.c_str());
+	log_txt(MSG_TYPE_DEBUG, "      query: %s", dns_query.c_str());
 	type = "dns";
 }
 
@@ -119,9 +119,14 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	if (what & EV_TIMEOUT) {
 		healthcheck->last_state = STATE_DOWN;
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: timeout after %d,%ds",
-				healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str(), healthcheck->timeout.tv_sec, (healthcheck->timeout.tv_nsec/10000000));
-	
+			log_lb(MSG_TYPE_HC_FAIL,
+			    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+			    healthcheck->parent_lbnode->address.c_str(),
+			    healthcheck->port,
+			    "Healthcheck_%s: timeout after %d,%ds",
+			    healthcheck->type.c_str(),
+			    healthcheck->timeout.tv_sec,
+			    (healthcheck->timeout.tv_nsec/10000000));
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
@@ -132,34 +137,54 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			   Or when an ICMP dst unreachable is received */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: connection rejected",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				log_lb(MSG_TYPE_HC_FAIL,
+				    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+				    healthcheck->parent_lbnode->address.c_str(),
+				    healthcheck->port,
+				    "Healthcheck_%s: connection rejected",
+				    healthcheck->type.c_str());
 		}
 		else if (bytes_received < (int)sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* Size of the received message shall be between the size of header and the maximum dns packet size. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: received malformed data",
-						healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				log_lb(MSG_TYPE_HC_FAIL,
+				    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+				    healthcheck->parent_lbnode->address.c_str(),
+				    healthcheck->port,
+				    "Healthcheck_%s: received malformed data",
+				    healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
 			/* No answers means that the server knows nothing about the domain. Therefore it fails the check. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: received no DNS answers",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				log_lb(MSG_TYPE_HC_FAIL,
+				    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+				    healthcheck->parent_lbnode->address.c_str(),
+				    healthcheck->port,
+				    "Healthcheck_%s: received no DNS answers",
+				    healthcheck->type.c_str());
 		}
 		else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id ) {
 			/* Received transaction id must be the same as in the last query sent to the server. */
 			healthcheck->last_state = STATE_DOWN;
 			if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: received wrong transaction id",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				log_lb(MSG_TYPE_HC_FAIL,
+				    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+				    healthcheck->parent_lbnode->address.c_str(),
+				    healthcheck->port,
+				    "Healthcheck_%s: received wrong transaction id",
+				    healthcheck->type.c_str());
 		} else {
 			/* Finally it seems that all is fine. */
 			if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-				show_message(MSG_TYPE_HC_PASS, "%s %s:%d - Healthcheck_%s: received a DNS answer",
-					healthcheck->parent_lbnode->parent_lbpool->name.c_str(), healthcheck->parent_lbnode->address.c_str(), healthcheck->port, healthcheck->type.c_str());
+				log_lb(MSG_TYPE_HC_PASS,
+				    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
+				    healthcheck->parent_lbnode->address.c_str(),
+				    healthcheck->port,
+				    "Healthcheck_%s: received a DNS answer",
+				    healthcheck->type.c_str());
 			healthcheck->last_state = STATE_UP;
 
 			/*
@@ -219,7 +244,7 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (socket_fd == -1) {
-		show_message(MSG_TYPE_ERROR, "socket(): %s", strerror(errno));
+		log_txt(MSG_TYPE_CRITICAL, "socket(): %s", strerror(errno));
 		return false;
 	}
 	/* In fact I'm not really sure if it needs to be nonblocking. */

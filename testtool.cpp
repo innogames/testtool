@@ -44,7 +44,7 @@ void signal_handler(int signum) {
 		   Config reloading will be added later. For now terminating
 		   the program is fine as watchdog script will re-launch it.
 		*/
-		case SIGHUP: 
+		case SIGHUP:
 			event_base_loopbreak(eventBase);
 			break;
 		case SIGUSR1:
@@ -62,7 +62,7 @@ void signal_handler(int signum) {
 */
 void load_downtimes(list<LbPool *> * lbpools) {
 
-	show_message(MSG_TYPE_NOTICE, "Reloading downtime list.");
+	log_txt(MSG_TYPE_DEBUG, "Reloading downtime list.");
 
 	string line;
 
@@ -76,7 +76,7 @@ void load_downtimes(list<LbPool *> * lbpools) {
 		}
 		downtime_file.close();
 	} else {
-		show_message(MSG_TYPE_WARNING, "Could not load downtime list file.");
+		log_txt(MSG_TYPE_DEBUG, "Could not load downtime list file.");
 	}
 
 	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
@@ -98,7 +98,7 @@ void load_downtimes(list<LbPool *> * lbpools) {
    Return a list of loaded lbpools.
 */
 list<LbPool*> * load_lbpools(ifstream &config_file) {
-	show_message(MSG_TYPE_NOTICE, "Loading configration file...");
+	log_txt(MSG_TYPE_DEBUG, "Loading configration file...");
 
 	string line;
 
@@ -146,7 +146,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 	/* Fill in lbpool->backup_pool and lbpool->used_as_backup.
 	   For all lbpools... */
 	for(list<LbPool*>::iterator lbpool_it = lbpools->begin(); lbpool_it != lbpools->end(); lbpool_it++) {
-		
+
 		/* ... iterate over all possible backup_lb_pools proposed for this lb_pool.
 		   There can be multiple of them and some might be on other HWLBs!  */
 		stringstream ss_backup_pools_names((*lbpool_it)->backup_pool_names);
@@ -157,7 +157,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 
 			/* Pick the first one located on proper HWLB. */
 			if (proposed_backup_pool && proposed_backup_pool->default_hwlb == (*lbpool_it)->default_hwlb) {
-				show_message(MSG_TYPE_DEBUG, " Mapping backup_pool %s to %s", proposed_backup_pool->name.c_str(), (*lbpool_it)->name.c_str());
+				log_txt(MSG_TYPE_DEBUG, " Mapping backup_pool %s to %s", proposed_backup_pool->name.c_str(), (*lbpool_it)->name.c_str());
 				(*lbpool_it)->backup_pool = proposed_backup_pool;
 				proposed_backup_pool->used_as_backup.push_back((*lbpool_it));
 				break;
@@ -283,7 +283,7 @@ void setup_events(list<LbPool *> * lbpools) {
 
 void init_libevent() {
 	eventBase = event_base_new();
-	show_message(MSG_TYPE_DEBUG, " * libevent method: %s", event_base_get_method(eventBase));
+	log_txt(MSG_TYPE_DEBUG, "libevent method: %s", event_base_get_method(eventBase));
 }
 
 
@@ -293,28 +293,28 @@ void finish_libevent() {
 
 
 int init_libssl() {
-	SSL_library_init (); 
-	SSL_load_error_strings (); 
-	OpenSSL_add_all_algorithms (); 
+	SSL_library_init ();
+	SSL_load_error_strings ();
+	OpenSSL_add_all_algorithms ();
 
-	show_message(MSG_TYPE_DEBUG, " * OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
+	log_txt(MSG_TYPE_DEBUG, "OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
 
 	sctx = SSL_CTX_new (SSLv23_client_method ());
 	if (!sctx) {
 		return false;
-	}   
+	}
 
 	SSL_CTX_set_verify(sctx, SSL_VERIFY_NONE, NULL);
 
 	return true;
-}   
+}
 
 
 void finish_libssl() {
 	EVP_cleanup();
 	ERR_free_strings();
 	SSL_CTX_free(sctx);
-}  
+}
 
 
 void usage() {
@@ -330,7 +330,8 @@ void usage() {
 
 int main (int argc, char *argv[]) {
 	start_logging();
-	show_message(MSG_TYPE_NOTICE, "Starting testtool, built on %s %s",  __DATE__, __TIME__);
+	log_txt(MSG_TYPE_DEBUG, "Starting testtool, built on %s %s @ %s",  __DATE__, __TIME__, __HOSTNAME__);
+	log_txt(MSG_TYPE_DEBUG, "Built on branch %s, last commit %s", __GIT_BRANCH__, __GIT_LAST_COMMIT__ );
 
 	list<LbPool *> * lbpools = NULL;
 	srand(time(NULL));;
@@ -365,32 +366,32 @@ int main (int argc, char *argv[]) {
 		}
 	}
 
-	show_message(MSG_TYPE_DEBUG, "Initializing various stuff...");
+	log_txt(MSG_TYPE_DEBUG, "Initializing various stuff...");
 	if (!init_libssl()) {
-		show_message(MSG_TYPE_ERROR, "Unable to initialise OpenSSL!");
+		log_txt(MSG_TYPE_CRITICAL, "Unable to initialise OpenSSL!");
 		exit(-1);
 	}
 	init_libevent();
-	
+
 	if (!Healthcheck_ping::initialize()) {
-		show_message(MSG_TYPE_ERROR, "Unable to initialize Healthcheck_ping!");
+		log_txt(MSG_TYPE_CRITICAL, "Unable to initialize Healthcheck_ping!");
 		exit(-1);
 	}
 
 	/* Load lbpools and healthchecks. */
 	ifstream config_file(config_file_name.c_str());
 	if (!config_file) {
-		show_message(MSG_TYPE_ERROR, "Unable to load configuration file!");
+		log_txt(MSG_TYPE_CRITICAL, "Unable to load configuration file!");
 		exit(-1);
 	}
 	lbpools = load_lbpools(config_file);
 	config_file.close();
 
-	show_message(MSG_TYPE_DEBUG, "Entering the main loop...");
+	log_txt(MSG_TYPE_DEBUG, "Entering the main loop...");
 	setup_events(lbpools);
-	show_message(MSG_TYPE_DEBUG, "Left the main loop.");
+	log_txt(MSG_TYPE_DEBUG, "Left the main loop.");
 
-	show_message(MSG_TYPE_NOTICE, "Ending testtool, bye!");
+	log_txt(MSG_TYPE_DEBUG, "Ending testtool, bye!");
 
 	finish_libevent();
 	finish_libssl();

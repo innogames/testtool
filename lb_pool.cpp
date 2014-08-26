@@ -27,9 +27,9 @@ LbPool::LbPool(istringstream &parameters) {
 	nodes_alive = 0;
 	all_down_noticed = false;
 
-	show_message(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %d", name.c_str(), default_hwlb);
+	log_txt(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %d", name.c_str(), default_hwlb);
 	if (backup_pool_trigger)
-		show_message(MSG_TYPE_DEBUG, "  backup lbpools %s below %d nodes", backup_pool_names.c_str(), backup_pool_trigger);
+		log_txt(MSG_TYPE_DEBUG, "  backup lbpools %s below %d nodes", backup_pool_names.c_str(), backup_pool_trigger);
 }
 
 
@@ -56,7 +56,11 @@ void LbPool::parse_healthchecks_results() {
 
 	/* Backup pool configured and enough dead nodes to switch to backup pool? */
 	if (backup_pool && nodes_alive < backup_pool_trigger && switched_to_backup == false) {
-		show_message(MSG_TYPE_NODE_DOWN, "%s - Less than %d nodes alive, switching to backup_pool %s", name.c_str(), backup_pool_trigger, backup_pool->name.c_str());
+		log_lb(MSG_TYPE_NODE_DOWN,
+		    name.c_str(),
+		    "",
+		    0,
+		    "Less than %d nodes alive, switching to backup_pool %s", backup_pool_trigger, backup_pool->name.c_str());
 
 		/* Remove original nodes if there any left, we are switching to backup pool! */
 		for (unsigned int nd=0; nd<nodes.size(); nd++) {
@@ -82,7 +86,11 @@ void LbPool::parse_healthchecks_results() {
 
 	/* Enough nodes alive to switch back to normal pool? */
 	else if (backup_pool && nodes_alive >= backup_pool_trigger && switched_to_backup == true) {
-		show_message(MSG_TYPE_NODE_UP, "%s - At least %d nodes alive, removing backup_pool %s", name.c_str(), backup_pool_trigger, backup_pool->name.c_str());
+		log_lb(MSG_TYPE_NODE_UP,
+		    name.c_str(),
+		    "",
+		    0,
+		    "At least %d nodes alive, removing backup_pool %s", backup_pool_trigger, backup_pool->name.c_str());
 
 		/* Add original nodes back when leaving the backup pool mode. */
 		for (unsigned int nd=0; nd<nodes.size(); nd++) {
@@ -107,7 +115,11 @@ void LbPool::parse_healthchecks_results() {
 	/* Complain if there are no nodes alive in the pool or backup pool, should it be used. */
 	if ( (nodes_alive <= 0 || (switched_to_backup && backup_pool->nodes_alive <= 0) ) && all_down_noticed == false ) {
 		all_down_noticed = true;
-		show_message(MSG_TYPE_WARNING, "%s - no nodes left to serve the traffic!", name.c_str());
+		log_lb(MSG_TYPE_NODE_DOWN,
+		    name.c_str(),
+		    "",
+		    0,
+		    "no nodes left to serve the traffic!");
 	}
 
 }

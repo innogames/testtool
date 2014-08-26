@@ -62,7 +62,7 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
-	show_message(MSG_TYPE_DEBUG, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
+	log_txt(MSG_TYPE_DEBUG, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
 
 	type = "http";
 }
@@ -107,10 +107,11 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 		if (events & BEV_EVENT_TIMEOUT) {
 			hc->last_state = STATE_DOWN;
 			if (verbose>1 || hc->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: timeout after %d,%ds; message: %s",
+				log_lb(MSG_TYPE_HC_FAIL,
 				    hc->parent_lbnode->parent_lbpool->name.c_str(),
 				    hc->parent_lbnode->address.c_str(),
 				    hc->port,
+				    "Healthcheck_%s: timeout after %d,%ds; message: %s",
 				    hc->type.c_str(),
 				    hc->timeout.tv_sec,
 				    (hc->timeout.tv_nsec/10000000),
@@ -120,10 +121,11 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 		else if (events & BEV_EVENT_ERROR) {
 			hc->last_state = STATE_DOWN;
 			if (verbose>1 || hc->hard_state != STATE_DOWN)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: error connecting; message: %s",
+				log_lb(MSG_TYPE_HC_FAIL,
 				    hc->parent_lbnode->parent_lbpool->name.c_str(),
 				    hc->parent_lbnode->address.c_str(),
 				    hc->port,
+				    "Healthcheck_%s: error connecting; message: %s",
 				    hc->type.c_str(),
 				    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 		}
@@ -150,10 +152,11 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 			for (i = 0; i<hc->http_ok_codes.size(); i++) {
 				if (statusline.compare(hc->http_ok_codes[i]) == 0) {
 					if (verbose>1 || hc->last_state == STATE_DOWN)
-						show_message(MSG_TYPE_HC_PASS, "%s %s:%d - Healthcheck_%s: good HTTP code: %s",
+						log_lb(MSG_TYPE_HC_PASS,
 						    hc->parent_lbnode->parent_lbpool->name.c_str(),
 						    hc->parent_lbnode->address.c_str(),
 						    hc->port,
+						    "Healthcheck_%s: good HTTP code: %s",
 						    hc->type.c_str(),
 						    statusline.c_str());
 	
@@ -165,10 +168,11 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 			if (i == hc->http_ok_codes.size()) {
 				hc->last_state = STATE_DOWN;
 				if (verbose>1 || hc->hard_state != STATE_DOWN) {
-					show_message(MSG_TYPE_HC_FAIL, "%s %s:%d - Healthcheck_%s: bad HTTP code: %s",
+					log_lb(MSG_TYPE_HC_FAIL,
 					    hc->parent_lbnode->parent_lbpool->name.c_str(),
 					    hc->parent_lbnode->address.c_str(),
 					    hc->port,
+					    "Healthcheck_%s: bad HTTP code: %s",
 					    hc->type.c_str(),
 					    statusline.c_str());
 				}

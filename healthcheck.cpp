@@ -75,8 +75,8 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 		failure_counter = max_failed_checks;
 	}
 
-	show_message(MSG_TYPE_DEBUG, "    * New healthcheck:");
-	show_message(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
+	log_txt(MSG_TYPE_DEBUG, "    * New healthcheck:");
+	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
 }
 
 
@@ -129,13 +129,8 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
 	memcpy(&last_checked, now, sizeof(struct timespec));
 	is_running = true;
 
-	if (verbose>1) {
-		if (port>0)
-			show_message(MSG_TYPE_NOTICE, "%s %s:%u - Scheduling healthcheck_%s...", parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, type.c_str());
-		else
-			show_message(MSG_TYPE_NOTICE, "%s %s - Scheduling healthcheck_%s...", parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), type.c_str());
-
-	}
+	if (verbose>1)
+		log_lb(MSG_TYPE_DEBUG, parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, "Scheduling healthcheck_%s...", type.c_str());
 
 	return true;
 }
@@ -157,13 +152,7 @@ void Healthcheck::handle_result() {
 
 	/* Change from DOWN to UP. The healthcheck has passed again. */
 	if (hard_state == STATE_DOWN && last_state == STATE_UP) {
-		if (port>0)
-			show_message(MSG_TYPE_HC_PASS, "%s %s:%u - passed again",
-				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
-		else
-			show_message(MSG_TYPE_HC_PASS, "%s %s - passed again",
-				parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str());
-
+		log_lb(MSG_TYPE_HC_PASS, parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, "passed again");
 		hard_state = STATE_UP;
 		failure_counter = 0;
 	}
@@ -172,26 +161,13 @@ void Healthcheck::handle_result() {
 
 		failure_counter++;
 
-		if (!parent_lbnode->downtime) {
-			if (port>0)
-				show_message(MSG_TYPE_HC_FAIL, "%s %s:%u - failed for the %d time",
-					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, failure_counter);
-			else
-				show_message(MSG_TYPE_HC_FAIL, "%s %s - failed for the %d time",
-					parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), failure_counter);
-
-		}
+		if (!parent_lbnode->downtime)
+			log_lb(MSG_TYPE_HC_FAIL, parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, "failed for the %d time", failure_counter);
 
 		/* Mark the hard DOWN state only after the number of failed checks is reached. */
 		if (failure_counter >= max_failed_checks) {
-			if (!parent_lbnode->downtime) {
-				if (port>0)
-					show_message(MSG_TYPE_HC_HFAIL, "%s %s:%u - hard failure reached",
-						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port);
-				else
-					show_message(MSG_TYPE_HC_HFAIL, "%s %s - hard failure reached",
-						parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str());
-			}
+			if (!parent_lbnode->downtime)
+				log_lb(MSG_TYPE_HC_HFAIL, parent_lbnode->parent_lbpool->name.c_str(), parent_lbnode->address.c_str(), port, "hard failure reached");
 
 			hard_state = STATE_DOWN;
 		}
