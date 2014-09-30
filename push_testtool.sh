@@ -5,6 +5,6 @@ if [ -z "$1" ]; then
 	exit 1
 fi
 
-ssh root@$1 "pkill -f '^/root/testtool$'"
-scp ./testtool root@$1:/root
+ssh root@$1 "pkill -f '^/usr/local/sbin/testtool(.testing)?$'"
+scp ./testtool root@$1:/usr/local/sbin
 

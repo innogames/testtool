@@ -69,7 +69,7 @@ void load_downtimes(list<LbPool *> * lbpools) {
 	set<string> downtimes;
 
 	/* Read all the lbpool-node pairs and store them. */
-	ifstream downtime_file("/tmp/testtool_downtimes");
+	ifstream downtime_file("/etc/iglb/testtool_downtimes.conf");
 	if (downtime_file) {
 		while (getline(downtime_file, line)) {
 			downtimes.insert(line);
@@ -342,7 +342,7 @@ int main (int argc, char *argv[]) {
 	signal(SIGPIPE, signal_handler);
 	signal(SIGUSR1, signal_handler);
 
-	string config_file_name = "/root/lb/testtool.conf";
+	string config_file_name = "/etc/iglb/testtool.conf";
 
 	int opt;
 	while ((opt = getopt(argc, argv, "hnpvf:")) != -1) {
