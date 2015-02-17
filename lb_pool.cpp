@@ -68,6 +68,7 @@ void LbPool::parse_healthchecks_results() {
 			if (nodes[nd]->hard_state == STATE_UP) {
 				pf_table_del(name, nodes[nd]->address);
 				pf_kill_src_nodes_to(name, nodes[nd]->address, true);
+				pf_kill_states_to_rdr(name, nodes[nd]->address, true);
 			}
 		}
 
@@ -105,7 +106,9 @@ void LbPool::parse_healthchecks_results() {
 			if (backup_pool->nodes[nd]->hard_state == STATE_UP) {
 				string address = backup_pool->nodes[nd]->address;
 					pf_table_del(name, address);
-					pf_kill_src_nodes_to(name, address, true); /* Kill traffic going to backup pool's node. */
+					/* Kill src_nodes, linked states and unlinked states to backup node. */
+					pf_kill_src_nodes_to(name, address, true);
+					pf_kill_states_to_rdr(name, address, true);
 				}
 		}
 
