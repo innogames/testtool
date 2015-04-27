@@ -8,6 +8,7 @@
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
+#include "healthcheck_tcp.h"
 #include "healthcheck_http.h"
 #include "healthcheck_ping.h"
 #include "healthcheck_dns.h"
@@ -100,6 +101,8 @@ Healthcheck *Healthcheck::healthcheck_factory(istringstream &definition, class L
 	   the healthcheck constructor will read next words from it. */
 	if (type=="http")
 		new_healthcheck = new Healthcheck_http(definition, _parent_lbnode);
+	if (type=="tcp")
+		new_healthcheck = new Healthcheck_tcp(definition, _parent_lbnode);
 	else if (type=="https")
 		new_healthcheck = new Healthcheck_https(definition, _parent_lbnode);
 	else if (type=="ping")
