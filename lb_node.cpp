@@ -95,6 +95,9 @@ void LbNode::parse_healthchecks_results() {
 			/* Kill all src_nodes, linked states and unlinked states. */
 			pf_kill_src_nodes_to(parent_lbpool->name, address, true);
 			pf_kill_states_to_rdr(parent_lbpool->name, address, true);
+			/* Kill nodes again, there might be some which were created after last kill
+			   due to belonging to states with deferred src_nodes. */
+			pf_kill_src_nodes_to(parent_lbpool->name, address, true);
 		}
 
 		/* Remove the node from other pools when parent pool is used as backup_pool anywhere. */
@@ -106,6 +109,9 @@ void LbNode::parse_healthchecks_results() {
 					pf_table_del(parent_lbpool->used_as_backup[bpl]->name, address);
 					pf_kill_src_nodes_to(parent_lbpool->used_as_backup[bpl]->name, address, true);
 					pf_kill_states_to_rdr(parent_lbpool->used_as_backup[bpl]->name, address, true);
+					/* Kill nodes again, there might be some which were created after last kill
+					   due to belonging to states with deferred src_nodes. */
+					pf_kill_src_nodes_to(parent_lbpool->used_as_backup[bpl]->name, address, true);
 				}
 			}
 		}

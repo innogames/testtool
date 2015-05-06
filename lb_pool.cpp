@@ -69,6 +69,9 @@ void LbPool::parse_healthchecks_results() {
 				pf_table_del(name, nodes[nd]->address);
 				pf_kill_src_nodes_to(name, nodes[nd]->address, true);
 				pf_kill_states_to_rdr(name, nodes[nd]->address, true);
+				/* Kill nodes again, there might be some which were created after last kill
+				   due to belonging to states with deferred src_nodes. */
+				pf_kill_src_nodes_to(name, nodes[nd]->address, true);
 			}
 		}
 
@@ -109,6 +112,10 @@ void LbPool::parse_healthchecks_results() {
 					/* Kill src_nodes, linked states and unlinked states to backup node. */
 					pf_kill_src_nodes_to(name, address, true);
 					pf_kill_states_to_rdr(name, address, true);
+					/* Kill nodes again, there might be some which were created after last kill
+					   due to belonging to states with deferred src_nodes. */
+					pf_kill_src_nodes_to(name, address, true);
+
 				}
 		}
 
