@@ -25,8 +25,8 @@ extern int			 verbose;
    Constructor for TCP healthcheck.
 */
 Healthcheck_tcp::Healthcheck_tcp(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
-
 	type = "tcp";
+	log_txt(MSG_TYPE_DEBUG, "      type: tcp");
 }
 
 /*

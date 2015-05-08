@@ -135,6 +135,7 @@ void Healthcheck_ping::destroy() {
 Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
 	/* Oh wait, there are none for this healthcheck! */
 	type = "ping";
+	log_txt(MSG_TYPE_DEBUG, "      type: ping");
 }
 
 
