@@ -35,12 +35,57 @@ void Healthcheck::force_failure() {
 }
 
 
+void Healthcheck::read_confline(istringstream &definition) {
+	/* Read all things from the definition line.
+	   Configuration is specified by 'var=val' strings.
+	   Each pair is separated by space. There must be no spaces around = character. */
+	string confword;
+	/* Rewind to the beginning of line, order of configuration entries must be irrelevant. */
+	definition.clear();
+	definition.seekg(0);
+
+	while (definition >> confword) {
+		int split = confword.find('=');
+		if (split == -1)
+			continue;
+		string var = confword.substr(0, split);
+		istringstream val(confword.substr(split+1));
+
+		this->confline_callback(var, val);
+	}
+}
+
+void Healthcheck::confline_callback(string &var, istringstream &val) {
+	/* Temporary timeout in ms, to read from config file and then store it in this->timeout.
+	   1,5s is the default for compatibility with old testtool. */
+	int tmp_timeout = 1500;
+
+	if (var == "port")
+		val >> this->port;
+	else if (var == "interval")
+		val >> this->check_interval;
+	else if (var == "max_failed")
+		val >> this->max_failed_checks;
+	else if (var == "timeout") {
+		val >> tmp_timeout;
+		/* Timeout was read in ms, convert it to s and ns. */
+		this->timeout.tv_sec   =  tmp_timeout / 1000;
+		this->timeout.tv_nsec  = (tmp_timeout % 1000) * 1000 * 1000;
+	}
+}
+
 /*
    Link the healthcheck and its parent node, initialize some variables, print diagnostic information if necessary.
    Remember that this constructor is called from each healthcheck's type-specific constructor!
    And it is called *before* that constructor does its own work!
 */
 Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode) {
+	/* Set defaults, same as with old testtool. */
+	this->check_interval = 2;
+	this->max_failed_checks = 3;
+	this->timeout.tv_sec   = 1;
+	this->timeout.tv_nsec  = (500) * 1000 * 1000;
+
 	/* Pretend that the healthcheck was performed just a moment ago.
 	   This is necessary to perform the check in proper time. */
 	clock_gettime(CLOCK_MONOTONIC, &last_checked);
@@ -49,17 +94,10 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	parent_lbnode = _parent_lbnode;
 	parent_lbnode->healthchecks.push_back(this);
 
-	/* Read all things from the definition line.
-	   "parameters" is the last word on the line, type-specific constructor will read
-	   its ":"-separated list of parameters from there. */
-	definition >> port >> check_interval >> max_failed_checks >> parameters;
-
+	this->read_confline(definition);
 	/* Random delay to spread healthchecks in space-time continuum. */
 	this->extra_delay = rand() % 1000;
 
-	/* Default timeout is 1500ms. */
-	this->timeout.tv_sec   = 1;
-	this->timeout.tv_nsec  = 500 * 1000 * 1000;
 
 	this->is_running = false;
 
@@ -77,7 +115,7 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	}
 
 	log_txt(MSG_TYPE_DEBUG, "    * New healthcheck:");
-	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", check_interval, max_failed_checks);
+	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", this->check_interval, this->max_failed_checks);
 }
 
 
@@ -93,18 +131,28 @@ Healthcheck *Healthcheck::healthcheck_factory(istringstream &definition, class L
 
 	/* Read the check type. */
 	string type;
-
-	definition >> type;
+	string confword;
+	definition.seekg(0);
+	definition.clear();
+	while (definition >> confword) {
+		int split = confword.find('=');
+		if (split == -1)
+			continue;
+		string var = confword.substr(0, split);
+		istringstream val(confword.substr(split+1));
+		if (var == "type")
+			val >> type;
+	}
 
 	/* Check the healthcheck type and create a proper object.
 	   Keep in mind that definition is already stripped from the first word,
 	   the healthcheck constructor will read next words from it. */
 	if (type=="http")
 		new_healthcheck = new Healthcheck_http(definition, _parent_lbnode);
-	if (type=="tcp")
-		new_healthcheck = new Healthcheck_tcp(definition, _parent_lbnode);
 	else if (type=="https")
 		new_healthcheck = new Healthcheck_https(definition, _parent_lbnode);
+	else if (type=="tcp")
+		new_healthcheck = new Healthcheck_tcp(definition, _parent_lbnode);
 	else if (type=="ping")
 		new_healthcheck = new Healthcheck_ping(definition, _parent_lbnode);
 	else if (type=="dns")

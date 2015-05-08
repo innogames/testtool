@@ -136,7 +136,7 @@ list<LbPool*> * load_lbpools(ifstream &config_file) {
 				new_lbnode = new LbNode(istr_line, new_lbpool);
 			}
 		}
-		else if (command=="healthcheck") {
+		else if (command=="healthcheck_params") {
 			if (new_lbnode) {
 				new_healthcheck = Healthcheck::healthcheck_factory(istr_line, new_lbnode);
 			}

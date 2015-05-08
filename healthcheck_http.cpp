@@ -23,35 +23,39 @@ extern struct event_base	*eventBase;
 extern SSL_CTX			*sctx;
 extern int			 verbose;
 
+void Healthcheck_http::confline_callback(string &var, istringstream &val) {
+	if (var == "url")
+		val >> this->url;
+	else if (var == "ok_codes")
+		val >> this->st_http_ok_codes;
+	else if (var == "host")
+		val >> this->host;
+}
+
 /*
    Constructor for HTTP healthcheck. Parses http(s)-specific parameters.
 */
 Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
 	/* Initialize pointers to NULL, this is not done automatically. */
 	bev = NULL;
+	/* Set defaults. */
+	this->port = 80;
 
-	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
-	istringstream ss_parameters(parameters);
+	this->read_confline(definition);
 
-	/* Read healthcheck URL. */
-	std::string url;
-	getline(ss_parameters, url, ':');
-	this->url = new char[url.length()+1];
-	strcpy(this->url, url.c_str());
+	/* If host was not given, use IP address. */
+	if (host == "")
+		host = parent_lbnode->address.c_str();
 
-	/* Copy address to addrinfo struct for connect. I am aware that converting port number to text and back to int is stupid */
+	/* Copy address to addrinfo struct for connect. I am aware that converting port number to text and back to int is stupid. */
 	memset(&addrinfo, 0, sizeof(addrinfo));
 	char port_str[256];
 	memset(port_str, 0, sizeof(port_str));
 	snprintf(port_str, sizeof(port_str), "%d", port);
 	getaddrinfo(parent_lbnode->address.c_str(), port_str, NULL, &addrinfo);
 	
-	/* Read the list of OK HTTP codes. */
-	std::string st_http_ok_codes; 
-	getline(ss_parameters, st_http_ok_codes, ':');
-
 	/* Split the list by ".", copy each found code into the vector. */
-	stringstream ss_http_ok_codes(st_http_ok_codes);
+	stringstream ss_http_ok_codes(this->st_http_ok_codes);
 	string http_ok_code;
 	while(getline(ss_http_ok_codes, http_ok_code, '.'))
 		http_ok_codes.push_back(http_ok_code);
@@ -62,7 +66,7 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
-	log_txt(MSG_TYPE_DEBUG, "      type: http(s), url: %s, ok_codes: %s", url.c_str(), codes_buf);
+	log_txt(MSG_TYPE_DEBUG, "      type: http(s), port: %d, host: %s, url: %s, ok_codes: %s", this->port, this->host.c_str(), this->url.c_str(), st_http_ok_codes.c_str());
 
 	type = "http";
 }
@@ -111,10 +115,10 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 				    hc->parent_lbnode->parent_lbpool->name.c_str(),
 				    hc->parent_lbnode->address.c_str(),
 				    hc->port,
-				    "Healthcheck_%s: timeout after %d,%ds; message: %s",
+				    "Healthcheck_%s: timeout after %d,%03ds; message: %s",
 				    hc->type.c_str(),
 				    hc->timeout.tv_sec,
-				    (hc->timeout.tv_nsec/10000000),
+				    (hc->timeout.tv_nsec/1000000),
 				    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 
 		}
@@ -198,7 +202,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", url, parent_lbnode->address.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;
@@ -228,7 +232,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", url, parent_lbnode->address.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
 
 	struct timeval timeout_tv;
 	timeout_tv.tv_sec  = timeout.tv_sec;

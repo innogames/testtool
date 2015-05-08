@@ -282,7 +282,7 @@ void Healthcheck_ping::finalize_result() {
 			    parent_lbnode->parent_lbpool->name.c_str(),
 			    parent_lbnode->address.c_str(),
 			    0,
-			    "Healthcheck_%s: timeout after %d,%ds, seq %d",
+			    "Healthcheck_%s: timeout after %d,%03ds, seq %d",
 			    type.c_str(),
 			    timeout.tv_sec,
 			    (timeout.tv_nsec/10000000),

@@ -62,6 +62,11 @@ class Healthcheck {
 		void force_failure();
 		virtual void finalize_result();
 
+	protected:
+		void read_confline(istringstream &definition);
+	private:
+		virtual void confline_callback(string &var, istringstream &val);
+
 
 	/* Members */
 	public:
@@ -75,7 +80,6 @@ class Healthcheck {
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timespec		 timeout;
 		bool			 is_running;
-		string			 parameters;       // Parameters read from the configuration file, to be parsed by check-specific constructor.
 
 	private:
 		int			 check_interval;    // Perform a check every n seconds (s).

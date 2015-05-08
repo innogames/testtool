@@ -42,10 +42,10 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 			    hc->parent_lbnode->parent_lbpool->name.c_str(),
 			    hc->parent_lbnode->address.c_str(),
 			    hc->port,
-			    "Healthcheck_%s: timeout after %d,%ds",
+			    "Healthcheck_%s: timeout after %d,%3ds",
 			    hc->type.c_str(),
 			    hc->timeout.tv_sec,
-			    (hc->timeout.tv_nsec/10000000));
+			    (hc->timeout.tv_nsec/1000000));
 
 	} else if (what & EV_READ) {
 		char buf[256];

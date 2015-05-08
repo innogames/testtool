@@ -25,11 +25,15 @@ class Healthcheck_http: public Healthcheck {
 		static void read_callback(struct bufferevent *bev, void *arg);
 		void cleanup_connection();
 
+	private:
+		void confline_callback(string &var, istringstream &val);
 
 	/* Members */
 	protected:
 		bufferevent			*bev;
-		char				*url;
+		string				 url;
+		string				 host;
+		string				 st_http_ok_codes;
 		vector<string>			 http_ok_codes;
 		struct addrinfo			*addrinfo;
 		string				 reply;

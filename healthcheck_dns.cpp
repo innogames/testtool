@@ -43,24 +43,22 @@ uint16_t			 Healthcheck_dns::global_transaction_id;
    Build a question section. The function requires an already allocated buffer, hopefully long enough.
    It returns the lenght of the created section.
 */
-unsigned int build_dns_question(char *dns_query, char *question_buffer) {
+unsigned int build_dns_question(string &dns_query, char *question_buffer) {
 	/*
 	   Another option would be to allocate memory in this function.
 	   Length would be strlen(dns_query)+5 bytes.
 	   But then it would have to be copied to buffer of packet to be sent.
+	   This function requires that dns_query is already ending with '.'.
 	*/
 
 	int label_start = 0;
 	int label_len   = 0;
 
-	/* Get the length of original string, if it does not end with a '.', make it one character longer. */
-	int origlen = strlen(dns_query);
-	if ( dns_query[origlen-1] != '.' )
-		origlen++;
+	/* Get the length of original string. */
+	int origlen = strlen(dns_query.c_str());
 
-	/* Copy the original query to qname+1, make sure that the last char is a '.'. */
-	strcpy(question_buffer+1,dns_query);
-	question_buffer[origlen]='.';
+	/* Copy the original query to qname+1. */
+	strcpy(question_buffer+1,dns_query.c_str());
 
 	/* Replace dots with lenght of labels after them. See RFC1035 4.1.2. */
 	for (int i=1; i<origlen+2; i++) {
@@ -82,23 +80,25 @@ unsigned int build_dns_question(char *dns_query, char *question_buffer) {
 	return origlen+5;
 }
 
+void Healthcheck_dns::confline_callback(string &var, istringstream &val) {
+	if (var == "query") {
+		val >> this->dns_query;
+		/* Add ensure that query ends with dot. */
+		if (this->dns_query.at(this->dns_query.length()-1) != '.') {
+			this->dns_query += '.';
+		}
+	}
+}
 
 /*
    Constructor for DNS healthcheck. Parses DNS-specific parameters.
 */
 Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+	/* Set defaults. */
+	this->port = 53;
+	this->read_confline(definition);
+	log_txt(MSG_TYPE_DEBUG, "      type: dns, port: %d, query: %s", this->port, this->dns_query.c_str());
 
-	/* The string "parameters" was filled in by Healthcheck constructor, now turn it into a stream to read all the params. */
-	istringstream ss_parameters(parameters);
-
-	/* Read record type. */
-	std::string dns_query;
-
-	getline(ss_parameters, dns_query, ':');
-	this->dns_query = new char[dns_query.length()+1];
-	strcpy(this->dns_query, dns_query.c_str());
-
-	log_txt(MSG_TYPE_DEBUG, "      query: %s", dns_query.c_str());
 	type = "dns";
 }
 
@@ -123,10 +123,10 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
 			    healthcheck->parent_lbnode->address.c_str(),
 			    healthcheck->port,
-			    "Healthcheck_%s: timeout after %d,%ds",
+			    "Healthcheck_%s: timeout after %d,%03ds",
 			    healthcheck->type.c_str(),
 			    healthcheck->timeout.tv_sec,
-			    (healthcheck->timeout.tv_nsec/10000000));
+			    (healthcheck->timeout.tv_nsec/1000000));
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);

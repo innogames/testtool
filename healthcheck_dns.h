@@ -60,6 +60,10 @@ class Healthcheck_dns: public Healthcheck {
 	protected:
 		static void callback(evutil_socket_t fd, short what, void *arg);
 
+	private:
+		void confline_callback(string &var, istringstream &val);
+
+
 
 	/* Members */
 	public:
@@ -68,7 +72,7 @@ class Healthcheck_dns: public Healthcheck {
 	private:
 		int		 socket_fd;
 		struct event	*ev;
-		char		*dns_query;
+		string		 dns_query;
 
 		/* Each check is run with different transaction id. */
 		uint16_t	 my_transaction_id;
