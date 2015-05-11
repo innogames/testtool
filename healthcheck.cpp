@@ -115,7 +115,7 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	}
 
 	log_txt(MSG_TYPE_DEBUG, "    * New healthcheck:");
-	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_fail: %d", this->check_interval, this->max_failed_checks);
+	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_failed: %d, interval: %d,%03ds", this->check_interval, this->max_failed_checks, this->timeout.tv_sec, this->timeout.tv_nsec/1000000);
 }
 
 
