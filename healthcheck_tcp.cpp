@@ -34,7 +34,6 @@ Healthcheck_tcp::Healthcheck_tcp(istringstream &definition, class LbNode *_paren
 */
 void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg) {
 	Healthcheck_tcp *hc = (Healthcheck_tcp *)arg;
-	printf("EVENT: %2x\n", what);
 	if (what & EV_TIMEOUT) {
 		hc->last_state = STATE_DOWN;
 		if (verbose>1 || hc->hard_state != STATE_DOWN)
