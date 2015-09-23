@@ -160,7 +160,7 @@ void LbNode::start_downtime() {
 	if (downtime)
 		return;
 
-	log_lb(MSG_TYPE_NODE_DOWN, parent_lbpool->name.c_str(), address.c_str(), 0, "%s %s - starting downtime");
+	log_lb(MSG_TYPE_NODE_DOWN, parent_lbpool->name.c_str(), address.c_str(), 0, "starting downtime");
 
 	downtime = true;
 }
@@ -174,7 +174,7 @@ void LbNode::end_downtime() {
 	if (!downtime)
 		return;
 
-	log_lb(MSG_TYPE_NODE_UP, parent_lbpool->name.c_str(), address.c_str(), 0, "%s %s - ending downtime");
+	log_lb(MSG_TYPE_NODE_UP, parent_lbpool->name.c_str(), address.c_str(), 0, "ending downtime");
 
 	downtime = false;
 
