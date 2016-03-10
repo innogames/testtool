@@ -2,6 +2,8 @@
 #include <string>
 #include <sstream>
 
+#include <stdio.h>
+
 #include "msg.h"
 #include "pfctl.h"
 
