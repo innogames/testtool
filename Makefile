@@ -5,31 +5,32 @@ BSD_VERSION    != uname -r | cut -d . -f 1
 GIT_BRANCH     != git rev-parse --abbrev-ref HEAD
 GIT_LAST_COMMIT!= git log -1 --pretty='%H'
 
-CFLAGS=-pedantic -Wall -Wextra \
+CXXFLAGS=-pedantic -Wall -Wextra \
        -I/usr/local/include -I$(LIBEVENT)/include -g3 \
        -D__HOSTNAME__=\"$(HOSTNAME)\" \
        -D__GIT_BRANCH__="\"$(GIT_BRANCH)\"" \
        -D__GIT_LAST_COMMIT__="\"$(GIT_LAST_COMMIT)\"" \
 
+LDFLAGS += -L/opt/libevent-2.0/lib
+LDFLAGS += -L/usr/local/lib
+
+# .if doesn't work on GNU make :-/
 .if $(BSD_VERSION) == 9
-CFLAGS += -DBSD9
+CXXFLAGS += -DBSD9
 .endif
 
 CC=c++
 LD=c++
-LIBEVENT=/opt/libevent-2.0
-LDFLAGS=-L/usr/local/lib
+
 DLIBS=-lssl -lcrypto
-SLIBS=$(LIBEVENT)/lib/libevent_core.a $(LIBEVENT)/lib/libevent.a $(LIBEVENT)/lib/libevent_pthreads.a $(LIBEVENT)/lib/libevent_openssl.a
+SLIBS=-l:libevent_core.a -l:libevent.a -l:libevent_pthreads.a -l:libevent_openssl.a
+
 ALLOBJS=testtool.o lb_pool.o lb_node.o healthcheck.o healthcheck_tcp.o healthcheck_http.o healthcheck_ping.o healthcheck_dns.o msg.o pfctl.o
 
 all: testtool
 
 testtool: $(ALLOBJS)
-	$(LD) $(LDFLAGS) $(LIBS) $(DLIBS) $(ALLOBJS) $(SLIBS) -o $@
-
-#%.o: %.cpp
-#	$(CC) $(CFLAGS) -o $@ -c $<
+	$(LD) $(LDFLAGS) $(ALLOBJS) $(LIBS) $(DLIBS) $(SLIBS) -o $@
 
 clean:
 	rm -f *.o testtool testtool.core
