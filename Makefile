@@ -14,11 +14,6 @@ CXXFLAGS=-pedantic -Wall -Wextra \
 LDFLAGS += -L/opt/libevent-2.0/lib
 LDFLAGS += -L/usr/local/lib
 
-# .if doesn't work on GNU make :-/
-.if $(BSD_VERSION) == 9
-CXXFLAGS += -DBSD9
-.endif
-
 CC=c++
 LD=c++
 

@@ -22,18 +22,10 @@ void pf_kill_states_to_rdr(string &pool, string &rdr_ip, bool with_states) {
 
 	if (with_states) {
 		log_txt(MSG_TYPE_PFCTL, "%s %s - killing all states with RST", pool.c_str(), rdr_ip.c_str());
-#if BSD9
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k '%s' -S", pool.c_str(), rdr_ip.c_str());
-#else
 		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k rdrhost -k '%s' -k kill -k rststates", pool.c_str(), rdr_ip.c_str());
-#endif
 	} else {
 		log_txt(MSG_TYPE_PFCTL, "%s %s - killing all states", pool.c_str(), rdr_ip.c_str());
-#if BSD9
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k '%s'", pool.c_str(), rdr_ip.c_str());
-#else
 		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k rdrhost -k '%s'", pool.c_str(), rdr_ip.c_str());
-#endif
 	}
 
 	if (verbose_pfctl)
@@ -134,18 +126,10 @@ void pf_kill_src_nodes_to(string &pool, string &ip, bool with_states){
 
 	if (with_states) {
 		log_txt(MSG_TYPE_PFCTL, "%s %s - killing src_nodes and states to node with RST", pool.c_str(), ip.c_str());
-#ifdef BSD9
-		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K '%s' -c -S", pool.c_str(), ip.c_str());
-#else
 		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K dsthost -K '%s' -K kill -K rststates", pool.c_str(), ip.c_str());
-#endif
 	} else {
 		log_txt(MSG_TYPE_PFCTL, "%s %s - killing src_nodes to node", pool.c_str(), ip.c_str());
-#if BSD9
-		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K '%s'", pool.c_str(), ip.c_str());
-#else
 		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K dsthost -K '%s'", pool.c_str(), ip.c_str());
-#endif
 	}
 
 	if (verbose_pfctl)
