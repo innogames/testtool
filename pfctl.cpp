@@ -1,4 +1,5 @@
 #include <iostream>
+#include <set>
 #include <string>
 #include <sstream>
 
@@ -198,15 +199,15 @@ int pf_is_in_table(string &table, string &ip){
 
 
 /*
-   Remove src_nodes to all IPs in the given table apart from the specified one.
+   Remove src_nodes to all IPs in the given table apart from the specified ones.
    States of existing connections will not be killed, only src_nodes.
 */
-void pf_table_rebalance(string &table, string &skip_ip) {
+void pf_table_rebalance(string &table, const set<string> &skip_ips) {
 	FILE	*fp;
 	char	 cmd[1024];
 	int	 ret;
 
-	log_txt(MSG_TYPE_PFCTL, "%s %s - rebalancing table", table.c_str(), skip_ip.c_str());
+	log_txt(MSG_TYPE_PFCTL, "%s - rebalancing table", table.c_str());
 
 	/* Do not skip this function even if pf_action is false, this one is passive, it calls active ones. */
 
@@ -229,7 +230,7 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	ret = pclose(fp);
 
 	if (ret != 0) {
-		log_txt(MSG_TYPE_PFCTL, "pf_table_rebalance('%s', '%s'): returned bad status (%d)", table.c_str(), skip_ip.c_str(), ret);
+		log_txt(MSG_TYPE_PFCTL, "pf_table_rebalance('%s', ...): returned bad status (%d)", table.c_str(), ret);
 		return;
 	}
 
@@ -238,8 +239,9 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	while (istr_output >> found_ip ) {
 		if (verbose_pfctl)
 			log_txt(MSG_TYPE_PFCTL, "%s %s - node found in table", table.c_str(), found_ip.c_str());
-		if (found_ip != skip_ip)
+		if (skip_ips.find(found_ip) == skip_ips.end()) {
 			pf_kill_src_nodes_to(table, found_ip, false);
+		}
 	}
 }
 

@@ -64,6 +64,19 @@ void log_txt(msgType type, const char *fmt, ...) {
 			snprintf(pbuf, sizeof(pbuf), "Node down");
 		break;
 
+		/* Pool state changes. */
+		case MSG_TYPE_POOL_UP:
+			loglevel = LOG_NOTICE;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_GREEN "  Pool Up  "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Pool up");
+		break;
+
+		case MSG_TYPE_POOL_DOWN:
+			loglevel = LOG_CRIT;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_YELLOW" Pool Down "CL_WHITE"]"CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Pool down");
+		break;
+
 		/* Healthcheck results. */
 		case MSG_TYPE_HC_PASS:
 			loglevel = LOG_NOTICE;
