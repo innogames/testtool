@@ -129,7 +129,7 @@ void LbPool::update_nodes() {
 				if (new_nodes.size() >= m_min_nodes) {
 					break;
 				}
-				if (!node->is_downtimed()) {
+				if (node->is_downtimed()) {
 					continue;
 				}
 				new_nodes.insert(node);
