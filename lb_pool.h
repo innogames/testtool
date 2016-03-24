@@ -62,7 +62,6 @@ class LbPool {
 		vector<LbPoolLink*> vips;
 
 	private:
-		bool			 m_active; /* Whether the pool is actively used by any VIP. */
 		size_t			 m_min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
 		FaultPolicy		 m_fault_policy;
 
