@@ -53,7 +53,6 @@ class LbVip {
 	private:
 		Mechanism* m_mechanism;
 		vector<LbPoolLink*> m_pools;
-		class LbPoolLink* m_active_pool;
 
 		/* Track currently active nodes, which will be compared to the desired state
          * every time the active pool changes. */
