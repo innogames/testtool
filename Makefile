@@ -5,7 +5,7 @@ BSD_VERSION    != uname -r | cut -d . -f 1
 GIT_BRANCH     != git rev-parse --abbrev-ref HEAD
 GIT_LAST_COMMIT!= git log -1 --pretty='%H'
 
-CXXFLAGS=-pedantic -std=c++11 -Wall -Wextra -Wno-unused-parameter -Wno-literal-suffix \
+CXXFLAGS=-pedantic -std=c++11 -Wall -Wextra -Wno-unused-parameter \
        -I/usr/local/include -I$(LIBEVENT)/include -g3 \
        -D__HOSTNAME__=\"$(HOSTNAME)\" \
        -D__GIT_BRANCH__="\"$(GIT_BRANCH)\"" \
