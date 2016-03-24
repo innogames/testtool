@@ -16,6 +16,7 @@ public:
     virtual void add_node(LbPoolLink* link, LbNode* node);
     virtual void del_node(LbPoolLink* link, LbNode* node);
     virtual bool has_node(LbPoolLink* link, LbNode* node);
+    virtual void cleanup_orphans();
 
 private:
 	set<LbNode*> m_active_nodes;

@@ -3,6 +3,7 @@
 #include <string>
 #include <sstream>
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "msg.h"
@@ -12,6 +13,41 @@ using namespace std;
 
 extern bool	 pf_action;
 extern int	 verbose_pfctl;
+
+static pair<int, string> run(const char* format, ...) {
+	char cmd[1024];
+	va_list va;
+	va_start(va, format);
+
+	int n = vsnprintf(cmd, sizeof(cmd), format, va);
+	va_end(va);
+	if (n < 0 || n >= (int)sizeof(cmd)) {
+		log_txt(MSG_TYPE_PFCTL, "Format error -- should never happen!");
+		return pair<int, string>(-1, "");
+	}
+
+	if (verbose_pfctl)
+		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
+
+	FILE* fp = popen(cmd, "r");
+	if(fp == NULL){
+		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process '%s'", cmd);
+		return pair<int, string>(-1, "");
+	}
+
+	string output;
+	char buffer[1024];
+	while (fgets(buffer, 1024, fp) != NULL) {
+		output.append(buffer);
+	}
+
+	int ret = pclose(fp);
+
+	if (ret != 0) {
+		log_txt(MSG_TYPE_PFCTL, "cmd '%s' returned bad status (%d)", cmd, ret);
+	}
+	return pair<int, string>(ret, output);
+}
 
 /*
    Kill states created by pf rules using given table and IP address for redirection.
@@ -195,6 +231,28 @@ int pf_is_in_table(string &table, string &ip){
 	}
 
 	return 0;
+}
+
+
+/*
+   Returns all IP addresses in a table.
+*/
+const set<string> pf_table_members(string &table) {
+	pair<int,string> res = run("pfctl -q -t '%s' -T show", table.c_str());
+
+	set<string> result;
+	int code = res.first;
+	if (code != 0) {
+		return result;
+	}
+
+	istringstream istr_output(res.second);
+	string found_ip;
+	while (istr_output >> found_ip ) {
+		result.insert(found_ip);
+	}
+
+	return result;
 }
 
 

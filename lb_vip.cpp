@@ -13,7 +13,7 @@ using namespace std;
 
 
 LbVip::LbVip(string name, string hwlb)
-	: name(name), hwlb(hwlb)
+	: name(name), hwlb(hwlb), m_started(false)
 {
 	m_mechanism = new PfMechanism(this);
 	log_txt(MSG_TYPE_DEBUG, "* New LbVip %s", name.c_str());
@@ -24,18 +24,8 @@ LbVip::LbVip(string name, string hwlb)
    Attaches a pool to the VIP.
 */
 void LbVip::attach_pool(LbPool* pool, PoolType type) {
-	/* Backup pools might start active if the primary pool is offline. */
-	bool active = (type == POOL_PRIMARY);
-	if (type == POOL_BACKUP) {
-		auto primary = get_primary_pool();
-		if (!primary || !primary->active) {
-			log_txt(MSG_TYPE_POOL_UP, "%s - primary pool of VIP %s is unavailable, directly attaching backup",
-				pool->name.c_str(), this->name.c_str());
-			active = true;
-		}
-	}
-
-	auto link = new LbPoolLink({this, pool, m_mechanism, type, active});
+	/* All pools start inactive to avoid mechanism actions during startup. */
+	auto link = new LbPoolLink({this, pool, m_mechanism, type, false});
 	pool->vips.push_back(link);
 	m_pools.push_back(link);
 
@@ -47,6 +37,10 @@ void LbVip::attach_pool(LbPool* pool, PoolType type) {
    Handle the state change of an attached pool.
 */
 void LbVip::notify_pool_update(LbPoolLink* link) {
+	if (!m_started) {
+		return;
+	}
+
 	/* State changes of primary pool trigger backup switch. */
 	if (link->type == POOL_PRIMARY) {
 		if (link->active && link->pool->state == LbPool::STATE_DOWN) {
@@ -126,4 +120,14 @@ size_t LbVip::count_live_nodes() {
 		}
 	}
 	return sum;
+}
+
+
+void LbVip::start() {
+	m_started = true;
+	for (auto link : m_pools) {
+		/* This will automatically enable a suitable pool. */
+		notify_pool_update(link);
+	}
+	m_mechanism->cleanup_orphans();
 }

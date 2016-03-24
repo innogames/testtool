@@ -33,7 +33,7 @@ SSL_CTX			*sctx = NULL;
 int			 verbose = 0;
 int			 verbose_pfctl = 0;
 bool			 pf_action = true;
-bool			 check_downtimes = true; /* Start with true, so downtimes will be loaded on startup. */
+bool			 check_downtimes = false; /* Whether downtimes should be reloaded. */
 
 void signal_handler(int signum) {
 	switch (signum) {
@@ -193,20 +193,11 @@ void TestTool::load_config(ifstream &config_file) {
 		}
 	}
 
-	/* FIXME: The actual hardware pool might be inconsistent unless we explicitly sync the
-	          mechanism.
-	
-	   Consider this case:
-	    *) force_down goes down, backup pool is activated and added to pf table
-	    *) Pool is reconfigured to be force_up, testtool is restarted
-	    *) It will now force-activate the down primary nodes and will never consider the backup
-	    *) ... but the backup pool is still in the PF tables.
+	load_downtimes();
 
-	   Or, much simpler:
-	    *) Have an online pool
-	    *) Switch the VIP to a different pool, testtool is restarted
-	    *) The old pool is still in PF tables, but never cleaned.
-	*/
+	for (auto vip : m_vips) {
+		vip->start();
+	}
 }
 
 

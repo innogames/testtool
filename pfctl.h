@@ -12,6 +12,7 @@ void pf_table_add(string &table, string &ip);
 void pf_table_del(string &table, string &ip);
 int  pf_is_in_table(string &table, string &ip);
 void pf_table_rebalance(string &table, const set<string> &skip_ips);
+const set<string> pf_table_members(string &table);
 
 #endif
 

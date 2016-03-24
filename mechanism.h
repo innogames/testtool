@@ -28,6 +28,9 @@ public:
 	/* Returns the actual hardware state, regardless of the in-memory state. */
 	virtual bool has_node(LbPoolLink* link, LbNode* node) = 0;
 
+	/* Removes nodes from the hardware state that aren't part of the current mechanism state. */
+	virtual void cleanup_orphans() = 0;
+
 	/* Determines the actual state of the node (it might have been added before a restart) and registers the node, if necessary.
 	   Returns whether the node is already added. */
 	bool sync_initial_state(LbPoolLink* link, LbNode* node);

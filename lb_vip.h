@@ -43,6 +43,8 @@ class LbVip {
 		LbPoolLink* get_backup_pool();
 		LbPoolLink* get_primary_pool();
 
+		void start();
+
 	private:
 		void enable_backup_pool(bool enable);
 
@@ -51,6 +53,7 @@ class LbVip {
 		string name;
 		string hwlb;
 	private:
+		bool m_started;
 		Mechanism* m_mechanism;
 		vector<LbPoolLink*> m_pools;
 
