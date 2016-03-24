@@ -52,7 +52,7 @@ class LbVip {
 		string hwlb;
 	private:
 		Mechanism* m_mechanism;
-		vector<class LbPoolLink*> m_pools;
+		vector<LbPoolLink*> m_pools;
 		class LbPoolLink* m_active_pool;
 
 		/* Track currently active nodes, which will be compared to the desired state

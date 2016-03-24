@@ -7,7 +7,7 @@
 #include "lb_node.h"
 
 class LbVip;
-class LbPoolLink;
+struct LbPoolLink;
 
 using namespace std;
 
