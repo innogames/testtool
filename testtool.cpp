@@ -393,8 +393,9 @@ int main (int argc, char *argv[]) {
 
 	log_txt(MSG_TYPE_DEBUG, "Ending testtool, bye!");
 
+	Healthcheck_ping::destroy();
+
 	finish_libevent();
 	finish_libssl();
-	Healthcheck_ping::destroy();
 }
 
