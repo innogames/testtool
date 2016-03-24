@@ -192,6 +192,21 @@ void TestTool::load_config(ifstream &config_file) {
 			}
 		}
 	}
+
+	/* FIXME: The actual hardware pool might be inconsistent unless we explicitly sync the
+	          mechanism.
+	
+	   Consider this case:
+	    *) force_down goes down, backup pool is activated and added to pf table
+	    *) Pool is reconfigured to be force_up, testtool is restarted
+	    *) It will now force-activate the down primary nodes and will never consider the backup
+	    *) ... but the backup pool is still in the PF tables.
+
+	   Or, much simpler:
+	    *) Have an online pool
+	    *) Switch the VIP to a different pool, testtool is restarted
+	    *) The old pool is still in PF tables, but never cleaned.
+	*/
 }
 
 
