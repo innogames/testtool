@@ -108,13 +108,13 @@ void LbPool::update_nodes() {
 
 	if (new_nodes.size() >= m_min_nodes) {
 		/* If we have a sufficient number of live nodes, just use all of them. */
-		log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, pool is UP.", this->name.c_str(), new_nodes.size(), m_min_nodes);
+		log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, pool is UP.", this->name.c_str(), new_nodes.size(), nodes.size());
 	} else {
 		/* We need more nodes. Now the fault policy comes into play. */
 		switch (m_fault_policy) {
 		case FORCE_UP:
 			/* Pick live nodes, then active ones (which just went down), then random down ones. */
-			log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, FORCING UP STATE.", this->name.c_str(), new_nodes.size(), m_min_nodes);
+			log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, FORCING UP STATE.", this->name.c_str(), new_nodes.size(), nodes.size());
 
 			for (auto& node : m_active_nodes) {
 				if (new_nodes.size() >= m_min_nodes) {
@@ -138,7 +138,7 @@ void LbPool::update_nodes() {
 
 		default: /* fallback to FORCE_DOWN */
 		case FORCE_DOWN:
-			log_txt(MSG_TYPE_POOL_DOWN, "%s - %d/%d nodes alive, pool is DOWN.", this->name.c_str(), new_nodes.size(), m_min_nodes);
+			log_txt(MSG_TYPE_POOL_DOWN, "%s - %d/%d nodes alive, pool is DOWN.", this->name.c_str(), new_nodes.size(), nodes.size());
 			new_nodes.clear();
 			break;
 		}
