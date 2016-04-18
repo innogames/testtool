@@ -147,6 +147,9 @@ void TestTool::load_config(ifstream &config_file) {
 
 			/* Implicitly create both VIP and primary pool. */
 			auto vip = new LbVip(name, hwlb);
+			config.load("ipaddress4", vip->ipaddress4, "");
+			config.load("ipaddress6", vip->ipaddress6, "");
+
 			new_lbpool = new LbPool(name, hwlb, min_nodes, fault_policy);
 
 			vip->attach_pool(new_lbpool, POOL_PRIMARY);
@@ -288,6 +291,64 @@ void TestTool::dump_status() {
 	status_file.close();
 }
 
+void configure_bgp_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
+
+	((TestTool*)arg)->configure_bgp();
+}
+
+void TestTool::configure_bgp() {
+
+	std::set<string*> ips4_alive_tmp;
+	std::set<string*> ips6_alive_tmp;
+
+	for (auto vip : m_vips) {
+		if (vip->count_live_nodes()>0) {
+			if (vip->ipaddress4.length()) {
+				ips4_alive_tmp.insert(&vip->ipaddress4);
+			}
+
+			if (vip->ipaddress6.length()) {
+				ips6_alive_tmp.insert(&vip->ipaddress6);
+			}
+		}
+	}
+
+	string conffile = "/usr/local/etc/bird_testtool_nets.conf";
+	string tmpfile  = conffile + ".new";
+	if (ips4_alive_tmp != ips4_alive) {
+		ofstream status_file(tmpfile,  ios_base::out |  ios_base::trunc);
+		status_file << "testtool_pools = [ 0.0.0.0/32+";
+		for (auto ip_alive : ips4_alive_tmp) {
+			status_file << ", " << *ip_alive << "/32+ ";
+		}
+		status_file << " ];" << endl;
+		status_file.close();
+		// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
+		std::rename(tmpfile.c_str(), conffile.c_str());
+		ips4_alive = ips6_alive_tmp;
+		system("/usr/local/sbin/birdcl configure");
+	}
+
+	conffile = "/usr/local/etc/bird6_testtool_nets.conf";
+	tmpfile  = conffile + ".new";
+	if (ips6_alive_tmp != ips6_alive) {
+		ofstream status_file(tmpfile,  ios_base::out |  ios_base::trunc);
+		status_file << "testtool_pools = [ 0.0.0.0/128+";
+		for (auto ip_alive : ips6_alive_tmp) {
+			status_file << ", " << *ip_alive << "/128+ ";
+		}
+		status_file << " ];" << endl;
+		status_file.close();
+		// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
+		std::rename(tmpfile.c_str(), conffile.c_str());
+		ips6_alive = ips6_alive_tmp;
+		system("/usr/local/sbin/birdcl6 configure");
+	}
+
+}
 
 void TestTool::setup_events() {
 	/*
@@ -317,6 +378,14 @@ void TestTool::setup_events() {
 	dump_status_interval.tv_usec = 0;
 	struct event *dump_status_event = event_new(eventBase, -1, EV_PERSIST, dump_status_callback, this);
 	event_add(dump_status_event, &dump_status_interval);
+
+	/* Configure BGP every 10 seconds */
+	struct timeval configure_bgp_interval;
+	configure_bgp_interval.tv_sec  = 10;
+	configure_bgp_interval.tv_usec = 0;
+	struct event *configure_bgp_event = event_new(eventBase, -1, EV_PERSIST, configure_bgp_callback, this);
+	event_add(configure_bgp_event, &configure_bgp_interval);
+
 }
 
 

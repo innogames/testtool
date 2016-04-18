@@ -52,6 +52,8 @@ class LbVip {
 	public:
 		string name;
 		string hwlb;
+		string ipaddress4;
+		string ipaddress6;
 	private:
 		bool m_started;
 		Mechanism* m_mechanism;

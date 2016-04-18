@@ -14,6 +14,7 @@ public:
 
     void setup_events();
     void dump_status();
+    void configure_bgp();
 
     void schedule_healthchecks();
     void parse_healthchecks_results();
@@ -21,6 +22,8 @@ public:
 private:
     std::list<LbVip*> m_vips;
     std::list<LbPool*> m_pools;
+    std::set<string*> ips4_alive;
+    std::set<string*> ips6_alive;
 };
 
 #endif
