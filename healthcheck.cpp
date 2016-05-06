@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <typeinfo>
+#include <stdlib.h>
 
 #include "msg.h"
 #include "pfctl.h"
@@ -220,10 +221,70 @@ void Healthcheck::finalize_result() {
 	/* Nothing to do here, it is used only for some types of healthchecks. */
 }
 
+/*
+ * End health check
+ *
+ * It is the last function that has to be called at the end of
+ * the health check.  If it wouldn't be called, the process is not
+ * going to continue.
+ */
+void Healthcheck::end_check(HealthcheckResult result, string message) {
+	msgType log_type;
+
+	switch (result) {
+		case HC_PASS:
+			log_type = MSG_TYPE_HC_PASS;
+			this->last_state = STATE_UP;
+			this->handle_result();
+			break;
+
+		case HC_FAIL:
+			log_type = MSG_TYPE_HC_FAIL;
+			this->last_state = STATE_UP;
+			this->handle_result();
+			break;
+
+		case HC_ERROR:
+			log_type = MSG_TYPE_HC_ERROR;
+			this->last_state = STATE_UP;
+			this->handle_result();
+			break;
+
+		case HC_FATAL:
+			log_type = MSG_TYPE_HC_FATAL;
+			this->last_state = STATE_DOWN;
+			this->hard_state = STATE_DOWN;
+			/*
+			 * We are leaving "is_running" as true, so it
+			 * is not going to be scheduled again.
+			 *
+			 * TODO Make it more sensible as it is not
+			 * actually "running".
+			 */
+			break;
+
+		case HC_PANIC:
+			log_type = MSG_TYPE_HC_PANIC;
+			break;
+	}
+
+	if (verbose > 1 || this->last_state != this->hard_state || result >= HC_ERROR)
+		log_lb(log_type, this->parent_lbnode->parent_lbpool->name.c_str(),
+		       this->parent_lbnode->address.c_str(), this->port,
+		       "health check %s - %s", this->type.c_str(),
+		       message.c_str());
+
+	if (result == HC_PANIC)
+		exit(2);
+
+}
 
 /*
  * This method handles the change betwen UP and DOWN hard_state.
  * It performs no pf actions, this is to be done via lb_node or lb_pool!
+ *
+ * XXX This method is deprecated.  Use end_check() instead.  This will
+ * be made private.
  */
 void Healthcheck::handle_result() {
 
