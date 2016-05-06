@@ -1,3 +1,5 @@
 *.swp
 *.o
 testtool
+testtool.conf
+testtool.core
