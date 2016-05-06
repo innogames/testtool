@@ -15,30 +15,12 @@ enum HealthcheckState {
     STATE_UP   = 1
 };
 
-#define RESULT_OK        0
-#define RESULT_FAILED	 1
-
-#define CONNECTION_OK      1
-#define CONNECTION_TIMEOUT 2
-#define CONNECTION_FAILED  3
-
 /* Those quite useful macros are available in sys/time.h but
    only for _KERNEL, at least in FreeBSD. */
-#define	timespecclear(tvp)	((tvp)->tv_sec = (tvp)->tv_nsec = 0)
-#define	timespecisset(tvp)	((tvp)->tv_sec || (tvp)->tv_nsec)
 #define	timespeccmp(tvp, uvp, cmp)					\
 	(((tvp)->tv_sec == (uvp)->tv_sec) ?				\
 	    ((tvp)->tv_nsec cmp (uvp)->tv_nsec) :			\
 	    ((tvp)->tv_sec cmp (uvp)->tv_sec))
-#define timespecadd(vvp, uvp)						\
-	do {								\
-		(vvp)->tv_sec += (uvp)->tv_sec;				\
-		(vvp)->tv_nsec += (uvp)->tv_nsec;			\
-		if ((vvp)->tv_nsec >= 1000000000) {			\
-			(vvp)->tv_sec++;				\
-			(vvp)->tv_nsec -= 1000000000;			\
-		}							\
-	} while (0)
 #define timespecsub(vvp, uvp)						\
 	do {								\
 		(vvp)->tv_sec -= (uvp)->tv_sec;				\
