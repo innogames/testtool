@@ -17,10 +17,10 @@ LDFLAGS += -L/usr/local/lib
 CC=c++
 LD=c++
 
-DLIBS=-lssl -lcrypto
+DLIBS=-lssl -lcrypto -lpq
 SLIBS=-l:libevent_core.a -l:libevent.a -l:libevent_pthreads.a -l:libevent_openssl.a
 
-ALLOBJS=testtool.o config.o lb_vip.o lb_pool.o lb_node.o healthcheck.o healthcheck_tcp.o healthcheck_http.o healthcheck_ping.o healthcheck_dns.o msg.o pfctl.o mechanism.o dummy_mechanism.o pf_mechanism.o
+ALLOBJS=testtool.o config.o lb_vip.o lb_pool.o lb_node.o healthcheck.o healthcheck_tcp.o healthcheck_http.o healthcheck_ping.o healthcheck_postgres.o healthcheck_dns.o msg.o pfctl.o mechanism.o dummy_mechanism.o pf_mechanism.o
 
 all: testtool
 
@@ -40,6 +40,7 @@ lb_node.o: lb_node.cpp lb_node.h lb_pool.h healthcheck.h healthcheck_*.h msg.h m
 healthcheck.o: healthcheck.cpp healthcheck.h healthcheck_*.h msg.h
 healthcheck_tcp.o: healthcheck_tcp.cpp healthcheck_tcp.h healthcheck.h lb_node.h msg.h
 healthcheck_http.o: healthcheck_http.cpp healthcheck_http.h healthcheck.h lb_node.h msg.h
+healthcheck_postgres.o: healthcheck_postgres.cpp healthcheck_postgres.h healthcheck.h lb_node.h msg.h
 healthcheck_ping.o: healthcheck_ping.cpp healthcheck_ping.h healthcheck.h lb_node.h msg.h
 healthcheck_dns.o: healthcheck_dns.cpp healthcheck_dns.h healthcheck.h lb_node.h msg.h
 mechanism.o: mechanism.cpp mechanism.h lb_node.h lb_vip.h msg.h
