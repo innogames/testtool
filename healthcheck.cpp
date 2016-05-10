@@ -81,7 +81,7 @@ void Healthcheck::confline_callback(string &var, istringstream &val) {
 		val >> tmp_timeout;
 		/* Timeout was read in ms, convert it to s and ns. */
 		this->timeout.tv_sec   =  tmp_timeout / 1000;
-		this->timeout.tv_nsec  = (tmp_timeout % 1000) * 1000 * 1000;
+		this->timeout.tv_usec  = (tmp_timeout % 1000) * 1000;
 	}
 }
 
@@ -97,7 +97,7 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	this->check_interval = 2;
 	this->max_failed_checks = 3;
 	this->timeout.tv_sec   = 1;
-	this->timeout.tv_nsec  = 500 * 1000 * 1000;
+	this->timeout.tv_usec  = 500 * 1000;
 	this->port = 0; /* Specific healthchecks should set this value. */
 
 	/*
@@ -134,7 +134,7 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	log_txt(MSG_TYPE_DEBUG, "    * New healthcheck:");
 	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_failed: %d, interval: %d,%03ds",
 		this->check_interval, this->max_failed_checks,
-		this->timeout.tv_sec, this->timeout.tv_nsec / 1000000);
+		this->timeout.tv_sec, this->timeout.tv_usec / 1000);
 }
 
 

@@ -279,7 +279,9 @@ void Healthcheck_ping::finalize_result() {
 
 	timespecsub(&now, &last_checked);
 
-	if (timespeccmp(&now, &timeout ,> )) {
+	if (now.tv_sec > this->timeout.tv_sec ||
+	    (now.tv_sec == this->timeout.tv_sec &&
+	     now.tv_nsec > this->timeout.tv_usec * 1000)) {
 		if (verbose>1 || hard_state != STATE_DOWN)
 			log_lb(MSG_TYPE_HC_FAIL,
 			    parent_lbnode->parent_lbpool->name.c_str(),
@@ -287,8 +289,8 @@ void Healthcheck_ping::finalize_result() {
 			    0,
 			    "Healthcheck_%s: timeout after %d,%03ds, seq %d",
 			    type.c_str(),
-			    timeout.tv_sec,
-			    (timeout.tv_nsec/10000000),
+			    this->timeout.tv_sec,
+			    this->timeout.tv_usec / 10000,
 			    ping_my_seq);
 		ping_my_seq = 0;
 		last_state = STATE_DOWN;

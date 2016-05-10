@@ -73,13 +73,10 @@ enum HealthcheckResult {
 	HC_PANIC
 };
 
-
-/* Those quite useful macros are available in sys/time.h but
-   only for _KERNEL, at least in FreeBSD. */
-#define	timespeccmp(tvp, uvp, cmp)					\
-	(((tvp)->tv_sec == (uvp)->tv_sec) ?				\
-	    ((tvp)->tv_nsec cmp (uvp)->tv_nsec) :			\
-	    ((tvp)->tv_sec cmp (uvp)->tv_sec))
+/*
+ * A quite useful macros are available in sys/time.h but
+ * only for _KERNEL, at least in FreeBSD.
+ */
 #define timespecsub(vvp, uvp)						\
 	do {								\
 		(vvp)->tv_sec -= (uvp)->tv_sec;				\
@@ -122,7 +119,7 @@ class Healthcheck {
 	protected:
 		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */
 		struct timespec		 last_checked;     // The last time this host was checked.
-		struct timespec		 timeout;
+		struct timeval		 timeout;
 		bool			 is_running;
 
 	private:

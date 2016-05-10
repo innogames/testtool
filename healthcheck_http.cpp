@@ -118,7 +118,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 				    "Healthcheck_%s: timeout after %d,%03ds; message: %s",
 				    hc->type.c_str(),
 				    hc->timeout.tv_sec,
-				    (hc->timeout.tv_nsec/1000000),
+				    hc->timeout.tv_usec / 1000,
 				    evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR()));
 
 		}
@@ -204,10 +204,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
 	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
 
-	struct timeval timeout_tv;
-	timeout_tv.tv_sec  = timeout.tv_sec;
-	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
-	bufferevent_set_timeouts(bev, &timeout_tv, &timeout_tv);
+	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
 	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
 		return false;
@@ -234,10 +231,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
 	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
 
-	struct timeval timeout_tv;
-	timeout_tv.tv_sec  = timeout.tv_sec;
-	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
-	bufferevent_set_timeouts(bev, &timeout_tv, &timeout_tv);
+	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
 	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
 		return false;
