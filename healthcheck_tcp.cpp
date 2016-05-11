@@ -45,7 +45,7 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 			    "Healthcheck_%s: timeout after %d,%3ds",
 			    hc->type.c_str(),
 			    hc->timeout.tv_sec,
-			    (hc->timeout.tv_nsec/1000000));
+			    hc->timeout.tv_usec / 1000);
 
 	} else if (what & EV_READ) {
 		char buf[256];
@@ -103,12 +103,8 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
 
 	/* Create an event and make it pending. */
-	struct timeval timeout_tv;
-	timeout_tv.tv_sec  = timeout.tv_sec;
-	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
 	ev = event_new(eventBase, socket_fd, EV_WRITE|EV_READ|EV_TIMEOUT, Healthcheck_tcp::callback, this);
-	event_add(ev, &timeout_tv);
+	event_add(ev, &this->timeout);
 
 	return true;
 }
-

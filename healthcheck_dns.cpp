@@ -127,7 +127,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			    "Healthcheck_%s: timeout after %d,%03ds",
 			    healthcheck->type.c_str(),
 			    healthcheck->timeout.tv_sec,
-			    (healthcheck->timeout.tv_nsec/1000000));
+			    healthcheck->timeout.tv_usec / 1000);
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
@@ -196,7 +196,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	}
 
 	/* Be sure to free the memory! */
-	event_del(healthcheck->ev);
+	event_free(healthcheck->ev);
 	close(socket_fd);
 	healthcheck->handle_result();
 }
@@ -256,11 +256,8 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
 
 	/* Create an event and make it pending. */
-	struct timeval timeout_tv;
-	timeout_tv.tv_sec  = timeout.tv_sec;
-	timeout_tv.tv_usec = timeout.tv_nsec / 1000;
-	ev = event_new(eventBase, socket_fd, EV_READ|EV_TIMEOUT, Healthcheck_dns::callback, this);
-	event_add(ev, &timeout_tv);
+	this->ev = event_new(eventBase, socket_fd, EV_READ, Healthcheck_dns::callback, this);
+	event_add(this->ev, &this->timeout);
 
 	/* On connected socket we use send, not sendto. */
 	if (send(socket_fd, (void *) raw_packet, total_length, 0)<0)
