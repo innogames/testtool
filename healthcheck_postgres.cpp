@@ -102,7 +102,7 @@ void Healthcheck_postgres::start_conn() {
 
 	// If it is NULL, the memory allocation must have been failed.
 	if (this->conn == NULL)
-		return this->end_check(HC_PANIC, "cannot start connection");
+		return this->end_check(HC_PANIC, "cannot start db connection");
 
 	/*
 	 * We haven't got any response from the server yet.  If it
@@ -110,10 +110,10 @@ void Healthcheck_postgres::start_conn() {
 	 * wouldn't fix itself.
 	 */
 	if (PQstatus(this->conn) == CONNECTION_BAD)
-		return this->end_check(HC_FATAL, "connection failed");
+		return this->end_check(HC_FATAL, "db connection failed");
 
 	if (PQsetnonblocking(this->conn, 1))
-		return this->end_check(HC_PANIC, "cannot non-block connection");
+		return this->end_check(HC_PANIC, "cannot non-block db connection");
 
 	// The next step
 	this->register_io_event(EV_WRITE, &Healthcheck_postgres::poll_conn);
@@ -146,23 +146,25 @@ void Healthcheck_postgres::poll_conn() {
 
 	switch(PQconnectPoll(this->conn)) {
 		case PGRES_POLLING_READING:
-			return this->register_io_event(EV_READ,
-						    &Healthcheck_postgres::poll_conn);
+			this->register_io_event(EV_READ,
+						&Healthcheck_postgres::poll_conn);
+			break;
 
 		case PGRES_POLLING_WRITING:
-			return this->register_io_event(EV_WRITE,
-						    &Healthcheck_postgres::poll_conn);
+			this->register_io_event(EV_WRITE,
+						&Healthcheck_postgres::poll_conn);
+			break;
 
 		case PGRES_POLLING_FAILED:
-			return this->end_check(HC_FAIL, "connection polling failed");
-
-		case PGRES_POLLING_OK:
-			// The next step
-			return this->send_query();
+			this->end_check(HC_FAIL, "db connection polling failed");
+			break;
 
 		default:
-			// This shouldn't happen.
-			return this->end_check(HC_ERROR, "connection polling unknown");
+			// There are no more used states than ok.
+			assert(PQconnectPoll(this->conn) == PGRES_POLLING_OK);
+
+			// The next step
+			this->send_query();
 	}
 }
 
@@ -195,7 +197,7 @@ void Healthcheck_postgres::send_query() {
 	 */
 	if (!PQsendQuery(this->conn, query))
 		return this->register_io_event(EV_WRITE,
-					    &Healthcheck_postgres::send_query);
+					       &Healthcheck_postgres::send_query);
 
 	// The next step
 	this->flush_query();
@@ -262,7 +264,7 @@ void Healthcheck_postgres::handle_query() {
 	 * the connection goes away, before we could make the query.
 	 */
 	if (!PQconsumeInput(this->conn))
-		return this->end_check(HC_FAIL, "cannot consume result");
+		return this->end_check(HC_FAIL, "cannot consume db result");
 
 	/*
 	 * As the input is consumed, the connections must not be busy.
@@ -272,68 +274,29 @@ void Healthcheck_postgres::handle_query() {
 
 	this->query_result = PQgetResult(this->conn);
 
-	switch (PQresultStatus(this->query_result)) {
-		case PGRES_FATAL_ERROR:
-			return this->end_check(HC_ERROR, "fatal db error");
+	if (PQresultStatus(this->query_result) != PGRES_TUPLES_OK)
+		return this->end_check(HC_ERROR, "db result not ok");
 
-		case PGRES_NONFATAL_ERROR:
-			return this->end_check(HC_ERROR, "db error");
+	if (PQntuples(this->query_result) != 1)
+		return this->end_check(HC_ERROR, "db result not 1 row");
 
-		case PGRES_TUPLES_OK:
-			// Expected state
-			break;
+	if (PQnfields(this->query_result) != 1) 
+		return this->end_check(HC_ERROR, "db result not 1 column");
 
-		default:
-			// This shouldn't happen.
-			return this->end_check(HC_ERROR, "db result not ok");
-	}
-
-	if (PQntuples(this->query_result) != 1) {
-		if (PQntuples(this->query_result) > 1)
-			return this->end_check(HC_ERROR,
-					       "db returned more than 1 rows");
-		else
-			return this->end_check(HC_ERROR,
-					       "db returned no rows");
-	}
-
-	if (PQnfields(this->query_result) != 1) {
-		if (PQnfields(this->query_result) > 1)
-			return this->end_check(HC_ERROR,
-					       "db returned more than 1 columns");
-		else
-			return this->end_check(HC_ERROR,
-					       "db returned no columns");
-	}
-
-	// 0 means the the format is text which should always be the case.
-	if (PQfformat(this->query_result, 0) != 0)
-		return this->end_check(HC_ERROR,
-				       "db returned something other than text");
+	// 0 means the the format is text which must always be the case.
+	assert(PQfformat(this->query_result, 0) == 0);
 
 	// Get the single cell
 	val = PQgetvalue(this->query_result, 0, 0);
 
 	if (strlen(val) != 1) {
-		if (strlen(val) > 1)
-			return this->end_check(HC_ERROR,
-					       "db returned more than 1 char");
-		else
-			return this->end_check(HC_ERROR, "db returned empty");
+		return this->end_check(HC_ERROR, "db result not 1 char");
 	}
 
-	switch (val[0]) {
-		case 't':
-			return this->end_check(HC_PASS, "db returned true");
-
-		case 'f':
-			return this->end_check(HC_FAIL, "db returned false");
-
-		default:
-			// This shouldn't happen.
-			return this->end_check(HC_ERROR,
-					       "db returned something other than bool");
-	}
+	if (val[0] == 't')
+		this->end_check(HC_PASS, "db result true");
+	else
+		this->end_check(HC_FAIL, "db result false");
 }
 
 /*
@@ -384,15 +347,15 @@ void Healthcheck_postgres::register_io_event(short flag,
 	assert(!(flag & ~(EV_READ | EV_WRITE)));
 
 	/*
-	 * We don't need to check for the count for events, because
-	 * the check will fail with a timeout, anyway.  Though, it is
-	 * useful to check during development to detect infinite loops.
+	 * The check should fail with a timeout before this limit is
+	 * reached.  It is useful at least for development to detect
+	 * endless loops.  100 is a limit high enough to catch them,
+	 * low enough to be hit before the timeout.
 	 */
-	assert(this->event_counter < 100);
+	if (this->event_counter++ > 100)
+		return this->end_check(HC_FATAL, "too many events");
 
-	this->event_counter++;
 	this->callback_method = method;
-
 	this->io_event = event_new(eventBase, PQsocket(this->conn), flag,
 				   &Healthcheck_postgres::handle_io_event, this);
 
@@ -468,8 +431,7 @@ void Healthcheck_postgres::handle_io_event(int fd, short flag, void *arg) {
 /*
  * Static callback for timeout events
  *
- * XXX This is a copy of the function above.  It should be shared by all
- * healthchecks.
+ * XXX This should be shared by all healthchecks.
  */
 void Healthcheck_postgres::handle_timeout_event(int fd, short flag, void *arg) {
 	Healthcheck_postgres *hc = (Healthcheck_postgres *) arg;
