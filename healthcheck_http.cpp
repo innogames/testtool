@@ -71,7 +71,6 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	type = "http";
 }
 
-
 /*
    Constructor for HTTPS healthcheck. It only calls HTTP constructor. Now that's what I call inheritance!
 */
@@ -79,11 +78,53 @@ Healthcheck_https::Healthcheck_https(istringstream &definition, class LbNode *_p
 	type = "https";
 }
 
+int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
+	/* Peform general stuff for scheduled healthcheck. */
+	if (Healthcheck::schedule_healthcheck(now) == false)
+		return false;
 
-void Healthcheck_http::cleanup_connection() {
-	if (bev)
-		bufferevent_free(bev);
-	bev = NULL;
+	reply = "";
+
+	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
+	if (bev == NULL)
+		return false;
+
+	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
+	bufferevent_enable(bev, EV_READ|EV_WRITE);
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
+
+	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
+
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
+		return false;
+
+	return true;
+}
+
+int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
+	SSL *ssl;
+
+	/* Peform general stuff for scheduled healthcheck. */
+	if (Healthcheck::schedule_healthcheck(now) == false)
+		return false;
+
+	reply = "";
+
+	ssl = SSL_new(sctx);
+	bev = bufferevent_openssl_socket_new(eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE);
+	if (bev == NULL)
+		return false;
+
+	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
+	bufferevent_enable(bev, EV_READ|EV_WRITE);
+	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
+
+	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
+
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
+		return false;
+
+	return true;
 }
 
 void Healthcheck_http::read_callback(struct bufferevent *bev, void * arg) {
@@ -188,54 +229,8 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 	}
 }
 
-
-int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
-	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck(now) == false)
-		return false;
-
-	reply = "";
-
-	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
-	if (bev == NULL)
-		return false;
-
-	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
-	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
-
-	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
-
-	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
-		return false;
-
-	return true;
+void Healthcheck_http::cleanup_connection() {
+	if (bev)
+		bufferevent_free(bev);
+	bev = NULL;
 }
-
-
-int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
-	SSL *ssl;
-
-	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck(now) == false)
-		return false;
-
-	reply = "";
-
-	ssl = SSL_new(sctx);
-	bev = bufferevent_openssl_socket_new(eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE);
-	if (bev == NULL)
-		return false;
-
-	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
-	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
-
-	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
-
-	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
-		return false;
-
-	return true;
-}
-
