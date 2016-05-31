@@ -29,10 +29,11 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, string hwlb, int min_nodes, LbPool::FaultPolicy fault_policy)
+LbPool::LbPool(string name, string hwlb, int min_nodes, int max_nodes, LbPool::FaultPolicy fault_policy)
 	: name(name), hwlb(hwlb)
 {
 	this->m_min_nodes = min_nodes;
+	this->m_max_nodes = max_nodes;
 	this->m_fault_policy = fault_policy;
 	this->state = STATE_DOWN;
 
@@ -109,6 +110,17 @@ void LbPool::update_nodes() {
 		}
 
 	/*
+	 * If more than max_nodes became available, we shouldn't change
+	 * anything.
+	 */
+	if (this->m_max_nodes > 0 && new_nodes.size() >= this->m_max_nodes) {
+		log_txt(MSG_TYPE_POOL_CRIT, "%s - %d/%d nodes alive",
+			this->name.c_str(), new_nodes.size(), this->m_max_nodes);
+
+		return;
+	}
+
+	/*
 	 * If we have a sufficient number of live nodes, we just
 	 * use all of them.  If not, we have to find more nodes
 	 * using the fault policy.
@@ -118,6 +130,8 @@ void LbPool::update_nodes() {
 			this->name.c_str(), new_nodes.size(), this->nodes.size());
 	} else {
 		if (this->m_fault_policy == FORCE_UP) {
+			log_txt(MSG_TYPE_POOL_CRIT, "%s - %d/%d nodes alive, FORCING UP STATE.",
+				this->name.c_str(), new_nodes.size(), this->nodes.size());
 
 			/*
 			 * We need to make the given number of nodes running.
@@ -125,9 +139,6 @@ void LbPool::update_nodes() {
 			 * with active ones (which just went down), and
 			 * then random down ones.
 			 */
-			log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, FORCING UP STATE.",
-				this->name.c_str(), new_nodes.size(), this->nodes.size());
-
 			for (auto& node : this->m_active_nodes) {
 				if (new_nodes.size() >= this->m_min_nodes)
 					break;

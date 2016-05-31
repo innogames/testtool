@@ -134,6 +134,9 @@ void TestTool::load_config(ifstream &config_file) {
 			int min_nodes;
 			config.load("min_nodes", min_nodes, 1);
 
+			int max_nodes;
+			config.load("max_nodes", max_nodes, 0);
+
 			LbPool::FaultPolicy fault_policy;
 			string min_nodes_action;
 			config.load("min_nodes_action", min_nodes_action, "force_down");
@@ -150,7 +153,7 @@ void TestTool::load_config(ifstream &config_file) {
 			config.load("ipaddress4", vip->ipaddress4, "");
 			config.load("ipaddress6", vip->ipaddress6, "");
 
-			new_lbpool = new LbPool(name, hwlb, min_nodes, fault_policy);
+			new_lbpool = new LbPool(name, hwlb, min_nodes, max_nodes, fault_policy);
 
 			vip->attach_pool(new_lbpool, POOL_PRIMARY);
 			m_pools.push_back(new_lbpool);
