@@ -240,13 +240,13 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 
 		case HC_FAIL:
 			log_type = MSG_TYPE_HC_FAIL;
-			this->last_state = STATE_UP;
+			this->last_state = STATE_DOWN;
 			this->handle_result();
 			break;
 
 		case HC_ERROR:
 			log_type = MSG_TYPE_HC_ERROR;
-			this->last_state = STATE_UP;
+			this->last_state = STATE_DOWN;
 			this->handle_result();
 			break;
 
