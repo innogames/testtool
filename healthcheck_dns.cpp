@@ -28,9 +28,10 @@ using namespace std;
 extern struct event_base	*eventBase;
 extern int			 verbose;
 
-
 /* In the .h file there are only declarations of static variables, here we have definitions. */
 uint16_t			 Healthcheck_dns::global_transaction_id;
+
+static unsigned int build_dns_question(string &dns_query, char *question_buffer);
 
 
 /*
@@ -38,13 +39,98 @@ uint16_t			 Healthcheck_dns::global_transaction_id;
    - Does not support truncated messages. Only the first answering datagram is parsed.
    - Does not really check for what is in the answer. It only checks if the number of answer sections is bigger than 0 and the transaction number.
 */
+void Healthcheck_dns::confline_callback(string &var, istringstream &val) {
+	if (var == "query") {
+		val >> this->dns_query;
+		/* Add ensure that query ends with dot. */
+		if (this->dns_query.at(this->dns_query.length()-1) != '.') {
+			this->dns_query += '.';
+		}
+	}
+}
 
+/*
+   Constructor for DNS healthcheck. Parses DNS-specific parameters.
+*/
+Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+	/* Set defaults. */
+	if (this->port == 0)
+		this->port = 443;
+	this->read_confline(definition);
+	log_txt(MSG_TYPE_DEBUG, "      type: dns, port: %d, query: %s", this->port, this->dns_query.c_str());
+
+	type = "dns";
+}
+
+int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
+	char			raw_packet[DNS_BUFFER_SIZE]; /* This should be enough for our purposes. */
+	struct sockaddr_in	to_addr;
+	unsigned int		question_length;
+	unsigned int		total_length;
+
+	/* Peform general stuff for scheduled healthcheck. */
+	if (Healthcheck::schedule_healthcheck(now) == false)
+		return false;
+
+	/* Prepare memory. It must be pure and clean. */
+	memset (&raw_packet, 0, sizeof(raw_packet));
+
+	struct dns_header	*dns_query_struct = (struct dns_header*)raw_packet;
+	char			*dns_question = raw_packet + sizeof(struct dns_header);
+
+	/* Fill in the query struct. */
+	dns_query_struct->qid = htons(my_transaction_id = ++Healthcheck_dns::global_transaction_id);
+
+	dns_query_struct->rd = 1;     /* 1 bit.  Do the recursvie query if needed. */
+	dns_query_struct->tc = 0;     /* 1 bit.  Message is not truncated. */
+//	dns_query_struct->aa;         /* 1 bit.  Valid in responses. */
+	dns_query_struct->opcode = 0; /* 4 bits. Normal message. */
+	dns_query_struct->qr = 0;     /* 1 bit.  It is a query. */
+
+//	dns_query_struct->rcode :4;   /* 4 bits. Valid in responses. */
+//	dns_query_struct->unused :3;  /* 3 bits. It's unused. */
+//	dns_query_struct->ra: 1;      /* 1 bit.  Valid in responses. */
+
+	dns_query_struct->qdcount = htons(1); /* There is 1 question to be sent. */
+
+	question_length = build_dns_question(dns_query, dns_question);
+	total_length = sizeof(struct dns_header) + question_length;
+
+	/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
+	memset(&to_addr, 0, sizeof(sockaddr_in));
+	to_addr.sin_family = AF_INET;
+	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
+	to_addr.sin_port = htons(port);
+
+	/* Create a socket. */
+	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	if (socket_fd == -1) {
+		log_txt(MSG_TYPE_CRITICAL, "socket(): %s", strerror(errno));
+		return false;
+	}
+	/* In fact I'm not really sure if it needs to be nonblocking. */
+	evutil_make_socket_nonblocking(socket_fd);
+
+	/* Sending to host is one thing, but we want answers only from our target in this socket.
+	   "connect" makes the socket receive only traffic from that host. */
+	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
+
+	/* Create an event and make it pending. */
+	this->ev = event_new(eventBase, socket_fd, EV_READ, Healthcheck_dns::callback, this);
+	event_add(this->ev, &this->timeout);
+
+	/* On connected socket we use send, not sendto. */
+	if (send(socket_fd, (void *) raw_packet, total_length, 0)<0)
+		return false;
+
+	return true;
+}
 
 /*
    Build a question section. The function requires an already allocated buffer, hopefully long enough.
    It returns the lenght of the created section.
 */
-unsigned int build_dns_question(string &dns_query, char *question_buffer) {
+static unsigned int build_dns_question(string &dns_query, char *question_buffer) {
 	/*
 	   Another option would be to allocate memory in this function.
 	   Length would be strlen(dns_query)+5 bytes.
@@ -80,29 +166,6 @@ unsigned int build_dns_question(string &dns_query, char *question_buffer) {
 
 	return origlen+5;
 }
-
-void Healthcheck_dns::confline_callback(string &var, istringstream &val) {
-	if (var == "query") {
-		val >> this->dns_query;
-		/* Add ensure that query ends with dot. */
-		if (this->dns_query.at(this->dns_query.length()-1) != '.') {
-			this->dns_query += '.';
-		}
-	}
-}
-
-/*
-   Constructor for DNS healthcheck. Parses DNS-specific parameters.
-*/
-Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
-	/* Set defaults. */
-	this->port = 53;
-	this->read_confline(definition);
-	log_txt(MSG_TYPE_DEBUG, "      type: dns, port: %d, query: %s", this->port, this->dns_query.c_str());
-
-	type = "dns";
-}
-
 
 /*
    The callback function for DNS check.
@@ -200,69 +263,3 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	close(socket_fd);
 	healthcheck->handle_result();
 }
-
-
-int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
-	char			raw_packet[DNS_BUFFER_SIZE]; /* This should be enough for our purposes. */
-	struct sockaddr_in	to_addr;
-	unsigned int		question_length;
-	unsigned int		total_length;
-
-	/* Peform general stuff for scheduled healthcheck. */
-	if (Healthcheck::schedule_healthcheck(now) == false)
-		return false;
-
-	/* Prepare memory. It must be pure and clean. */
-	memset (&raw_packet, 0, sizeof(raw_packet));
-
-	struct dns_header	*dns_query_struct = (struct dns_header*)raw_packet;
-	char			*dns_question = raw_packet + sizeof(struct dns_header);
-
-	/* Fill in the query struct. */
-	dns_query_struct->qid = htons(my_transaction_id = ++Healthcheck_dns::global_transaction_id);
-
-	dns_query_struct->rd = 1;     /* 1 bit.  Do the recursvie query if needed. */
-	dns_query_struct->tc = 0;     /* 1 bit.  Message is not truncated. */
-//	dns_query_struct->aa;         /* 1 bit.  Valid in responses. */
-	dns_query_struct->opcode = 0; /* 4 bits. Normal message. */
-	dns_query_struct->qr = 0;     /* 1 bit.  It is a query. */
-
-//	dns_query_struct->rcode :4;   /* 4 bits. Valid in responses. */
-//	dns_query_struct->unused :3;  /* 3 bits. It's unused. */
-//	dns_query_struct->ra: 1;      /* 1 bit.  Valid in responses. */
-
-	dns_query_struct->qdcount = htons(1); /* There is 1 question to be sent. */
-
-	question_length = build_dns_question(dns_query, dns_question);
-	total_length = sizeof(struct dns_header) + question_length;
-
-	/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
-	memset(&to_addr, 0, sizeof(sockaddr_in));
-	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
-	to_addr.sin_port = htons(port);
-
-	/* Create a socket. */
-	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if (socket_fd == -1) {
-		log_txt(MSG_TYPE_CRITICAL, "socket(): %s", strerror(errno));
-		return false;
-	}
-	/* In fact I'm not really sure if it needs to be nonblocking. */
-	evutil_make_socket_nonblocking(socket_fd);
-
-	/* Sending to host is one thing, but we want answers only from our target in this socket.
-	   "connect" makes the socket receive only traffic from that host. */
-	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
-
-	/* Create an event and make it pending. */
-	this->ev = event_new(eventBase, socket_fd, EV_READ, Healthcheck_dns::callback, this);
-	event_add(this->ev, &this->timeout);
-
-	/* On connected socket we use send, not sendto. */
-	if (send(socket_fd, (void *) raw_packet, total_length, 0)<0)
-		return false;
-
-	return true;
-}
-

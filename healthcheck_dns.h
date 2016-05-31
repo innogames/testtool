@@ -63,8 +63,6 @@ class Healthcheck_dns: public Healthcheck {
 	private:
 		void confline_callback(string &var, istringstream &val);
 
-
-
 	/* Members */
 	public:
 		int schedule_healthcheck(struct timespec *now);
