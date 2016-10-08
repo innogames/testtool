@@ -336,7 +336,7 @@ void TestTool::configure_bgp() {
 	tmpfile  = conffile + ".new";
 	if (ips6_alive_tmp != ips6_alive) {
 		ofstream status_file(tmpfile,  ios_base::out |  ios_base::trunc);
-		status_file << "testtool_pools = [ 0.0.0.0/128+";
+		status_file << "testtool_pools = [ ::/128+";
 		for (auto ip_alive : ips6_alive_tmp) {
 			status_file << ", " << *ip_alive << "/128+ ";
 		}
