@@ -12,6 +12,7 @@ CXXFLAGS=-pedantic -std=c++11 -Wall -Wextra -Wno-unused-parameter \
        -D__GIT_LAST_COMMIT__="\"$(GIT_LAST_COMMIT)\"" \
 
 LDFLAGS += -L/opt/libevent-2.0/lib
+LDFLAGS += -L/usr/lib
 LDFLAGS += -L/usr/local/lib
 
 CC=c++
