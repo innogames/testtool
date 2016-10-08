@@ -206,7 +206,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
 		return false;
 
 	return true;
@@ -233,7 +233,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, sizeof(struct sockaddr)) < 0)
+	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
 		return false;
 
 	return true;
