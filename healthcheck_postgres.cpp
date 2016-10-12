@@ -1,5 +1,5 @@
 /*
- * Testttol PostgreSQL Health Check
+ * Testtool PostgreSQL Health Check
  *
  * Allow the PostgreSQL connections to be load-balanced by checking
  * the health of the database.
@@ -171,10 +171,10 @@ void Healthcheck_postgres::poll_conn() {
 /*
  * Prepare the database query
  *
- * Currenly, we only know how to call a function.
+ * Currently, we only know how to call a function.
  *
  * We could prepare the function in server-side, but it doesn't worth
- * the errort.
+ * the error.
  */
 void Healthcheck_postgres::prepare_query() {
 	snprintf(this->query, sizeof(this->query), "SELECT %s()",
@@ -248,7 +248,7 @@ void Healthcheck_postgres::flush_query() {
 /*
  * Handle the query and continue
  *
- * This is the final step, before we call end_check() with sucessful
+ * This is the final step, before we call end_check() with successful
  * result type.  We are handling the query results, hopefully we got
  * from the database.
  */
@@ -280,10 +280,10 @@ void Healthcheck_postgres::handle_query() {
 	if (PQntuples(this->query_result) != 1)
 		return this->end_check(HC_ERROR, "db result not 1 row");
 
-	if (PQnfields(this->query_result) != 1) 
+	if (PQnfields(this->query_result) != 1)
 		return this->end_check(HC_ERROR, "db result not 1 column");
 
-	// 0 means the the format is text which must always be the case.
+	// 0 means the format is text which must always be the case.
 	assert(PQfformat(this->query_result, 0) == 0);
 
 	// Get the single cell
