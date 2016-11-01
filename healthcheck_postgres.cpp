@@ -92,6 +92,16 @@ int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 
 /*
  * Connect or reconnect if necessary and continue
+ *
+ * This is the part of libpq documentation we are implementing:
+ *
+ * > To begin a nonblocking connection request, call
+ * > conn = PQconnectStart("connection_info_string").  If conn is null,
+ * > then libpq has been unable to allocate a new PGconn structure.
+ * > Otherwise, a valid PGconn pointer is returned (though not yet
+ * > representing a valid connection to the database).  On return from
+ * > PQconnectStart, call status = PQstatus(conn).  If status equals
+ * > CONNECTION_BAD, PQconnectStart has failed.
  */
 void Healthcheck_postgres::start_conn() {
 	char conninfo[256];
@@ -124,20 +134,20 @@ void Healthcheck_postgres::start_conn() {
  *
  * This is the part of libpq documentation we are implementing:
  *
- * If PQconnectStart succeeds, the next stage is to poll libpq so that
- * it can proceed with the connection sequence.  Use PQsocket(conn) to
- * obtain the descriptor of the socket underlying the database
- * connection.  Loop thus: If PQconnectPoll(conn) last returned
- * PGRES_POLLING_READING, wait until the socket is ready to read (as
- * indicated by select(), poll(), or similar system function).  Then
- * call PQconnectPoll(conn) again. Conversely, if PQconnectPoll(conn)
- * last returned PGRES_POLLING_WRITING, wait until the socket is ready
- * to write, then call PQconnectPoll(conn) again.  If you have yet to
- * call PQconnectPoll, i.e., just after the call to PQconnectStart,
- * behave as if it last returned PGRES_POLLING_WRITING.  Continue this
- * loop until PQconnectPoll(conn) returns PGRES_POLLING_FAILED,
- * indicating the connection procedure has failed, or PGRES_POLLING_OK,
- * indicating the connection has been successfully made.
+ * > If PQconnectStart succeeds, the next stage is to poll libpq so that
+ * > it can proceed with the connection sequence.  Use PQsocket(conn) to
+ * > obtain the descriptor of the socket underlying the database
+ * > connection.  Loop thus: If PQconnectPoll(conn) last returned
+ * > PGRES_POLLING_READING, wait until the socket is ready to read (as
+ * > indicated by select(), poll(), or similar system function).  Then
+ * > call PQconnectPoll(conn) again. Conversely, if PQconnectPoll(conn)
+ * > last returned PGRES_POLLING_WRITING, wait until the socket is ready
+ * > to write, then call PQconnectPoll(conn) again.  If you have yet to
+ * > call PQconnectPoll, i.e., just after the call to PQconnectStart,
+ * > behave as if it last returned PGRES_POLLING_WRITING.  Continue this
+ * > loop until PQconnectPoll(conn) returns PGRES_POLLING_FAILED,
+ * > indicating the connection procedure has failed, or PGRES_POLLING_OK,
+ * > indicating the connection has been successfully made.
  */
 void Healthcheck_postgres::poll_conn() {
 	assert(PQstatus(this->conn) != CONNECTION_OK);
@@ -171,10 +181,8 @@ void Healthcheck_postgres::poll_conn() {
 /*
  * Prepare the database query
  *
- * Currently, we only know how to call a function.
- *
- * We could prepare the function in server-side, but it doesn't worth
- * the error.
+ * Currently, we only know how to call a function.  We could prepare
+ * the function in server-side, but it doesn't worth the effort.
  */
 void Healthcheck_postgres::prepare_query() {
 	snprintf(this->query, sizeof(this->query), "SELECT %s()",
@@ -208,16 +216,16 @@ void Healthcheck_postgres::send_query() {
  *
  * This is the part of libpq documentation we are implementing:
  *
- * After sending any command or data on a nonblocking connection, call
- * PQflush.  If it returns 1, wait for the socket to become read- or
- * write-ready. If it becomes write-ready, call PQflush again.  If it
- * becomes read-ready, call PQconsumeInput, then call PQflush again.
- * Repeat until PQflush returns 0.  (It is necessary to check for
- * read-ready and drain the input with PQconsumeInput, because
- * the server can block trying to send us data, e.g. NOTICE messages,
- * and won't read our data until we read its.)  Once PQflush returns 0,
- * wait for the socket to be read-ready and then read the response as
- * described above.
+ * > After sending any command or data on a nonblocking connection, call
+ * > PQflush.  If it returns 1, wait for the socket to become read- or
+ * > write-ready. If it becomes write-ready, call PQflush again.  If it
+ * > becomes read-ready, call PQconsumeInput, then call PQflush again.
+ * > Repeat until PQflush returns 0.  (It is necessary to check for
+ * > read-ready and drain the input with PQconsumeInput, because
+ * > the server can block trying to send us data, e.g. NOTICE messages,
+ * > and won't read our data until we read its.)  Once PQflush returns 0,
+ * > wait for the socket to be read-ready and then read the response as
+ * > described above.
  */
 void Healthcheck_postgres::flush_query() {
 	assert(PQstatus(this->conn) == CONNECTION_OK);
@@ -249,7 +257,7 @@ void Healthcheck_postgres::flush_query() {
  * Handle the query and continue
  *
  * This is the final step, before we call end_check() with successful
- * result type.  We are handling the query results, hopefully we got
+ * result type.  We are handling the query results we hopefully got
  * from the database.
  */
 void Healthcheck_postgres::handle_query() {
