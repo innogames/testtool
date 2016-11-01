@@ -311,14 +311,15 @@ void Healthcheck_postgres::handle_query() {
  * Override end_check() method to clean up things
  */
 void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
-	if (verbose >= 2 && result != HC_PASS && this->conn != NULL) {
+	if (result != HC_PASS && this->conn != NULL) {
 		char *error = PQerrorMessage(this->conn);
 
 		if (error != NULL && strlen(error) > 0)
-			log_txt(MSG_TYPE_DEBUG, "db error: %s", error);
+			log_txt(MSG_TYPE_CRITICAL, "db error: %s", error);
 
-		log_txt(MSG_TYPE_DEBUG, "Event counter: %d", this->event_counter);
-		log_txt(MSG_TYPE_DEBUG, "Last event: %d", this->event_flag);
+		if (verbose >= 2)
+			log_txt(MSG_TYPE_DEBUG, "Last event %d after %d events",
+				this->event_flag, this->event_counter);
 	}
 
 	if (this->io_event != NULL) {
