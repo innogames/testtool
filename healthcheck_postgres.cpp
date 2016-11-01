@@ -104,11 +104,14 @@ int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
  * > CONNECTION_BAD, PQconnectStart has failed.
  */
 void Healthcheck_postgres::start_conn() {
-	char conninfo[256];
-
-	// TODO Use PQconnectStartParams
-	snprintf(conninfo, sizeof(conninfo), "host=%s port=%d dbname=%s user=%s client_encoding=SQL_ASCII fallback_application_name=testtool", this->host.c_str(), this->port, this->dbname.c_str(), this->user.c_str());
-	this->conn = PQconnectStart(conninfo);
+	std::string port_str = std::to_string(this->port);
+	char const *keys[] = {"host", "port", "dbname", "user",
+			      "client_encoding", "fallback_application_name",
+			      NULL};
+	char const *values[] = {this->host.c_str(), port_str.c_str(),
+				this->dbname.c_str(), this->user.c_str(),
+				"SQL_ASCII", "testtool", NULL};
+	this->conn = PQconnectStartParams(keys, values, 0);
 
 	// If it is NULL, the memory allocation must have been failed.
 	if (this->conn == NULL)
