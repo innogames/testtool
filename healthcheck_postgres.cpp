@@ -117,13 +117,13 @@ void Healthcheck_postgres::start_conn() {
 	if (this->conn == NULL)
 		return this->end_check(HC_PANIC, "cannot start db connection");
 
-	/*
-	 * We haven't got any response from the server yet.  If it
-	 * fails right away, that should be a configuration error which
-	 * wouldn't fix itself.
-	 */
+	// Invalid configuration options are not going it fix itself.
+    if (!this->conn->options_valid)
+		return this->end_check(HC_FATAL, "db connection options invalid");
+
+    // The connection can fail right away.
 	if (PQstatus(this->conn) == CONNECTION_BAD)
-		return this->end_check(HC_FATAL, "db connection failed");
+		return this->end_check(HC_FAIL, "db connection failed");
 
 	if (PQsetnonblocking(this->conn, 1))
 		return this->end_check(HC_PANIC, "cannot non-block db connection");
