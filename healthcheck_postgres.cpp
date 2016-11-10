@@ -117,10 +117,6 @@ void Healthcheck_postgres::start_conn() {
 	if (this->conn == NULL)
 		return this->end_check(HC_PANIC, "cannot start db connection");
 
-	// Invalid configuration options are not going it fix itself.
-    if (!this->conn->options_valid)
-		return this->end_check(HC_FATAL, "db connection options invalid");
-
     // The connection can fail right away.
 	if (PQstatus(this->conn) == CONNECTION_BAD)
 		return this->end_check(HC_FAIL, "db connection failed");
@@ -286,13 +282,13 @@ void Healthcheck_postgres::handle_query() {
 	this->query_result = PQgetResult(this->conn);
 
 	if (PQresultStatus(this->query_result) != PGRES_TUPLES_OK)
-		return this->end_check(HC_ERROR, "db result not ok");
+		return this->end_check(HC_FAIL, "db result not ok");
 
 	if (PQntuples(this->query_result) != 1)
-		return this->end_check(HC_ERROR, "db result not 1 row");
+		return this->end_check(HC_FAIL, "db result not 1 row");
 
 	if (PQnfields(this->query_result) != 1)
-		return this->end_check(HC_ERROR, "db result not 1 column");
+		return this->end_check(HC_FAIL, "db result not 1 column");
 
 	// 0 means the format is text which must always be the case.
 	assert(PQfformat(this->query_result, 0) == 0);
@@ -301,7 +297,7 @@ void Healthcheck_postgres::handle_query() {
 	val = PQgetvalue(this->query_result, 0, 0);
 
 	if (strlen(val) != 1) {
-		return this->end_check(HC_ERROR, "db result not 1 char");
+		return this->end_check(HC_FAIL, "db result not 1 char");
 	}
 
 	if (val[0] == 't')
@@ -365,7 +361,7 @@ void Healthcheck_postgres::register_io_event(short flag,
 	 * low enough to be hit before the timeout.
 	 */
 	if (this->event_counter++ > 100)
-		return this->end_check(HC_FATAL, "too many events");
+		return this->end_check(HC_PANIC, "too many events");
 
 	this->callback_method = method;
 	this->io_event = event_new(eventBase, PQsocket(this->conn), flag,

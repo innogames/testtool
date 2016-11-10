@@ -39,29 +39,6 @@ enum HealthcheckResult {
 	HC_FAIL,
 
 	/*
-	 * The unexpected negative result
-	 *
-	 * This indicates that health-check has failed, because of
-	 * an unexpected error like misconfiguration.  It behaves
-	 * exactly same as HC_FAIL, but we can detect unexpected
-	 * problems using this state.
-	 */
-	HC_ERROR,
-
-	/*
-	 * The terminating failure
-	 *
-	 * This indicates that the health-check has some problem which
-	 * cannot be fixed on its own.  There is no point of checking
-	 * it again.  The system is going to stop sending traffic to
-	 * this server immediately, and it is not going to try checking
-	 * its health again.  This is a useful result to return on
-	 * mis-configurations like entering an out-of-range port
-	 * number.
-	 */
-	HC_FATAL,
-
-	/*
 	 * The unexpected result
 	 *
 	 * This indicates something wrong with our system.  It can be

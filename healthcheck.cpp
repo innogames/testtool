@@ -244,31 +244,12 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 			this->handle_result();
 			break;
 
-		case HC_ERROR:
-			log_type = MSG_TYPE_HC_ERROR;
-			this->last_state = STATE_DOWN;
-			this->handle_result();
-			break;
-
-		case HC_FATAL:
-			log_type = MSG_TYPE_HC_FATAL;
-			this->last_state = STATE_DOWN;
-			this->hard_state = STATE_DOWN;
-			/*
-			 * We are leaving "is_running" as true, so it
-			 * is not going to be scheduled again.
-			 *
-			 * TODO Make it more sensible as it is not
-			 * actually "running".
-			 */
-			break;
-
 		case HC_PANIC:
 			log_type = MSG_TYPE_HC_PANIC;
 			break;
 	}
 
-	if (verbose > 1 || this->last_state != this->hard_state || result >= HC_ERROR)
+	if (verbose > 1 || this->last_state != this->hard_state || result > HC_FAIL)
 		log_lb(log_type, this->parent_lbnode->parent_lbpool->name.c_str(),
 		       this->parent_lbnode->address.c_str(), this->port,
 		       "health check %s - %s", this->type.c_str(),
@@ -276,7 +257,6 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 
 	if (result == HC_PANIC)
 		exit(2);
-
 }
 
 /*
@@ -288,14 +268,18 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
  */
 void Healthcheck::handle_result() {
 
-	/* Change from DOWN to UP. The healthcheck has passed again. */
+	// If a healtcheck has passed, zero the failure counter.
+	if (last_state == STATE_UP)
+		failure_counter = 0;
+
+	// Change from DOWN to UP. The healthcheck has passed again.
 	if (hard_state == STATE_DOWN && last_state == STATE_UP) {
 		log_lb(MSG_TYPE_HC_PASS, parent_lbnode->parent_lbpool->name.c_str(),
 		       parent_lbnode->address.c_str(), port, "passed again");
 		hard_state = STATE_UP;
 		failure_counter = 0;
 	}
-	/* Change from UP to DOWN. The healthcheck has failed. */
+	// Change from UP to DOWN. The healthcheck has failed.
 	else if (hard_state == STATE_UP && last_state == STATE_DOWN) {
 
 		failure_counter++;
@@ -306,7 +290,7 @@ void Healthcheck::handle_result() {
 			       parent_lbnode->address.c_str(), port,
 			       "failed for the %d time", failure_counter);
 
-		/* Mark the hard DOWN state only after the number of failed checks is reached. */
+		// Mark the hard DOWN state only after the number of failed checks is reached.
 		if (failure_counter >= max_failed_checks) {
 			if (!parent_lbnode->downtime)
 				log_lb(MSG_TYPE_HC_HFAIL,
@@ -318,6 +302,6 @@ void Healthcheck::handle_result() {
 		}
 	}
 
-	/* Mark the check as not running, so it can be scheduled again. */
+	// Mark the check as not running, so it can be scheduled again.
 	is_running = false;
 }

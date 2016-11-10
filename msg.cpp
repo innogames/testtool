@@ -96,18 +96,6 @@ void log_txt(msgType type, const char *fmt, ...) {
 			snprintf(pbuf, sizeof(mbuf), "HC HardFail");
 		break;
 
-		case MSG_TYPE_HC_ERROR:
-			loglevel = LOG_NOTICE;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_MAGENTA " HC Error  " CL_WHITE  "]" CL_RESET);
-			snprintf(pbuf, sizeof(pbuf), "HC Error ");
-		break;
-
-		case MSG_TYPE_HC_FATAL:
-			loglevel = LOG_ERR;
-			snprintf(cbuf, sizeof(cbuf), CL_RED   "[" CL_CYAN  " HC Fatal  " CL_RED    "]" CL_RESET);
-			snprintf(pbuf, sizeof(mbuf), "HC Fatal ");
-		break;
-
 		case MSG_TYPE_HC_PANIC:
 			loglevel = LOG_ERR;
 			snprintf(cbuf, sizeof(cbuf), CL_RED   "[" CL_BLUE  " HC Panic  " CL_RED    "]" CL_RESET);
