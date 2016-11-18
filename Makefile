@@ -5,6 +5,8 @@ BSD_VERSION    != uname -r | cut -d . -f 1
 GIT_BRANCH     != git rev-parse --abbrev-ref HEAD
 GIT_LAST_COMMIT!= git log -1 --pretty='%H'
 
+PREFIX ?= /usr/local
+
 CXXFLAGS=-pedantic -std=c++11 -Wall -Wextra -Wno-unused-parameter \
        -I/usr/local/include -I$(LIBEVENT)/include -g3 \
        -D__HOSTNAME__=\"$(HOSTNAME)\" \
@@ -34,6 +36,11 @@ clean:
 test:
 	./runtests.sh
 
+install:
+	install testtool			${DESTDIR}/${PREFIX}/bin
+	install testtool_watchdog	${DESTDIR}/${PREFIX}/bin
+	install testtool_bsdrc		${DESTDIR}/${PREFIX}/etc/rc.d/testtool
+	
 testtool.o: testtool.cpp testtool.h lb_vip.h lb_pool.h lb_node.h healthcheck.h healthcheck_*.h msg.h
 lb_vip.o: lb_vip.cpp lb_vip.h lb_pool.h mechanism.h dummy_mechanism.h pf_mechanism.h
 lb_pool: lb_pool.cpp lb_vip.h lb_pool.h lb_node.h msg.h
