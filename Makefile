@@ -40,6 +40,6 @@ test:
 	./runtests.sh
 
 install:
-	install $(OBJDIR)testtool			${DESTDIR}/${PREFIX}/bin
+	install $(OBJDIR)/testtool			${DESTDIR}/${PREFIX}/bin
 	install scripts/testtool_watchdog	${DESTDIR}/${PREFIX}/bin
 	install scripts/testtool_bsdrc		${DESTDIR}/${PREFIX}/etc/rc.d/testtool
