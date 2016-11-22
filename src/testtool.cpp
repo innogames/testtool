@@ -441,8 +441,6 @@ void usage() {
 
 int main (int argc, char *argv[]) {
 	start_logging();
-	log_txt(MSG_TYPE_DEBUG, "Starting testtool, built on %s %s @ %s",  __DATE__, __TIME__, __HOSTNAME__);
-	log_txt(MSG_TYPE_DEBUG, "Built on branch %s, last commit %s", __GIT_BRANCH__, __GIT_LAST_COMMIT__ );
 
 	srand(time(NULL));;
 
