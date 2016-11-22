@@ -1,6 +1,6 @@
 VALID_CATEGORIES+= iglb
 PORTNAME=	testtool
-PORTVERSION= 	_PV_
+PORTVERSION=	1.0.1
 CATEGORIES=	iglb
 
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
@@ -14,6 +14,8 @@ RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 PLIST_FILES=	/usr/local/bin/testtool \
 		/usr/local/bin/testtool_watchdog \
 		/usr/local/etc/rc.d/testtool
+
+_CKSUMFILES=""
 
 # Override some targets
 #checksum:
