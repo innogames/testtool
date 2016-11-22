@@ -53,12 +53,13 @@ testtool_status() {
 	cnt=6
 	while [ "$cnt" -gt 0 ]; do
 		cnt=$((cnt-1))
+        echo "Waiting for testtool..."
 		pid=`pgrep -f '^/usr/local/sbin/testtool(.testing)?$'`
 		if [ "$?" -eq 0 ]; then
 			echo ${name} is running as pid $pid
 			exit 0
 		fi
-		sleep 5
+		sleep 1
 	done
 	
 	echo ${name} is not running!
