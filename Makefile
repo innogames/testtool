@@ -27,6 +27,8 @@ LD=c++
 DLIBS=-lssl -lcrypto -lpq
 SLIBS=-l:libevent_core.a -l:libevent.a -l:libevent_pthreads.a -l:libevent_openssl.a
 
+all: testtool
+
 testtool: $(OBJECTS)
 	@echo objects: $(OBJECTS)
 	$(LD) $(LDFLAGS) $(OBJECTS) $(LIBS) $(DLIBS) $(SLIBS) -o $@
