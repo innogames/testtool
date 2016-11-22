@@ -1,6 +1,6 @@
 VALID_CATEGORIES+= iglb
 PORTNAME=	testtool
-PORTVERSION=	1.0.1
+PORTVERSION=	_PV_
 CATEGORIES=	iglb
 
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
@@ -14,17 +14,6 @@ RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 PLIST_FILES=	/usr/local/bin/testtool \
 		/usr/local/bin/testtool_watchdog \
 		/usr/local/etc/rc.d/testtool
-
-_CKSUMFILES=""
-
-# Override some targets
-#checksum:
-#do-fetch:
-#do-extract:
-#	cd ${WRKDIR} && git clone git@gitlab.innogames.de:sysadmins/testtool.git ${PORTNAME}-${PORTVERSION}
-#	cd ${WRKDIR}/${PORTNAME}-${PORTVERSION} && git checkout tags/v${PORTVERSION}
-#do-patch:
-#do-configure:
 
 .include <bsd.port.options.mk>
 .include <bsd.port.mk>
