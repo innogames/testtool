@@ -13,8 +13,8 @@ BUILD_DEPENDS=	postgresql93-client>=0:${PORTSDIR}/databases/postgresql93-client 
 
 RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 
-PLIST_FILES=	/usr/local/bin/testtool \
-		/usr/local/bin/testtool_watchdog \
+PLIST_FILES=	/usr/local/sbin/testtool \
+		/usr/local/sbin/testtool_watchdog \
 		/usr/local/etc/rc.d/testtool
 
 .include <bsd.port.options.mk>
