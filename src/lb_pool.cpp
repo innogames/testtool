@@ -113,7 +113,7 @@ void LbPool::update_nodes() {
 	 * If more than max_nodes became available, we shouldn't change
 	 * anything.
 	 */
-	if (this->m_max_nodes > 0 && new_nodes.size() >= this->m_max_nodes) {
+	if (this->m_max_nodes > 0 && new_nodes.size() > this->m_max_nodes) {
 		log_txt(MSG_TYPE_POOL_CRIT, "%s - %d/%d nodes alive",
 			this->name.c_str(), new_nodes.size(), this->m_max_nodes);
 
