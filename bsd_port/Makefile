@@ -9,7 +9,7 @@ COMMENT=	Testtool checks health of loadbalanced services.
 CONFLICTS_INSTALL=	ig.testtool-*
 
 BUILD_DEPENDS=	postgresql93-client>=0:${PORTSDIR}/databases/postgresql93-client \
-    		libevent2>=2.0.22_1:${PORTSDIR}/devel/libevent2
+		libevent>=2.0.22_1:${PORTSDIR}/devel/libevent
 
 RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 
