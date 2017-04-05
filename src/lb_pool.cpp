@@ -80,6 +80,19 @@ void LbPool::parse_healthchecks_results() {
 		node->parse_healthchecks_results();
 }
 
+bool LbPool::all_active_nodes_up() {
+	if (this->m_active_nodes.size() == 0) {
+		return false;
+	}
+
+	for (auto node : this->m_active_nodes) {
+		if (node->state() == LbNode::STATE_DOWN) {
+			return false;
+		}
+	}
+	return true;
+}
+
 void LbPool::update_state() {
 	size_t nodes_alive = this->count_live_nodes();
 
@@ -104,21 +117,25 @@ const set<LbNode*>& LbPool::active_nodes() {
 
 void LbPool::update_nodes() {
 	set<LbNode*> new_nodes;
-	for (auto node : this->nodes) {
-		if (node->state() == LbNode::STATE_UP) {
-			new_nodes.insert(node);
-		}
 
 	/*
-	 * If more than max_nodes became available, we shouldn't change
-	 * anything.
+	 * If max_nodes is set and has same amount as active_nodes and all "active" nodes are UP - we preserve the set
 	 */
-	if (this->m_max_nodes > 0 && new_nodes.size() > this->m_max_nodes) {
-		log_txt(MSG_TYPE_POOL_CRIT, "%s - %d/%d nodes alive",
-			this->name.c_str(), new_nodes.size(), this->m_max_nodes);
-
-		return;
+	if (this->m_max_nodes > 0 && this->m_active_nodes.size() == this->m_max_nodes && this->all_active_nodes_up()) {
+		new_nodes = this->m_active_nodes;
+	} else {
+		for (auto node : this->nodes) {
+			if (node->state() == LbNode::STATE_UP) {
+				if (this->m_max_nodes > 0 && new_nodes.size() >= this->m_max_nodes) {
+					log_txt(MSG_TYPE_POOL_CRIT, "%s - %d/max:%d can't add more nodes",
+						this->name.c_str(), new_nodes.size(), this->m_max_nodes);
+				} else {
+					new_nodes.insert(node);
+				}
+			}
+		}
 	}
+
 
 	/*
 	 * If we have a sufficient number of live nodes, we just
@@ -197,10 +214,20 @@ size_t LbPool::count_active_nodes() {
 
 size_t LbPool::count_live_nodes() {
 	size_t nodes_alive = 0;
-	for (auto node : this->nodes) {
-		if (node->state() == LbNode::STATE_UP) {
-			nodes_alive++;
-		}
+
+	/*
+	 * If m_active_nodes is up to date (nothing has changed and we use min/max nodes functionality)
+	 * then we report size of this list.
+	 */
+	if (this->all_active_nodes_up()) {
+		return this->m_active_nodes.size();
+	} else {
+		for (auto node : this->nodes) {
+        		if (node->state() == LbNode::STATE_UP) {
+        			nodes_alive++;
+        		}
+        	}
 	}
+
 	return nodes_alive;
 }

@@ -51,6 +51,7 @@ class LbPool {
 	private:
 		void update_state();
 		void update_nodes();
+		bool all_active_nodes_up();
 
 	/* Members */
 	public:
