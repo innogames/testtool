@@ -19,7 +19,7 @@
 #include <event2/event_struct.h>
 #include <openssl/ssl.h>
 
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 
 #include "healthcheck.h"
 

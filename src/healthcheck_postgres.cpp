@@ -16,7 +16,7 @@
 
 #include <event2/event.h>
 
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 
 #include "msg.h"
 #include "lb_pool.h"
