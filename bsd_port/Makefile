@@ -6,12 +6,16 @@ CATEGORIES=	iglb
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
 COMMENT=	Testtool checks health of loadbalanced services.
 
-CONFLICTS_INSTALL=	ig.testtool-*
+USES=		gmake
 
-BUILD_DEPENDS=	postgresql93-client>=0:${PORTSDIR}/databases/postgresql93-client \
-		libevent>=2.0.22_1:${PORTSDIR}/devel/libevent
+BUILD_DEPENDS=	libevent>=libevent-2.1.8:devel/libevent \
+		postgresql93-client:databases/postgresql93-client \
+		yaml-cpp>=0.5.3_2:devel/yaml-cpp:
 
-RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
+BUILD_DEPENDS=	${ALL_DEPENDS}
+
+RUN_DEPENDS=	${ALL_DEPENDS} \
+		screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 
 PLIST_FILES=	/usr/local/sbin/testtool \
 		/usr/local/sbin/testtool_watchdog \
