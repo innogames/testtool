@@ -34,7 +34,7 @@ struct LbPoolLink {
 class LbVip {
 	/* Methods */
 	public:
-		LbVip(string name, string hwlb);
+		LbVip(string name, string hwlb, string proto);
 
 		void attach_pool(LbPool* pool, PoolType type);
 		void notify_pool_update(LbPoolLink* link);
@@ -52,8 +52,8 @@ class LbVip {
 	public:
 		string name;
 		string hwlb;
-		string ipaddress4;
-		string ipaddress6;
+		string ipaddress;
+		string proto;
 	private:
 		bool m_started;
 		Mechanism* m_mechanism;

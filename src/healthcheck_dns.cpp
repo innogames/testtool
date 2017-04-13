@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include <errno.h>
 #include <string.h>
@@ -29,6 +30,7 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "config.h"
 #include "msg.h"
 
 #include "lb_pool.h"
@@ -50,27 +52,22 @@ uint16_t			 Healthcheck_dns::global_transaction_id;
 static unsigned int build_dns_question(string &dns_query, char *question_buffer);
 
 
-void Healthcheck_dns::confline_callback(string &var, istringstream &val) {
-	if (var == "query") {
-		val >> this->dns_query;
-		/* Add ensure that query ends with dot. */
-		if (this->dns_query.at(this->dns_query.length()-1) != '.') {
-			this->dns_query += '.';
-		}
-	}
-}
-
 /*
  * Constructor for DNS healthcheck
  *
  * It parses DNS-specific parameters.
  */
-Healthcheck_dns::Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 
 	// Set defaults
 	if (this->port == 0)
-		this->port = 443;
-	this->read_confline(definition);
+		this->port = 53;
+
+	this->dns_query = parse_string(config["query"], "/");
+	if (this->dns_query.at(this->dns_query.length()-1) != '.') {
+		this->dns_query += '.';
+	}
+
 	log_txt(MSG_TYPE_DEBUG, "      type: dns, port: %d, query: %s", this->port, this->dns_query.c_str());
 
 	this->type = "dns";

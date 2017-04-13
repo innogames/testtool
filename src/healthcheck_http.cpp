@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include <errno.h>
 
@@ -10,6 +11,7 @@
 #include <event2/bufferevent_ssl.h>
 #include <event2/buffer.h>
 
+#include "config.h"
 #include "msg.h"
 
 #include "lb_pool.h"
@@ -23,21 +25,13 @@ extern struct event_base	*eventBase;
 extern SSL_CTX			*sctx;
 extern int			 verbose;
 
-void Healthcheck_http::confline_callback(string &var, istringstream &val) {
-	if (var == "url")
-		val >> this->url;
-	else if (var == "ok_codes")
-		val >> this->st_http_ok_codes;
-	else if (var == "host")
-		val >> this->host;
-}
 
 /*
  * Constructor for HTTP healthcheck
  *
  * Parses http(s)-specific parameters.
  */
-Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 
 	// This is not done automatically.
 	bev = NULL;
@@ -46,7 +40,9 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
 	if (this->port == 0)
 		this->port = 80;
 
-	this->read_confline(definition);
+	this->url = parse_string(config["url"], "/");
+	this->st_http_ok_codes = parse_string(config["ok_codes"], "200");
+	this->host = parse_string(config["host"], "");
 
 	// If host was not given, use IP address
 	if (host == "")
@@ -85,7 +81,9 @@ Healthcheck_http::Healthcheck_http(istringstream &definition, class LbNode *_par
  *
  * It only calls HTTP constructor.  Now that's what I call inheritance!
  */
-Healthcheck_https::Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck_http(definition, _parent_lbnode) {
+Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck_http(config, _parent_lbnode) {
+	if (this->port == 0)
+		this->port = 443;
 	type = "https";
 }
 

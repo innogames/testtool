@@ -6,6 +6,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include "lb_node.h"
 
@@ -32,7 +33,7 @@ class LbPool {
 
 	/* Methods */ 
 	public:
-		LbPool(string name, string hwlb, int min_nodes, int max_nodes, FaultPolicy fault_policy);
+		LbPool(string name, const YAML::Node& config, string proto);
 
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
@@ -58,6 +59,7 @@ class LbPool {
 		string			 name;
 		string			 hwlb;
 		State			 state;
+		string			 proto;
 
 		vector<class LbNode*> nodes;
 		vector<LbPoolLink*> vips;

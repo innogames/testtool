@@ -12,10 +12,11 @@
 using namespace std;
 
 
-LbVip::LbVip(string name, string hwlb)
+LbVip::LbVip(string name, string hwlb, string proto)
 	: name(name), hwlb(hwlb), m_started(false)
 {
 	m_mechanism = new PfMechanism(this);
+	this -> proto = proto;
 	log_txt(MSG_TYPE_DEBUG, "* New LbVip %s", name.c_str());
 }
 

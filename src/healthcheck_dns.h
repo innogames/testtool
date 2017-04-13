@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <sstream>
+#include <yaml-cpp/yaml.h>
 
 #include <unistd.h>
 
@@ -55,13 +56,11 @@ class Healthcheck_dns: public Healthcheck {
 
 	/* Methods */
 	public:
-		Healthcheck_dns(istringstream &definition, class LbNode *_parent_lbnode);
+		Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode);
 
 	protected:
 		static void callback(evutil_socket_t fd, short what, void *arg);
 
-	private:
-		void confline_callback(string &var, istringstream &val);
 
 	/* Members */
 	public:

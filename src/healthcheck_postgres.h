@@ -15,6 +15,7 @@
 
 #include <vector>
 #include <sstream>
+#include <yaml-cpp/yaml.h>
 
 #include <event2/event_struct.h>
 #include <openssl/ssl.h>
@@ -35,15 +36,13 @@ class Healthcheck_postgres: public Healthcheck {
 	 * Interface methods
 	 */
 	public:
-		Healthcheck_postgres(istringstream &definition, class LbNode *_parent_lbnode);
-		static void check_postgres_callback(struct evpostgres_request *req, void *arg);
+		Healthcheck_postgres(const YAML::Node& config, class LbNode *_parent_lbnode);
 		int schedule_healthcheck(struct timespec *now);
 
 	/*
 	 * Internal methods
 	 */
 	protected:
-		void confline_callback(string &var, istringstream &val);
 		void start_conn();
 		void poll_conn();
 		void prepare_query();

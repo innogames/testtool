@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <sstream>
+#include <yaml-cpp/yaml.h>
 
 #include <event2/http.h>
 #include <event2/http_struct.h>
@@ -16,7 +17,7 @@ class Healthcheck_http: public Healthcheck {
 
 	/* Methods */
 	public:
-		Healthcheck_http(istringstream &definition, class LbNode *_parent_lbnode);
+		Healthcheck_http(const YAML::Node& config, class LbNode *_parent_lbnode);
 		static void check_http_callback(struct evhttp_request *req, void *arg);
 		int schedule_healthcheck(struct timespec *now);
 
@@ -25,8 +26,6 @@ class Healthcheck_http: public Healthcheck {
 		static void read_callback(struct bufferevent *bev, void *arg);
 		void end_check(HealthcheckResult result, string message);
 
-	private:
-		void confline_callback(string &var, istringstream &val);
 
 	/* Members */
 	protected:
@@ -45,7 +44,7 @@ class Healthcheck_https: public Healthcheck_http {
 
 	/* Methods */
 	public:
-		Healthcheck_https(istringstream &definition, class LbNode *_parent_lbnode);
+		Healthcheck_https(const YAML::Node& config, class LbNode *_parent_lbnode);
 		int schedule_healthcheck(struct timespec *now );
 };
 

@@ -2,7 +2,9 @@
 #include <sstream>
 #include <typeinfo>
 #include <stdlib.h>
+#include <yaml-cpp/yaml.h>
 
+#include "config.h"
 #include "msg.h"
 #include "pfctl.h"
 
@@ -37,54 +39,6 @@ void Healthcheck::force_failure() {
 	last_state      = STATE_DOWN;
 }
 
-void Healthcheck::read_confline(istringstream &definition) {
-	/*
-	 * Read all things from the definition line.  Configuration is
-	 * specified by 'var=val' strings.  Each pair is separated by
-	 * a space.  There must be no spaces around = character.
-	 */
-	string confword;
-
-	/*
-	 * Rewind to the beginning of line, order of configuration entries
-	 * must be irrelevant.
-	 */
-	definition.clear();
-	definition.seekg(0);
-
-	while (definition >> confword) {
-		int split = confword.find('=');
-		if (split == -1)
-			continue;
-		string var = confword.substr(0, split);
-		istringstream val(confword.substr(split + 1));
-
-		this->confline_callback(var, val);
-	}
-}
-
-void Healthcheck::confline_callback(string &var, istringstream &val) {
-	/*
-	 * Temporary timeout in ms, to read from config file and then
-	 * store it in this->timeout.  1,5s is the default for
-	 * compatibility with old testtool.
-	 */
-	int tmp_timeout = 1500;
-
-	if (var == "port")
-		val >> this->port;
-	else if (var == "interval")
-		val >> this->check_interval;
-	else if (var == "max_failed")
-		val >> this->max_failed_checks;
-	else if (var == "timeout") {
-		val >> tmp_timeout;
-		/* Timeout was read in ms, convert it to s and ns. */
-		this->timeout.tv_sec   =  tmp_timeout / 1000;
-		this->timeout.tv_usec  = (tmp_timeout % 1000) * 1000;
-	}
-}
-
 /*
  * Link the healthcheck and its parent node, initialize some variables,
  * print diagnostic information if necessary.  Remember that this
@@ -92,14 +46,7 @@ void Healthcheck::confline_callback(string &var, istringstream &val) {
  * constructor!  And it is called *before* that constructor does its
  * own work!
  */
-Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode) {
-	/* Set defaults, same as with old testtool. */
-	this->check_interval = 2;
-	this->max_failed_checks = 3;
-	this->timeout.tv_sec   = 1;
-	this->timeout.tv_usec  = 500 * 1000;
-	this->port = 0; /* Specific healthchecks should set this value. */
-
+Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode) {
 	/*
 	 * Pretend that the healthcheck was performed just a moment ago.
 	 * This is necessary to perform the check in proper time.
@@ -110,7 +57,14 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 	parent_lbnode = _parent_lbnode;
 	parent_lbnode->healthchecks.push_back(this);
 
-	this->read_confline(definition);
+	/* Set defaults, same as with old testtool. */
+	this->port = parse_int(config["port"], 0);
+	this->check_interval = parse_int(config["interval"], 2);
+	this->max_failed_checks = parse_int(config["max_failed"], 3);
+	int tmp_timeout = parse_int(config["timeout"], 1500);
+	/* Timeout was read in ms, convert it to s and ns. */
+	this->timeout.tv_sec   =  tmp_timeout / 1000;
+	this->timeout.tv_usec  = (tmp_timeout % 1000) * 1000;
 	/* Random delay to spread healthchecks in space-time continuum. */
 	this->extra_delay = rand() % 1000;
 
@@ -142,46 +96,26 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
  * Healthcheck factory:
  *
  * - read type of healthcheck
- * - create an object of the required type, pass the definition to it
+ * - create an object of the required type, pass the config to it
  * - return it
 */
-Healthcheck *Healthcheck::healthcheck_factory(istringstream &definition, class LbNode *_parent_lbnode) {
+Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode) {
 
 	Healthcheck * new_healthcheck = NULL;
 
-	/* Read the check type. */
-	string type;
-	string confword;
-	definition.seekg(0);
-	definition.clear();
-	while (definition >> confword) {
-		int split = confword.find('=');
-		if (split == -1)
-			continue;
-		string var = confword.substr(0, split);
-		istringstream val(confword.substr(split + 1));
-		if (var == "type")
-			val >> type;
-	}
-
-	/*
-	 * Check the healthcheck type and create a proper object.
-	 * Keep in mind that definition is already stripped from
-	 * the first word, the healthcheck constructor will read next
-	 * words from it.
-	 */
+	std::string type = config["type"].as<std::string>();
 	if (type == "http")
-		new_healthcheck = new Healthcheck_http(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_http(config, _parent_lbnode);
 	else if (type == "https")
-		new_healthcheck = new Healthcheck_https(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_https(config, _parent_lbnode);
 	else if (type == "tcp")
-		new_healthcheck = new Healthcheck_tcp(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_tcp(config, _parent_lbnode);
 	else if (type == "ping")
-		new_healthcheck = new Healthcheck_ping(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_ping(config, _parent_lbnode);
 	else if (type == "postgres")
-		new_healthcheck = new Healthcheck_postgres(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_postgres(config, _parent_lbnode);
 	else if (type == "dns")
-		new_healthcheck = new Healthcheck_dns(definition, _parent_lbnode);
+		new_healthcheck = new Healthcheck_dns(config, _parent_lbnode);
 
 	return new_healthcheck;
 }

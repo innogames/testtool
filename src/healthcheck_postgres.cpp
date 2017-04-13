@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <cassert>
+#include <yaml-cpp/yaml.h>
 
 #include <errno.h>
 
@@ -22,7 +23,9 @@
 #include <postgresql/libpq-fe.h>
 #endif
 
+#include "config.h"
 #include "msg.h"
+
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
@@ -40,8 +43,8 @@ extern int			 verbose;
  * We are initialising the variables, only.  Nothing should be able
  * to fail in there.
  */
-Healthcheck_postgres::Healthcheck_postgres(istringstream &definition,
-		class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
+		class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 
 	this->type = "postgres";
 
@@ -49,25 +52,14 @@ Healthcheck_postgres::Healthcheck_postgres(istringstream &definition,
 	if (this->port == 0)
 		this->port = 5432;
 
-	this->read_confline(definition);
-
-	// If host was not given, use IP address.
-	if (this->host == "")
-		this->host = parent_lbnode->address.c_str();
+	this->host = parse_string(config["host"], parent_lbnode->address);
+	this->dbname = parse_string(config["dbname"], "");
+	this->user = parse_string(config["user"], "");
+	this->function = parse_string(config["function"], "");
 
 	this->prepare_query();
 }
 
-void Healthcheck_postgres::confline_callback(string &var, istringstream &val) {
-	if (var == "host")
-		val >> this->host;
-	else if (var == "dbname")
-		val >> this->dbname;
-	else if (var == "user")
-		val >> this->user;
-	else if (var == "function")
-		val >> this->function;
-}
 
 /*
  * The entrypoint of the class

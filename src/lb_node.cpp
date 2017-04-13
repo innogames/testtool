@@ -1,5 +1,3 @@
-#include <iostream>
-#include <sstream>
 #include <syslog.h>
 
 #include "msg.h"
@@ -20,8 +18,8 @@ extern int	 	 verbose;
 /*
    Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
-LbNode::LbNode(istringstream &parameters, class LbPool *parent_lbpool) {
-	parameters >> address;
+LbNode::LbNode(const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
+	this->address = config["ip" + proto].as<std::string>();
 
 	this->downtime = false;
 	this->parent_lbpool = parent_lbpool;

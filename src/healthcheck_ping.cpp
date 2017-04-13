@@ -5,6 +5,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <yaml-cpp/yaml.h>
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/socket.h>
@@ -20,6 +21,7 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 
+#include "config.h"
 #include "msg.h"
 
 #include "lb_pool.h"
@@ -53,13 +55,13 @@ u_short in_cksum(u_short *addr, int len) {
 		u_short us;
 		u_char  uc[2];
 	} last;
-	
+
 	u_short answer;
 
 	nleft = len;
 	sum = 0;
 	w = addr;
-	
+
 	/*
 	 * Our algorithm is simple, using a 32 bit accumulator (sum), we add
 	 * sequential 16 bit words to it, and at the end, fold back all the
@@ -69,14 +71,14 @@ u_short in_cksum(u_short *addr, int len) {
 		sum += *w++;
 		nleft -= 2;
 	}
-	
+
 	/* mop up an odd byte, if necessary */
 	if (nleft == 1) {
 		last.uc[0] = *(u_char *)w;
 		last.uc[1] = 0;
 		sum += last.us;
 	}
-	
+
 	/* add back carry outs from top 16 bits to low 16 bits */
 	sum = (sum >> 16) + (sum & 0xffff);     /* add hi 16 to low 16 */
 	sum += (sum >> 16);                     /* add carry */
@@ -134,7 +136,7 @@ void Healthcheck_ping::destroy() {
 /*
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
-Healthcheck_ping::Healthcheck_ping(istringstream &definition, class LbNode *_parent_lbnode): Healthcheck(definition, _parent_lbnode) {
+Healthcheck_ping::Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	/* Oh wait, there are none for this healthcheck! */
 	type = "ping";
 	log_txt(MSG_TYPE_DEBUG, "      type: ping");
@@ -178,7 +180,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	}
 
 	ip_packet = (struct ip *)raw_packet;
-	
+
 	ip_header_len = ip_packet->ip_hl << 2; /* IHL is the number of 32-bit (4 bytes) words, multiply it by 4 to get bytes. */
 
 	/* First we must check if the received packet is:
@@ -198,7 +200,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	   We have to move our pointers a bit. */
 	if (icmp_packet->icmp_header.icmp_type == ICMP_UNREACH) {
 		ip_packet = (struct ip*)&icmp_packet->icmp_header.icmp_data; /* Move to place after icmp header. */
-	
+
 		ip_header_len = ip_packet->ip_hl << 2; /* IHL is the number of 32-bit (4 bytes) words, multiply it by 4 to get bytes. */
 
 		/* Cast ip_packet to char*, so + operation on pointer is performed in bytes and not in struct ips. */
@@ -226,7 +228,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 
 		healthcheck->last_state = STATE_DOWN;
 	}
-	
+
 	/* Finally! The answer we are waiting for! Yay! */
 	if (icmp_packet->icmp_header.icmp_type == ICMP_ECHOREPLY) {
 		/* Is it addressed to us? */
@@ -327,7 +329,7 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 	memcpy(&echo_request.timestamp, now, sizeof(struct timespec));
 
 	/* Fill in the data. */
-	memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE); 
+	memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE);
 
 	/* Calculate packet checksum. */
 	echo_request.icmp_header.icmp_cksum = in_cksum((uint16_t *)&echo_request, sizeof(icmp_echo_struct));

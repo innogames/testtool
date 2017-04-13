@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <yaml-cpp/yaml.h>
 
 #include <unistd.h>
 #include <sys/types.h>
@@ -98,10 +99,11 @@ void TestTool::load_downtimes() {
    Load pools from given configuration file.
    Return a list of loaded VIPs.
 */
-void TestTool::load_config(ifstream &config_file) {
-	log_txt(MSG_TYPE_DEBUG, "Loading configration file...");
+void TestTool::load_config(string config_file) {
+	YAML::Node config;
+	log_txt(MSG_TYPE_DEBUG, "Loading configration file %s", config_file.c_str());
 
-	string line;
+        config = YAML::LoadFile(config_file);
 
 	/* Build a mapping between lbpool names and objects.
 	   This is requried to create lbpool->backup_pool link. */
@@ -110,87 +112,69 @@ void TestTool::load_config(ifstream &config_file) {
 	/* Temporary mapping of backup pools, which get populated in a second run. */
 	map<LbVip*, string> lbvip_backup_names;
 
-	LbPool		*new_lbpool = NULL;
-	LbNode		*new_lbnode = NULL;
 
-	while (getline(config_file, line)) {
+	for (
+		YAML::const_iterator pool_it = config.begin();
+		pool_it != config.end();
+		pool_it++
+	) {
+		string name;
+		string hwlb;
 
-		if (line.empty())
-			continue;
+		// Duplicate LB Pool into IPv4 and IPv6 versions.
+		std::vector<string> protos = {"4", "6"};
+		for (auto proto : protos ) {
+			LbPool *new_lbpool = NULL;
+			name = pool_it->first.as<std::string>();
 
-		string command;
-		istringstream istr_line(line);
+			// Implicitly create both VIP and primary pool.
+			auto vip = new LbVip(name, hwlb, proto);
+			vip->ipaddress = parse_string(pool_it->second["ip" + proto], "");
 
-		istr_line >> command;
-
-		/* For all the types of objects created, pass the istr_line to them.
-		   They can read next parameters from it after we have read the first word. */
-		if (command=="pool_params") {
-			string name;
-			istr_line >> name;
-
-			auto config = ConfigLine(istr_line);
-
-			int min_nodes;
-			config.load("min_nodes", min_nodes, 1);
-
-			int max_nodes;
-			config.load("max_nodes", max_nodes, 0);
-
-			LbPool::FaultPolicy fault_policy;
-			string min_nodes_action;
-			config.load("min_nodes_action", min_nodes_action, "force_down");
-			fault_policy = LbPool::fault_policy_by_name(min_nodes_action);
-
-			string hwlb;
-			config.load("hwlb", hwlb, "");
-			if (hwlb == "") {
-				log_txt(MSG_TYPE_CRITICAL, "VIP %s has empty hwlb!", name.c_str());
-			}
-
-			/* Implicitly create both VIP and primary pool. */
-			auto vip = new LbVip(name, hwlb);
-			config.load("ipaddress4", vip->ipaddress4, "");
-			config.load("ipaddress6", vip->ipaddress6, "");
-
-			new_lbpool = new LbPool(name, hwlb, min_nodes, max_nodes, fault_policy);
+			new_lbpool = new LbPool(name, pool_it->second, proto);
 
 			vip->attach_pool(new_lbpool, POOL_PRIMARY);
 			m_pools.push_back(new_lbpool);
 			m_vips.push_back(vip);
 
-			/* Track backup pool names. */
-			config.load("backup_pools", lbvip_backup_names[vip], "");
+			// Track backup pool names.
+			lbvip_backup_names[vip] = parse_string(pool_it->second["backup_pool"], "");
 
-			/* Insert mapping of name (string) to lbpool (object). */
+			// Insert mapping of name (string) to lbpool (object).
 			lbpool_name_to_lbpool_obj[name] = new_lbpool;
-		}
-		else if (command=="node") {
-			if (new_lbpool) {
-				new_lbnode = new LbNode(istr_line, new_lbpool);
+
+			for (
+				YAML::const_iterator lbnode_it = pool_it->second["nodes"].begin();
+				lbnode_it != pool_it->second["nodes"].end();
+				lbnode_it++
+			) {
+				if ( ! lbnode_it->second["ip" + proto].IsNull()) {
+					new LbNode(lbnode_it->second, new_lbpool, proto);
+				}
 			}
-		}
-		else if (command=="healthcheck_params") {
-			if (new_lbnode) {
-				Healthcheck::healthcheck_factory(istr_line, new_lbnode);
+			for (size_t i = 0; i < pool_it->second["healthchecks"].size(); i++) {
+				const YAML::Node& healthcheck = pool_it->second["healthchecks"][i];
+				for (auto node : new_lbpool->nodes) {
+					Healthcheck::healthcheck_factory(healthcheck, node);
+				}
 			}
 		}
 	}
 
-	/* Fill in backup pools. */
+	// Fill in backup pools.
 	for (auto& kv : lbvip_backup_names) {
 		auto vip = kv.first;
 		auto& backup_pool_names = kv.second;
 
-		/* ... iterate over all possible backup_lb_pools proposed for this lb_pool.
-		   There can be multiple of them and some might be on other HWLBs!  */
+		// ... iterate over all possible backup_lb_pools proposed for this lb_pool.
+		 //  There can be multiple of them and some might be on other HWLBs!
 		stringstream ss_backup_pools_names(backup_pool_names);
 		string s_backup_pool_name;
 		while(getline(ss_backup_pools_names, s_backup_pool_name, ',')) {
-			/* Get the object from name-to-object map. */
+			// Get the object from name-to-object map.
 			LbPool *proposed_backup_pool = lbpool_name_to_lbpool_obj[s_backup_pool_name];
 
-			/* Pick the first one located on proper HWLB. */
+			// Pick the first one located on proper HWLB.
 			if (proposed_backup_pool && proposed_backup_pool->hwlb == vip->hwlb) {
 				log_txt(MSG_TYPE_DEBUG, "Mapping backup_pool %s to VIP %s", proposed_backup_pool->name.c_str(), vip->name.c_str());
 				vip->attach_pool(proposed_backup_pool, POOL_BACKUP);
@@ -309,12 +293,12 @@ void TestTool::configure_bgp() {
 
 	for (auto vip : m_vips) {
 		if (vip->count_live_nodes()>0) {
-			if (vip->ipaddress4.length()) {
-				ips4_alive_tmp.insert(&vip->ipaddress4);
+			if (vip->proto == "4") {
+				ips4_alive_tmp.insert(&vip->ipaddress);
 			}
 
-			if (vip->ipaddress6.length()) {
-				ips6_alive_tmp.insert(&vip->ipaddress6);
+			if (vip->proto == "6") {
+				ips6_alive_tmp.insert(&vip->ipaddress);
 			}
 		}
 	}
@@ -450,7 +434,7 @@ int main (int argc, char *argv[]) {
 	signal(SIGPIPE, signal_handler);
 	signal(SIGUSR1, signal_handler);
 
-	string config_file_name = "/etc/iglb/testtool.conf";
+	string config_file_name = "/etc/iglb/lbpools.yaml";
 
 	int opt;
 	while ((opt = getopt(argc, argv, "hnpvf:")) != -1) {
@@ -486,16 +470,8 @@ int main (int argc, char *argv[]) {
 		exit(-1);
 	}
 
-	/* Load lbpools and healthchecks. */
-	ifstream config_file(config_file_name.c_str());
-	if (!config_file) {
-		log_txt(MSG_TYPE_CRITICAL, "Unable to load configuration file!");
-		exit(-1);
-	}
-
 	auto tool = new TestTool();
-	tool->load_config(config_file);
-	config_file.close();
+	tool->load_config(config_file_name);
 
 	tool->setup_events();
 	log_txt(MSG_TYPE_DEBUG, "Entering the main loop...");

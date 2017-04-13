@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <yaml-cpp/yaml.h>
 
 #include <netinet/in.h>
 
@@ -72,18 +73,15 @@ class Healthcheck {
 	/* Methods */
 	public:
 		/* The check factory, which returns proper check object based its name. */
-		static Healthcheck *healthcheck_factory(istringstream &definition, class LbNode *_parent_lbnode);
+		static Healthcheck *healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode);
 		virtual int schedule_healthcheck(struct timespec *now);
-		Healthcheck(istringstream &definition, class LbNode *_parent_lbnode);
+		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode);
 		void handle_result();
 		void force_failure();
 		virtual void finalize_result();
 
 	protected:
-		void read_confline(istringstream &definition);
 		void end_check(HealthcheckResult result, string message);
-	private:
-		virtual void confline_callback(string &var, istringstream &val);
 
 
 	/* Members */

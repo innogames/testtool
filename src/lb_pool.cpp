@@ -1,6 +1,6 @@
-#include <iostream>
-#include <sstream>
+#include <yaml-cpp/yaml.h>
 
+#include "config.h"
 #include "msg.h"
 #include "pfctl.h"
 
@@ -29,12 +29,15 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, string hwlb, int min_nodes, int max_nodes, LbPool::FaultPolicy fault_policy)
-	: name(name), hwlb(hwlb)
+LbPool::LbPool(string name, const YAML::Node& config, string proto)
 {
-	this->m_min_nodes = min_nodes;
-	this->m_max_nodes = max_nodes;
-	this->m_fault_policy = fault_policy;
+	this->proto = proto;
+	this->name = name;
+	this->hwlb = parse_string(config["hwlb_host"], "");
+	this->m_min_nodes = parse_int(config["min_nodes"], 0);
+	this->m_max_nodes = parse_int(config["max_nodes"], 0);
+	this->m_fault_policy = LbPool::fault_policy_by_name(parse_string(config["min_nodes_action"], "force_down"));
+
 	this->state = STATE_DOWN;
 
 	log_txt(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %s", name.c_str(), hwlb.c_str());

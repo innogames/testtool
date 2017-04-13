@@ -9,7 +9,7 @@ class LbPool;
 
 class TestTool {
 public:
-    void load_config(ifstream &config_file);
+    void load_config(string config_file);
     void load_downtimes();
 
     void setup_events();

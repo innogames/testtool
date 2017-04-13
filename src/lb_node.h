@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 #include "healthcheck.h"
 #include "mechanism.h"
@@ -19,7 +20,7 @@ class LbNode {
 
 	/* Methods */
 	public:
-		LbNode(istringstream &parameters, class LbPool *parent_lbpool);
+		LbNode(const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 
