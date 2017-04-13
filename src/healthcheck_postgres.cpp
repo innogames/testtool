@@ -16,7 +16,11 @@
 
 #include <event2/event.h>
 
+#ifdef __FreeBSD__
+#include <libpq-fe.h>
+#else
 #include <postgresql/libpq-fe.h>
+#endif
 
 #include "msg.h"
 #include "lb_pool.h"
