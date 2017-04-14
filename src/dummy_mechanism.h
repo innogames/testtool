@@ -8,18 +8,15 @@
 /*
    Dummy mechanism that merely prints what it would do.
 */
+
 class DummyMechanism : public Mechanism {
 public:
-	DummyMechanism(LbVip* vip);
-    virtual ~DummyMechanism();
+	DummyMechanism(LbPool *lbpool);
+	virtual ~DummyMechanism();
 
-    virtual void add_node(LbPoolLink* link, LbNode* node);
-    virtual void del_node(LbPoolLink* link, LbNode* node);
-    virtual bool has_node(LbPoolLink* link, LbNode* node);
-    virtual void cleanup_orphans();
+	virtual void read_nodes();
+	virtual void set_nodes();
 
-private:
-	set<LbNode*> m_active_nodes;
 };
 
 #endif

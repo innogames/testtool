@@ -20,7 +20,7 @@ class LbNode {
 
 	/* Methods */
 	public:
-		LbNode(const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
+		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 
@@ -28,23 +28,20 @@ class LbNode {
 		void end_downtime();
 		bool is_downtimed();
 
-		State state();
-
-	private:
-		void notify_state();
+		State get_state(); /* getter for private member */
 
 	/* Members */
 	public:
+		string			 name;
 		string			 address; /* libevent wants the address passed as char[] so keep to some string-like. */
-
-		vector<class Healthcheck*> healthchecks;
 		class LbPool		*parent_lbpool;
+		State			 state;
+		vector<class Healthcheck*> healthchecks;
 		bool			 downtime;
 
 	private:
-		State			 m_state; /* Current state of node. */
-		State			 m_admin_state; /* Admin state (= downtime). */
-		State			 m_pool_state; /* Last state reported to LbPool. */
+		State			 admin_state;
+		bool			 backup;
 };
 
 #endif

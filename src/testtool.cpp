@@ -20,7 +20,6 @@
 #include "config.h"
 #include "msg.h"
 
-#include "lb_vip.h"
 #include "lb_pool.h"
 #include "lb_node.h"
 #include "healthcheck.h"
@@ -83,7 +82,7 @@ void TestTool::load_downtimes() {
 	}
 
 	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
-	for (auto lbpool : m_pools) {
+	for (auto lbpool : lb_pools) {
 		for (auto node : lbpool->nodes) {
 
 			if ( downtimes.count(lbpool->name + " " + node->address) ) {
@@ -98,7 +97,6 @@ void TestTool::load_downtimes() {
 
 /*
    Load pools from given configuration file.
-   Return a list of loaded VIPs.
 */
 void TestTool::load_config(string config_file) {
 	YAML::Node config;
@@ -106,21 +104,12 @@ void TestTool::load_config(string config_file) {
 
         config = YAML::LoadFile(config_file);
 
-	/* Build a mapping between lbpool names and objects.
-	   This is requried to create lbpool->backup_pool link. */
-	map<string, LbPool*> lbpool_name_to_lbpool_obj;
-
-	/* Temporary mapping of backup pools, which get populated in a second run. */
-	map<LbVip*, string> lbvip_backup_names;
-
-
 	for (
 		YAML::const_iterator pool_it = config.begin();
 		pool_it != config.end();
 		pool_it++
 	) {
 		string name;
-		string hwlb;
 
 		// Duplicate LB Pool into IPv4 and IPv6 versions.
 		std::vector<string> protos = {"4", "6"};
@@ -128,67 +117,14 @@ void TestTool::load_config(string config_file) {
 			LbPool *new_lbpool = NULL;
 			name = pool_it->first.as<std::string>();
 
-			// Implicitly create both VIP and primary pool.
-			auto vip = new LbVip(name, hwlb, proto);
-			vip->ipaddress = parse_string(pool_it->second["ip" + proto], "");
-
 			new_lbpool = new LbPool(name, pool_it->second, proto);
 
-			vip->attach_pool(new_lbpool, POOL_PRIMARY);
-			m_pools.push_back(new_lbpool);
-			m_vips.push_back(vip);
+			lb_pools.push_back(new_lbpool);
 
-			// Track backup pool names.
-			lbvip_backup_names[vip] = parse_string(pool_it->second["backup_pool"], "");
-
-			// Insert mapping of name (string) to lbpool (object).
-			lbpool_name_to_lbpool_obj[name] = new_lbpool;
-
-			for (
-				YAML::const_iterator lbnode_it = pool_it->second["nodes"].begin();
-				lbnode_it != pool_it->second["nodes"].end();
-				lbnode_it++
-			) {
-				if ( ! lbnode_it->second["ip" + proto].IsNull()) {
-					new LbNode(lbnode_it->second, new_lbpool, proto);
-				}
-			}
-			for (size_t i = 0; i < pool_it->second["healthchecks"].size(); i++) {
-				const YAML::Node& healthcheck = pool_it->second["healthchecks"][i];
-				for (auto node : new_lbpool->nodes) {
-					Healthcheck::healthcheck_factory(healthcheck, node);
-				}
-			}
-		}
-	}
-
-	// Fill in backup pools.
-	for (auto& kv : lbvip_backup_names) {
-		auto vip = kv.first;
-		auto& backup_pool_names = kv.second;
-
-		// ... iterate over all possible backup_lb_pools proposed for this lb_pool.
-		 //  There can be multiple of them and some might be on other HWLBs!
-		stringstream ss_backup_pools_names(backup_pool_names);
-		string s_backup_pool_name;
-		while(getline(ss_backup_pools_names, s_backup_pool_name, ',')) {
-			// Get the object from name-to-object map.
-			LbPool *proposed_backup_pool = lbpool_name_to_lbpool_obj[s_backup_pool_name];
-
-			// Pick the first one located on proper HWLB.
-			if (proposed_backup_pool && proposed_backup_pool->hwlb == vip->hwlb) {
-				log_txt(MSG_TYPE_DEBUG, "Mapping backup_pool %s to VIP %s", proposed_backup_pool->name.c_str(), vip->name.c_str());
-				vip->attach_pool(proposed_backup_pool, POOL_BACKUP);
-				break;
-			}
 		}
 	}
 
 	load_downtimes();
-
-	for (auto vip : m_vips) {
-		vip->start();
-	}
 }
 
 
@@ -215,7 +151,7 @@ void TestTool::schedule_healthchecks() {
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* Iterate over all lbpools and schedule healthchecks. */
-	for (auto lbpool : m_pools) {
+	for (auto lbpool : lb_pools) {
 		lbpool->schedule_healthchecks(&now);
 	}
 }
@@ -234,7 +170,7 @@ void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
 
 void TestTool::parse_healthchecks_results() {
 	/* Iterate over all lbpools parse healthcheck results. */
-	for (auto lbpool : m_pools) {
+	for (auto lbpool : lb_pools) {
 		lbpool->parse_healthchecks_results();
 	}
 }
@@ -267,12 +203,12 @@ void TestTool::dump_status() {
 
 	/* Iterate over all VIPs and write status of each one to the file.
 	   NOTE: Syntax uses old data model due to Nagios parsing. */
-	for (auto vip : m_vips) {
-		status_file << "lbpool: " << vip->name;
-		status_file << " nodes_alive: " << vip->count_live_nodes();
+	for (auto lb_pool : lb_pools) {
+		status_file << "lbpool: " << lb_pool->name;
+//		status_file << " nodes_alive: " << lb_pool->count_live_nodes();
 
-		auto backup_link = vip->get_backup_pool();
-		status_file << " backup_pool: "  << (backup_link ? (backup_link->active ? "active" : "configured") : "none" );
+//		auto backup_link = vip->get_backup_pool();
+//		status_file << " backup_pool: "  << (backup_link ? (backup_link->active ? "active" : "configured") : "none" );
 		status_file << endl;
 	}
 
@@ -292,14 +228,14 @@ void TestTool::configure_bgp() {
 	std::set<string*> ips4_alive_tmp;
 	std::set<string*> ips6_alive_tmp;
 
-	for (auto vip : m_vips) {
-		if (vip->count_live_nodes()>0) {
-			if (vip->proto == "4") {
-				ips4_alive_tmp.insert(&vip->ipaddress);
+	for (auto lb_pool : lb_pools) {
+		if (lb_pool->state == LbPool::STATE_UP) {
+			if (lb_pool->proto == "4") {
+				ips4_alive_tmp.insert(&lb_pool->ip_address);
 			}
 
-			if (vip->proto == "6") {
-				ips6_alive_tmp.insert(&vip->ipaddress);
+			if (lb_pool->proto == "6") {
+				ips6_alive_tmp.insert(&lb_pool->ip_address);
 			}
 		}
 	}

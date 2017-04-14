@@ -76,7 +76,7 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 	 * Proper initial state for the healthcheck quarantees no
 	 * unnecessary messages.
 	 */
-	if (parent_lbnode->state() == LbNode::STATE_UP) {
+	if (parent_lbnode->get_state() == LbNode::STATE_UP) {
 		hard_state      = STATE_UP;
 		last_state      = STATE_UP;
 		failure_counter = 0;

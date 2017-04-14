@@ -20,8 +20,7 @@ public:
     void parse_healthchecks_results();
 
 private:
-    std::list<LbVip*> m_vips;
-    std::list<LbPool*> m_pools;
+    std::list<LbPool*> lb_pools;
     std::set<string*> ips4_alive;
     std::set<string*> ips6_alive;
 };

@@ -19,42 +19,27 @@ extern int	 	 verbose;
 /*
    Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
-LbNode::LbNode(const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
+LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
+	this->name = name;
 	this->address = config["ip" + proto].as<std::string>();
 
 	this->downtime = false;
 	this->parent_lbpool = parent_lbpool;
 
-	/* Check if the IP address is enabled in mechanism. This determines the initial state of node. */
-	m_state = parent_lbpool->sync_initial_state(this);
-	m_admin_state = STATE_UP;
-	m_pool_state = state();
+	this->admin_state = STATE_UP;
 
-	this->parent_lbpool->add_node(this);
+	this->parent_lbpool->nodes.push_back(this);
 
 	log(MSG_INFO, this, fmt::sprintf("new lbnode, state: %s", (STATE_DOWN?"DOWN":"UP")));
 }
 
-LbNode::State LbNode::state() {
-	if (m_admin_state == STATE_DOWN) {
+LbNode::State LbNode::get_state() {
+	if (admin_state == STATE_DOWN) {
 		return STATE_DOWN;
 	} else {
-		return m_state;
+		return state;
 	}
 }
-
-
-/*
-   Notifies the parent pool about a changed node state.
-*/
-void LbNode::notify_state() {
-	auto new_state = state();
-	if (m_pool_state != new_state) {
-		this->parent_lbpool->notify_node_update(this, m_pool_state, new_state);
-		m_pool_state = new_state;
-	}
-}
-
 
 /*
    Try to schedule all healthcheck of this node. Do not try if there is a downtime for this node.
@@ -107,8 +92,6 @@ void LbNode::parse_healthchecks_results() {
 		state = STATE_UP;
 		log(MSG_STATE_DOWN, this, fmt::sprintf("all of %d checks passed", num_healthchecks));
 	}
-
-	notify_state();
 }
 
 
@@ -116,7 +99,7 @@ void LbNode::parse_healthchecks_results() {
    Returns whether a host is downtimed.
 */
 bool LbNode::is_downtimed() {
-	return m_admin_state == STATE_DOWN;
+	return admin_state == STATE_DOWN;
 }
 
 
@@ -130,8 +113,7 @@ void LbNode::start_downtime() {
 
 	log(MSG_STATE_DOWN, this, "starting downtime");
 
-	m_admin_state = STATE_DOWN;
-	notify_state();
+	admin_state = STATE_DOWN;
 }
 
 
@@ -145,12 +127,11 @@ void LbNode::end_downtime() {
 
 	log(MSG_STATE_UP, this, "ending downtime");
 
-	m_admin_state = STATE_UP;
+	admin_state = STATE_UP;
+	state = STATE_DOWN;
 
 	/* Pretend that this host is fully down. */
-	m_state = STATE_DOWN;
 	for (unsigned int hc=0; hc<healthchecks.size(); hc++) {
 		healthchecks[hc]->force_failure();
 	}
-	/* No need to notify_state(), since we still pretend to be down. */
 }

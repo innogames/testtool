@@ -10,17 +10,12 @@
 */
 class PfMechanism : public Mechanism {
 public:
-	PfMechanism(LbVip* vip);
+	PfMechanism(LbPool *lbpool);
 	virtual ~PfMechanism();
 
-	virtual void update_nodes(LbPoolLink* link, const set<LbNode*>& add_nodes, const set<LbNode*>& del_nodes);
-	virtual void add_node(LbPoolLink* link, LbNode* node);
-	virtual void del_node(LbPoolLink* link, LbNode* node);
-	virtual bool has_node(LbPoolLink* link, LbNode* node);
-	virtual void cleanup_orphans();
+	virtual void read_nodes();
+	virtual void set_nodes();
 
-private:
-	void del_address(string& address);
 };
 
 #endif

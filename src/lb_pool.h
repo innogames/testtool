@@ -12,7 +12,6 @@
 
 using namespace std;
 
-struct LbPoolLink;
 class Mechanism;
 
 class LbPool {
@@ -57,17 +56,16 @@ class LbPool {
 	/* Members */
 	public:
 		string			 name;
-		string			 hwlb;
-		State			 state;
 		string			 proto;
-
-		vector<class LbNode*> nodes;
-		vector<LbPoolLink*> vips;
+		string			 ip_address;
+		State			 state;
+		vector<class LbNode*>	 nodes;
 
 	private:
-		size_t			 m_min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
-		size_t			 m_max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
-		FaultPolicy		 m_fault_policy;
+		size_t			 min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
+		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
+		FaultPolicy		 fault_policy;
+		Mechanism*		 mechanism;
 
 		/* Set of all nodes that are considered alive for any active VIP connections.
 		   These nodes aren't necessarily up, as some fault policies might treat down nodes as up. */
