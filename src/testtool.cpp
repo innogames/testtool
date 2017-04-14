@@ -5,6 +5,7 @@
 #include <map>
 #include <vector>
 #include <set>
+#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include <unistd.h>
@@ -64,7 +65,7 @@ void signal_handler(int signum) {
    - After the downtime is removed, they will be subject to normal healthchecks before getting traffic again.
 */
 void TestTool::load_downtimes() {
-	log_txt(MSG_TYPE_DEBUG, "Reloading downtime list.");
+	log(MSG_INFO, "Reloading downtime list.");
 
 	string line;
 
@@ -78,7 +79,7 @@ void TestTool::load_downtimes() {
 		}
 		downtime_file.close();
 	} else {
-		log_txt(MSG_TYPE_DEBUG, "Could not load downtime list file.");
+		log(MSG_INFO, "Could not load downtime list file.");
 	}
 
 	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
@@ -101,7 +102,7 @@ void TestTool::load_downtimes() {
 */
 void TestTool::load_config(string config_file) {
 	YAML::Node config;
-	log_txt(MSG_TYPE_DEBUG, "Loading configration file %s", config_file.c_str());
+	log(MSG_INFO, "Loading configration file  " + config_file);
 
         config = YAML::LoadFile(config_file);
 
@@ -378,7 +379,7 @@ void TestTool::setup_events() {
 
 void init_libevent() {
 	eventBase = event_base_new();
-	log_txt(MSG_TYPE_DEBUG, "libevent method: %s", event_base_get_method(eventBase));
+	log(MSG_INFO, fmt::sprintf("libevent method: %s", event_base_get_method(eventBase)));
 }
 
 
@@ -392,7 +393,7 @@ int init_libssl() {
 	SSL_load_error_strings ();
 	OpenSSL_add_all_algorithms ();
 
-	log_txt(MSG_TYPE_DEBUG, "OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION) );
+	log(MSG_INFO, fmt::sprintf("OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION)));
 
 	sctx = SSL_CTX_new (SSLv23_client_method ());
 	if (!sctx) {
@@ -458,15 +459,15 @@ int main (int argc, char *argv[]) {
 		}
 	}
 
-	log_txt(MSG_TYPE_DEBUG, "Initializing various stuff...");
+	log(MSG_INFO, "Initializing various stuff...");
 	if (!init_libssl()) {
-		log_txt(MSG_TYPE_CRITICAL, "Unable to initialise OpenSSL!");
+		log(MSG_CRIT, "Unable to initialise OpenSSL!");
 		exit(-1);
 	}
 	init_libevent();
 
 	if (!Healthcheck_ping::initialize()) {
-		log_txt(MSG_TYPE_CRITICAL, "Unable to initialize Healthcheck_ping!");
+		log(MSG_CRIT, "Unable to initialize Healthcheck_ping!");
 		exit(-1);
 	}
 
@@ -474,12 +475,12 @@ int main (int argc, char *argv[]) {
 	tool->load_config(config_file_name);
 
 	tool->setup_events();
-	log_txt(MSG_TYPE_DEBUG, "Entering the main loop...");
+	log(MSG_INFO, "Entering the main loop...");
 	event_base_dispatch(eventBase);
-	log_txt(MSG_TYPE_DEBUG, "Left the main loop.");
+	log(MSG_INFO, "Left the main loop.");
 
 	delete tool;
-	log_txt(MSG_TYPE_DEBUG, "Ending testtool, bye!");
+	log(MSG_INFO, "Ending testtool, bye!");
 
 	Healthcheck_ping::destroy();
 

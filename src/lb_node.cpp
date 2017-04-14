@@ -1,4 +1,5 @@
 #include <syslog.h>
+#include <fmt/format.h>
 
 #include "msg.h"
 #include "pfctl.h"
@@ -31,7 +32,7 @@ LbNode::LbNode(const YAML::Node& config, class LbPool *parent_lbpool, std::strin
 
 	this->parent_lbpool->add_node(this);
 
-	log_txt(MSG_TYPE_DEBUG, "  * New LbNode %s, pf_state: %s", address.c_str(), (m_state==STATE_DOWN?"DOWN":"UP"));
+	log(MSG_INFO, this, fmt::sprintf("new lbnode, state: %s", (STATE_DOWN?"DOWN":"UP")));
 }
 
 LbNode::State LbNode::state() {
@@ -99,12 +100,12 @@ void LbNode::parse_healthchecks_results() {
 	/* Fill in node state basing on passed healthchecks. Display information.
 	   Log and update pool if state changed. There is no need to check for downtimes. */
 	auto new_state = (ok_healthchecks < num_healthchecks) ? STATE_DOWN : STATE_UP;
-	if (m_state == STATE_UP && new_state == STATE_DOWN) {
-		m_state = STATE_DOWN;
-		log_lb(MSG_TYPE_NODE_DOWN, parent_lbpool->name.c_str(), address.c_str(), 0, "%d of %d checks failed", num_healthchecks-ok_healthchecks, num_healthchecks);
-	} else if (m_state == STATE_DOWN && new_state == STATE_UP) {
-		m_state = STATE_UP;
-		log_lb(MSG_TYPE_NODE_UP, parent_lbpool->name.c_str(), address.c_str(), 0, "all of %d checks passed", num_healthchecks);
+	if (state == STATE_UP && new_state == STATE_DOWN) {
+		state = STATE_DOWN;
+		log(MSG_STATE_DOWN, this, fmt::sprintf("%d of %d checks failed", num_healthchecks-ok_healthchecks, num_healthchecks));
+	} else if (state == STATE_DOWN && new_state == STATE_UP) {
+		state = STATE_UP;
+		log(MSG_STATE_DOWN, this, fmt::sprintf("all of %d checks passed", num_healthchecks));
 	}
 
 	notify_state();
@@ -127,7 +128,7 @@ void LbNode::start_downtime() {
 	if (is_downtimed())
 		return;
 
-	log_lb(MSG_TYPE_NODE_DOWN, parent_lbpool->name.c_str(), address.c_str(), 0, "starting downtime");
+	log(MSG_STATE_DOWN, this, "starting downtime");
 
 	m_admin_state = STATE_DOWN;
 	notify_state();
@@ -142,7 +143,7 @@ void LbNode::end_downtime() {
 	if (!is_downtimed())
 		return;
 
-	log_lb(MSG_TYPE_NODE_UP, parent_lbpool->name.c_str(), address.c_str(), 0, "ending downtime");
+	log(MSG_STATE_UP, this, "ending downtime");
 
 	m_admin_state = STATE_UP;
 

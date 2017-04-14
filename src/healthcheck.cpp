@@ -2,6 +2,7 @@
 #include <sstream>
 #include <typeinfo>
 #include <stdlib.h>
+#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include "config.h"
@@ -84,11 +85,6 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 		last_state      = STATE_DOWN;
 		failure_counter = max_failed_checks;
 	}
-
-	log_txt(MSG_TYPE_DEBUG, "    * New healthcheck:");
-	log_txt(MSG_TYPE_DEBUG, "      interval: %d, max_failed: %d, interval: %d,%03ds",
-		this->check_interval, this->max_failed_checks,
-		this->timeout.tv_sec, this->timeout.tv_usec / 1000);
 }
 
 
@@ -140,9 +136,7 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
 	is_running = true;
 
 	if (verbose > 1)
-		log_lb(MSG_TYPE_DEBUG, parent_lbnode->parent_lbpool->name.c_str(),
-		       parent_lbnode->address.c_str(), port,
-		       "Scheduling healthcheck_%s...", type.c_str());
+		log(MSG_INFO, this, "scheduling");
 
 	return true;
 }
@@ -164,30 +158,31 @@ void Healthcheck::finalize_result() {
  */
 void Healthcheck::end_check(HealthcheckResult result, string message) {
 	msgType log_type;
+	string statemsg;
 
 	switch (result) {
 		case HC_PASS:
-			log_type = MSG_TYPE_HC_PASS;
+			log_type = MSG_STATE_DOWN;
+			statemsg = "state changed to up";
 			this->last_state = STATE_UP;
 			this->handle_result();
 			break;
 
 		case HC_FAIL:
-			log_type = MSG_TYPE_HC_FAIL;
+			log_type = MSG_STATE_DOWN;
+			statemsg = "state changed to down";
 			this->last_state = STATE_DOWN;
 			this->handle_result();
 			break;
 
 		case HC_PANIC:
-			log_type = MSG_TYPE_HC_PANIC;
+			log_type = MSG_CRIT;
+			statemsg = "check result failure";
 			break;
 	}
 
 	if (verbose > 1 || this->last_state != this->hard_state || result > HC_FAIL)
-		log_lb(log_type, this->parent_lbnode->parent_lbpool->name.c_str(),
-		       this->parent_lbnode->address.c_str(), this->port,
-		       "health check %s - %s", this->type.c_str(),
-		       message.c_str());
+		log(log_type, this, statemsg);
 
 	if (result == HC_PANIC)
 		exit(2);
@@ -208,8 +203,7 @@ void Healthcheck::handle_result() {
 
 	// Change from DOWN to UP. The healthcheck has passed again.
 	if (hard_state == STATE_DOWN && last_state == STATE_UP) {
-		log_lb(MSG_TYPE_HC_PASS, parent_lbnode->parent_lbpool->name.c_str(),
-		       parent_lbnode->address.c_str(), port, "passed again");
+		log(MSG_STATE_UP, this, "passed again");
 		hard_state = STATE_UP;
 		failure_counter = 0;
 	}
@@ -219,19 +213,12 @@ void Healthcheck::handle_result() {
 		failure_counter++;
 
 		if (!parent_lbnode->downtime)
-			log_lb(MSG_TYPE_HC_FAIL,
-			       parent_lbnode->parent_lbpool->name.c_str(),
-			       parent_lbnode->address.c_str(), port,
-			       "failed for the %d time", failure_counter);
+			log(MSG_STATE_DOWN, this, fmt::sprintf("failed for the %d time", failure_counter));
 
 		// Mark the hard DOWN state only after the number of failed checks is reached.
 		if (failure_counter >= max_failed_checks) {
 			if (!parent_lbnode->downtime)
-				log_lb(MSG_TYPE_HC_HFAIL,
-				       parent_lbnode->parent_lbpool->name.c_str(),
-				       parent_lbnode->address.c_str(), port,
-				       "hard failure reached");
-
+				log(MSG_STATE_DOWN, this, "hard failure reached");
 			hard_state = STATE_DOWN;
 		}
 	}

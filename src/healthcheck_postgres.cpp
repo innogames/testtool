@@ -11,6 +11,7 @@
 #include <sstream>
 #include <vector>
 #include <cassert>
+#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include <errno.h>
@@ -58,6 +59,7 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
 	this->function = parse_string(config["function"], "");
 
 	this->prepare_query();
+	log(MSG_INFO, this, fmt::sprintf("new healthcheck, query: %s", this->query));
 }
 
 
@@ -183,7 +185,7 @@ void Healthcheck_postgres::prepare_query() {
 	snprintf(this->query, sizeof(this->query), "SELECT %s()",
 		 this->function.c_str());
 
-	log_txt(MSG_TYPE_DEBUG, "db query: %s", this->query);
+	log(MSG_DEBUG, this, fmt::sprintf("db query: %s", this->query));
 }
 
 /*
@@ -310,11 +312,11 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 		char *error = PQerrorMessage(this->conn);
 
 		if (error != NULL && strlen(error) > 0)
-			log_txt(MSG_TYPE_CRITICAL, "db error: %s", error);
+			log(MSG_CRIT, this, fmt::sprintf("db error: %s", error));
 
 		if (verbose >= 2)
-			log_txt(MSG_TYPE_DEBUG, "Last event %d after %d events",
-				this->event_flag, this->event_counter);
+			log(MSG_DEBUG, this, fmt::sprintf("Last event %d after %d events",
+				this->event_flag, this->event_counter));
 	}
 
 	if (this->io_event != NULL) {

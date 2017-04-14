@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include <errno.h>
@@ -71,9 +72,10 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
-	log_txt(MSG_TYPE_DEBUG, "      type: http(s), port: %d, host: %s, url: %s, ok_codes: %s", this->port, this->host.c_str(), this->url.c_str(), st_http_ok_codes.c_str());
+	log(MSG_INFO, this, "url: " + url);
 
 	type = "http";
+	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->url));
 }
 
 /*
@@ -85,6 +87,7 @@ Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_pa
 	if (this->port == 0)
 		this->port = 443;
 	type = "https";
+	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->url));
 }
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
@@ -205,7 +208,7 @@ void Healthcheck_http::end_check(HealthcheckResult result, string message) {
 		char *error = evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR());
 
 		if (error != NULL && strlen(error) > 0)
-			log_txt(MSG_TYPE_DEBUG, "socket error: %s", error);
+			log(MSG_CRIT, fmt::sprintf("socket(): error: %s", strerror(errno)));
 	}
 
 	if (this->bev != NULL) {

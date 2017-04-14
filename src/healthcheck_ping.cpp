@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <fmt/format.h>
 
 #include <errno.h>
 #include <stdlib.h>
@@ -101,7 +102,7 @@ int Healthcheck_ping::initialize() {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 	if (socket_fd == -1) {
-		log_txt(MSG_TYPE_CRITICAL, "socket(): %s", strerror(errno));
+		log(MSG_CRIT, fmt::sprintf("socket() error: %s", strerror(errno)));
 		return false;
 	}
 
@@ -112,7 +113,7 @@ int Healthcheck_ping::initialize() {
 	int bufsize;
 	socklen_t bufbuflen;
 	getsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, (char*)&bufsize, &bufbuflen);
-	log_txt(MSG_TYPE_DEBUG, " * Healthcheck_ping's socket buffer is %d bytes.", bufsize);
+	log(MSG_DEBUG, fmt::sprintf("Healthcheck_ping's socket buffer is %d bytes.", bufsize));
 
 	/* Create an event and make it pending. */
 	ev = event_new(eventBase, socket_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);
@@ -139,7 +140,7 @@ void Healthcheck_ping::destroy() {
 Healthcheck_ping::Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	/* Oh wait, there are none for this healthcheck! */
 	type = "ping";
-	log_txt(MSG_TYPE_DEBUG, "      type: ping");
+	log(MSG_INFO, this, "new healthcheck");
 }
 
 
@@ -176,7 +177,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	/* Read a packet from the socket. */
 	received_bytes = recvfrom(socket_fd, raw_packet, sizeof(raw_packet), 0, NULL, NULL);
 	if (received_bytes <=0 ) {
-		log_txt(MSG_TYPE_CRITICAL, "recvfrom(): %s", strerror(errno));
+		log(MSG_CRIT, fmt::sprintf("recvfrom() error: %s", strerror(errno)));
 	}
 
 	ip_packet = (struct ip *)raw_packet;
@@ -218,14 +219,12 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 			return;
 
 		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			log_lb(MSG_TYPE_HC_FAIL,
-			    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
-			    healthcheck->parent_lbnode->address.c_str(),
-			    0,
-			    "Healthcheck_%s: Received a Destination Unreachable message, seq: %d.",
-			    healthcheck->type.c_str(),
-			    ntohs(icmp_packet->icmp_header.icmp_seq));
-
+			log(
+				MSG_STATE_DOWN,
+				healthcheck,
+				fmt::sprintf("Received a Destination Unreachable message, seq: %d.",
+				ntohs(icmp_packet->icmp_header.icmp_seq))
+			);
 		healthcheck->last_state = STATE_DOWN;
 	}
 
@@ -248,15 +247,15 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
 
 		if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-			log_lb(MSG_TYPE_HC_PASS,
-			    healthcheck->parent_lbnode->parent_lbpool->name.c_str(),
-			    healthcheck->parent_lbnode->address.c_str(),
-			    0,
-			    "Healthcheck_%s: got ICMP Echo Reply in: %d.%dms, seq: %d",
-			    healthcheck->type.c_str(),
-			    ms_full,
-			    ms_dec,
-			    ntohs(icmp_packet->icmp_header.icmp_seq));
+			log(
+				MSG_STATE_UP,
+				healthcheck,
+			    	fmt::sprintf("got ICMP Echo Reply in: %d.%dms, seq: %d",
+					ms_full,
+					ms_dec,
+					ntohs(icmp_packet->icmp_header.icmp_seq)
+				)
+			);
 
 		healthcheck->last_state = STATE_UP;
 	}
@@ -285,15 +284,16 @@ void Healthcheck_ping::finalize_result() {
 	    (now.tv_sec == this->timeout.tv_sec &&
 	     now.tv_nsec > this->timeout.tv_usec * 1000)) {
 		if (verbose>1 || hard_state != STATE_DOWN)
-			log_lb(MSG_TYPE_HC_FAIL,
-			    parent_lbnode->parent_lbpool->name.c_str(),
-			    parent_lbnode->address.c_str(),
-			    0,
-			    "Healthcheck_%s: timeout after %d,%03ds, seq %d",
-			    type.c_str(),
-			    this->timeout.tv_sec,
-			    this->timeout.tv_usec / 10000,
-			    ping_my_seq);
+			log(
+				MSG_STATE_DOWN,
+				this,
+				fmt::sprintf(
+					"timeout after %d,%03ds, seq %d",
+					this->timeout.tv_sec,
+					this->timeout.tv_usec / 10000,
+					ping_my_seq
+				)
+			   );
 		ping_my_seq = 0;
 		last_state = STATE_DOWN;
 		handle_result();

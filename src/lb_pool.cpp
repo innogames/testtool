@@ -1,3 +1,4 @@
+#include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include "config.h"
@@ -21,7 +22,7 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
 			return it.first;
 		}
 	}
-	log_txt(MSG_TYPE_CRITICAL, "Unknown min_nodes_action '%s'. Falling back to force_down.", name.c_str());
+	log(MSG_CRIT, "Unknown min_nodes_action " + name + ", falling back to force_down!");
 	return FORCE_DOWN;
 }
 
@@ -40,12 +41,12 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto)
 
 	this->state = STATE_DOWN;
 
-	log_txt(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %s", name.c_str(), hwlb.c_str());
+	log(MSG_INFO, this, "new lbpool");
 
 	if (this->m_min_nodes) {
 		auto it = fault_policy_names.find(m_fault_policy);
 		string actionstr = (it == fault_policy_names.end()) ? string("") : it->second;
-		log_txt(MSG_TYPE_DEBUG, "  action %s below %d nodes", actionstr.c_str(), this->m_min_nodes);
+		log(MSG_INFO, fmt::sprintf("Action %s below %d nodes", actionstr, this->min_nodes));
 	}
 }
 

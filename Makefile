@@ -21,7 +21,7 @@ LD=c++
 .PATH: $(SRCDIR)
 
 DLIBS=	-levent -levent_core -levent_pthreads -levent_openssl \
-	-lpq -lyaml-cpp
+	-lpq -lyaml-cpp -lfmt
 
 UNAME_S := $(shell uname -s)
 

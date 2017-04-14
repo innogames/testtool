@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <fmt/format.h>
 
 #include <errno.h>
 #include <arpa/inet.h>
@@ -27,7 +28,7 @@ extern int			 verbose;
 */
 Healthcheck_tcp::Healthcheck_tcp(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	type = "tcp";
-	log_txt(MSG_TYPE_DEBUG, "      type: tcp");
+	log(MSG_INFO, this, fmt::sprintf("new healthcheck, port: %d", this->port));
 }
 
 /*
@@ -38,36 +39,26 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 	if (what & EV_TIMEOUT) {
 		hc->last_state = STATE_DOWN;
 		if (verbose>1 || hc->hard_state != STATE_DOWN)
-			log_lb(MSG_TYPE_HC_FAIL,
-			    hc->parent_lbnode->parent_lbpool->name.c_str(),
-			    hc->parent_lbnode->address.c_str(),
-			    hc->port,
-			    "Healthcheck_%s: timeout after %d,%3ds",
-			    hc->type.c_str(),
-			    hc->timeout.tv_sec,
-			    hc->timeout.tv_usec / 1000);
+			log(
+				MSG_STATE_DOWN,
+				hc,
+				fmt::sprintf("Healthcheck_%s: timeout after %d,%3ds",
+				hc->type.c_str(),
+				hc->timeout.tv_sec,
+				hc->timeout.tv_usec / 1000)
+			);
 
 	} else if (what & EV_READ) {
 		char buf[256];
 		if (read(socket_fd, buf, 255) == -1){
 			hc->last_state = STATE_DOWN;
 			if (verbose>1 || hc->hard_state != STATE_DOWN)
-			log_lb(MSG_TYPE_HC_FAIL,
-				hc->parent_lbnode->parent_lbpool->name.c_str(),
-				hc->parent_lbnode->address.c_str(),
-				hc->port,
-				"Healthcheck_%s: connection refused",
-				hc->type.c_str());
+				log(MSG_STATE_DOWN, hc, "connection refused");
 		}
 	} else if (what & EV_WRITE) {
 		hc->last_state = STATE_UP;
 		if (verbose>1 || hc->last_state == STATE_DOWN)
-			log_lb(MSG_TYPE_HC_PASS,
-				hc->parent_lbnode->parent_lbpool->name.c_str(),
-				hc->parent_lbnode->address.c_str(),
-				hc->port,
-				"Healthcheck_%s: connection successful",
-				hc->type.c_str());
+			log(MSG_STATE_UP, hc, "connection successful");
 	}
 	/* Be sure to free the memory! */
 	event_del(hc->ev);
@@ -87,7 +78,7 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (socket_fd == -1) {
-		log_txt(MSG_TYPE_CRITICAL, "socket(): %s", strerror(errno));
+		log(MSG_CRIT, this, fmt::sprintf("socket() error: %s", strerror(errno)));
 		return false;
 	}
 	memset(&to_addr, 0, sizeof(sockaddr_in));
