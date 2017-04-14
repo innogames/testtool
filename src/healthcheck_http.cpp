@@ -33,7 +33,6 @@ extern int			 verbose;
  * Parses http(s)-specific parameters.
  */
 Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
-
 	// This is not done automatically.
 	bev = NULL;
 
@@ -41,6 +40,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	if (this->port == 0)
 		this->port = 80;
 
+	this->type = parse_string(config["type"], "http");
 	this->url = parse_string(config["url"], "/");
 	this->st_http_ok_codes = parse_string(config["ok_codes"], "200");
 	this->host = parse_string(config["host"], "");
@@ -72,9 +72,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
-	log(MSG_INFO, this, "url: " + url);
 
-	type = "http";
 	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->url));
 }
 
@@ -86,8 +84,6 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck_http(config, _parent_lbnode) {
 	if (this->port == 0)
 		this->port = 443;
-	type = "https";
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->url));
 }
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {

@@ -52,19 +52,14 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto)
 	 * Glue things together. Please note that children append themselves
 	 * to property of parent in their own code.
 	 */
-	for (
-		YAML::const_iterator lbnode_it = config["nodes"].begin();
-		lbnode_it != config["nodes"].end();
-		lbnode_it++
-	) {
-		if ( ! lbnode_it->second["ip" + proto].IsNull()) {
-			new LbNode(lbnode_it->first.as<std::string>(), lbnode_it->second, this, proto);
+	for (auto lbnode_it : config["nodes"]) {
+		if ( ! lbnode_it.second["ip" + proto].IsNull()) {
+			new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto);
 		}
 	}
-	for (size_t i = 0; i < config["healthchecks"].size(); i++) {
-		const YAML::Node& hc_config = config["healthchecks"][i];
+	for (auto hc_it : config["healthchecks"]) {
 		for (auto node : this->nodes) {
-			Healthcheck::healthcheck_factory(hc_config, node);
+			Healthcheck::healthcheck_factory(hc_it, node);
 		}
 	}
 }
