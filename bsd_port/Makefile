@@ -10,7 +10,9 @@ USES=		gmake
 
 BUILD_DEPENDS=	libevent>=libevent-2.1.8:devel/libevent \
 		postgresql93-client:databases/postgresql93-client \
-		yaml-cpp>=0.5.3_2:devel/yaml-cpp:
+		yaml-cpp>=0.5.3_2:devel/yaml-cpp \
+		libfmt>=3.0.01:devel/libfmt
+
 
 BUILD_DEPENDS=	${ALL_DEPENDS}
 
