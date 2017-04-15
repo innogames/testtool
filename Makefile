@@ -4,10 +4,10 @@ PREFIX ?= /usr/local
 
 CPPFLAGS= -pedantic -std=c++11 \
 	  -Wall -Wextra -Wno-unused-parameter \
-	  -g3 \
+	  -ggdb \
 	  -I/usr/local/include
 
-LDFLAGS= -L/usr/local/lib
+LDFLAGS= -L/usr/local/lib -ggdb
 
 SRCDIR  = ${CURDIR}/src
 OBJDIR  = $(CURDIR)/obj
