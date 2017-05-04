@@ -102,7 +102,7 @@ void TestTool::load_config(string config_file) {
 	YAML::Node config;
 	log(MSG_INFO, "Loading configration file  " + config_file);
 
-        config = YAML::LoadFile(config_file);
+        config = YAML::LoadFile(config_file)["lbpools"];
 
 	for (
 		YAML::const_iterator pool_it = config.begin();
@@ -371,7 +371,7 @@ int main (int argc, char *argv[]) {
 	signal(SIGPIPE, signal_handler);
 	signal(SIGUSR1, signal_handler);
 
-	string config_file_name = "/etc/iglb/lbpools.yaml";
+	string config_file_name = "/etc/iglb/iglb.json";
 
 	int opt;
 	while ((opt = getopt(argc, argv, "hnpvf:")) != -1) {
