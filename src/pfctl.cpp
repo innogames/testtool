@@ -2,6 +2,10 @@
 #include <set>
 #include <string>
 #include <sstream>
+#include <boost/algorithm/string.hpp>
+#include <boost/system/error_code.hpp>
+#include <boost/asio.hpp>
+#include <fmt/format.h>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -14,245 +18,168 @@ using namespace std;
 extern bool	 pf_action;
 extern int	 verbose_pfctl;
 
-static pair<int, string> run(const char* format, ...) {
-	char cmd[1024];
-	va_list va;
-	va_start(va, format);
+bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
+	int   ret = 0;
+	FILE *fp;
+	char  buffer[1024];
 
-	int n = vsnprintf(cmd, sizeof(cmd), format, va);
-	va_end(va);
-	if (n < 0 || n >= (int)sizeof(cmd)) {
-//		log_txt(MSG_TYPE_PFCTL, "Format error -- should never happen!");
-		return pair<int, string>(-1, "");
+	string cmd = "/sbin/pfctl -q";
+
+	for (auto arg: *args) {
+		cmd += " " + arg;
 	}
 
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
+	if (!pf_action)
+		return true;
 
-	FILE* fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process '%s'", cmd);
-		return pair<int, string>(-1, "");
+	if (verbose_pfctl) {
+		log(MSG_INFO, cmd);
 	}
 
-	string output;
-	char buffer[1024];
-	while (fgets(buffer, 1024, fp) != NULL) {
-		output.append(buffer);
+	fp = popen(cmd.c_str(), "r");
+	if (!fp) {
+		log(MSG_CRIT, "Can't spawn pfctl process: " + cmd);
+		return false;
 	}
 
-	int ret = pclose(fp);
+	if (lines != NULL) {
+		string strbuffer;
+		while (fgets(buffer, 1024, fp) != NULL) {
+			strbuffer.append(buffer);
+		}
+		istringstream istrbuffer(strbuffer);
+		for (string line; getline(istrbuffer, line);) {
+			lines->push_back(line);
+
+		}
+	}
+	pclose(fp);
 
 	if (ret != 0) {
-//		log_txt(MSG_TYPE_PFCTL, "cmd '%s' returned bad status (%d)", cmd, ret);
+		log(MSG_CRIT, "pfctl failed with error code: " + cmd);
+		return false;
 	}
-	return pair<int, string>(ret, output);
+	return true;
 }
 
-/*
-   Kill states created by pf rules using given table and IP address for redirection.
-*/
-void pf_kill_states_to_rdr(string &pool, string &rdr_ip, bool with_states) {
-	FILE	*fp;
-	int	 ret;
-	char	 cmd[1024];
 
+bool pf_table_add(string *table, set<string> *addresses) {
+	if (addresses->size() == 0)
+		return true;
+	vector<string> cmd;
+	cmd.push_back("-t");
+	cmd.push_back(*table);
+	cmd.push_back("-T");
+	cmd.push_back("add");
+	for (auto address: *addresses) {
+		cmd.push_back(address);
+	}
+	return pfctl_run_command(&cmd, NULL);
+}
+
+bool pf_table_del(string *table, set<string> *addresses) {
+	if (addresses->size() == 0)
+		return true;
+	vector<string> cmd;
+	cmd.push_back("-t");
+	cmd.push_back(*table);
+	cmd.push_back("-T");
+	cmd.push_back("del");
+	for (auto address: *addresses) {
+		cmd.push_back(address);
+	}
+	return pfctl_run_command(&cmd, NULL);
+}
+
+bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
+	vector<string> cmd;
+	cmd.push_back("-K");
+	cmd.push_back("table");
+	cmd.push_back("-K");
+	cmd.push_back(*table);
+	cmd.push_back("-K");
+	cmd.push_back("dsthost");
+	cmd.push_back("-K");
+	cmd.push_back(*address);
 	if (with_states) {
-//		log_txt(MSG_TYPE_PFCTL, "%s %s - killing all states with RST", pool.c_str(), rdr_ip.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k rdrhost -k '%s' -k kill -k rststates", pool.c_str(), rdr_ip.c_str());
-	} else {
-//		log_txt(MSG_TYPE_PFCTL, "%s %s - killing all states", pool.c_str(), rdr_ip.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -k table -k '%s' -k rdrhost -k '%s'", pool.c_str(), rdr_ip.c_str());
+		cmd.push_back("-K");
+		cmd.push_back("kill");
+		cmd.push_back("-K");
+		cmd.push_back("rststates");
 	}
 
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
+	return pfctl_run_command(&cmd, NULL);
+}
 
-	if(!pf_action)
-		return;
-
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to kill states %s %s", pool.c_str(), rdr_ip.c_str());
-		return;
-	}
-
-	ret = pclose(fp);
-	if(ret == -1 || ret != 0){
-
-//		log_txt(MSG_TYPE_PFCTL, "pf_kill_states_rdr('%s', '%s'): returned bad status (%d)", pool.c_str(), rdr_ip.c_str(), ret);
-	}
-
-}//end: pf_states_kill
-
-
-/*
-   Add an IP address to the specified table.
-*/
-void pf_table_add(string &table, string &ip){
-	FILE	*fp;
-	char	 cmd[1024];
-	int	 ret;
-
-//	log_txt(MSG_TYPE_PFCTL, "%s %s - adding node", table.c_str(), ip.c_str());
-
-	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T add '%s'", table.c_str(), ip.c_str());
-
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
-
-	if(!pf_action)
-		return;
-
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to add ip '%s' to table '%s'", ip.c_str(), table.c_str());
-		return;
-	}
-
-	ret = pclose(fp);
-
-	if(ret == -1 || ret != 0){
-//		log_txt(MSG_TYPE_PFCTL, "pf_table_add('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
-	}
-
-}//end: pf_table_add
-
-
-/*
-   Remove an IP address from the specified table.
-*/
-void pf_table_del(string &table,  string &ip){
-	FILE	*fp;
-	char	 cmd[1024];
-	int	 ret;
-
-//	log_txt(MSG_TYPE_PFCTL, "%s %s - removing node", table.c_str(), ip.c_str());
-
-	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T del '%s'", table.c_str(), ip.c_str());
-
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
-
-	if(!pf_action)
-		return;
-
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to del ip '%s' from table '%s'", ip.c_str(), table.c_str());
-		return;
-	}
-
-	ret = pclose(fp);
-
-	if(ret == -1 || ret != 0){
-//		log_txt(MSG_TYPE_PFCTL, "pf_table_del('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
-	}
-
-}//end: pf_table_del
-
-
-/*
-   Kill src_nodes pointing to a given gateway IP in given pool
-   Optionally kill pf states using those src_nodes.
-*/
-void pf_kill_src_nodes_to(string &pool, string &ip, bool with_states){
-	FILE	*fp;
-	char	 cmd[1024];
-	int	 ret;
-
+bool pf_kill_states_to_rdr(string *table, string *address, bool with_states) {
+	vector<string> cmd;
+	cmd.push_back("-k");
+	cmd.push_back("table");
+	cmd.push_back("-k");
+	cmd.push_back(*table);
+	cmd.push_back("-k");
+	cmd.push_back("rdrhost");
+	cmd.push_back("-k");
+	cmd.push_back(*address);
 	if (with_states) {
-//		log_txt(MSG_TYPE_PFCTL, "%s %s - killing src_nodes and states to node with RST", pool.c_str(), ip.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K dsthost -K '%s' -K kill -K rststates", pool.c_str(), ip.c_str());
-	} else {
-//		log_txt(MSG_TYPE_PFCTL, "%s %s - killing src_nodes to node", pool.c_str(), ip.c_str());
-		snprintf(cmd, sizeof(cmd), "pfctl -q -K table -K '%s' -K dsthost -K '%s'", pool.c_str(), ip.c_str());
+		cmd.push_back("-k");
+		cmd.push_back("kill");
+		cmd.push_back("-k");
+		cmd.push_back("rststates");
 	}
 
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
+	return pfctl_run_command(&cmd, NULL);
+}
 
-	if(!pf_action)
-		return;
+bool pf_get_table(string *table, set<string> *result) {
+	vector<string> cmd;
+	cmd.push_back("-t");
+	cmd.push_back(*table);
+	cmd.push_back("-T");
+	cmd.push_back("show");
 
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to kill src_nodes to '%s'", ip.c_str());
-		return;
+	vector<string> out;
+	bool ret = pfctl_run_command(&cmd, &out);
+	if (! ret){
+		return false;
 	}
-
-	ret = pclose(fp);
-
-	if(ret == -1 || ret != 0){
-//		log_txt(MSG_TYPE_PFCTL, "pf_kill_src_nodes_to('%s'): returned bad status (%d)", ip.c_str(), ret);
+	boost::system::error_code ec;
+	if (verbose_pfctl) {
+		log(MSG_INFO, "IP addresses in table");
 	}
-
+	for (auto line: out) {
+		boost::trim(line);
+		boost::asio::ip::address::from_string(line, ec);
+		if (ec)
+			log(MSG_CRIT, fmt::sprintf("Not an IP Address: '%s'", line));
+		else {
+			if (verbose_pfctl) {
+				log(MSG_INFO, line);
+			}
+			result->insert(line);
+		}
+	}
+	return true;
 }
 
 
 /*
    Check if an IP address is in the given table.
 */
-int pf_is_in_table(string &table, string &ip){
-	FILE	*fp;
-	char	 cmd[1024];
-	int	 ret;
-
-	/* Do not skip this function even if pf_action is false, this one is "passive". */
-
-	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T show", table.c_str());
-
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
-
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to show table contents.");
-		return 0; // not in table; error
+bool pf_is_in_table(string *table, string *address, bool *answer) {
+	set<string> lines;
+	bool ret = pf_get_table(table, &lines);
+	if (! ret) {
+		return false;
 	}
 
-	string output;
-	char buffer[1024];
-	while (fgets(buffer, 1024, fp) != NULL) {
-		output.append(buffer);
-	}
-	ret = pclose(fp);
-
-	if (ret != 0) {
-//		log_txt(MSG_TYPE_PFCTL, "pf_is_in_table('%s', '%s'): returned bad status (%d)", table.c_str(), ip.c_str(), ret);
-		return 0;
+	*answer = false;
+	for (auto line: lines ) {
+		if (line == *address)
+			*answer = true;
 	}
 
-	istringstream istr_output(output);
-	string found_ip;
-	while (istr_output >> found_ip ) {
-		if (found_ip == ip)
-			return 1;
-	}
-
-	return 0;
-}
-
-
-/*
-   Returns all IP addresses in a table.
-*/
-const set<string> pf_table_members(string &table) {
-	pair<int,string> res = run("pfctl -q -t '%s' -T show", table.c_str());
-
-	set<string> result;
-	int code = res.first;
-	if (code != 0) {
-		return result;
-	}
-
-	istringstream istr_output(res.second);
-	string found_ip;
-	while (istr_output >> found_ip ) {
-		result.insert(found_ip);
-	}
-
-	return result;
+	return true;
 }
 
 
@@ -260,46 +187,62 @@ const set<string> pf_table_members(string &table) {
    Remove src_nodes to all IPs in the given table apart from the specified ones.
    States of existing connections will not be killed, only src_nodes.
 */
-void pf_table_rebalance(string &table, const set<string> &skip_ips) {
-	FILE	*fp;
-	char	 cmd[1024];
-	int	 ret;
-
-//	log_txt(MSG_TYPE_PFCTL, "%s - rebalancing table", table.c_str());
-
-	/* Do not skip this function even if pf_action is false, this one is passive, it calls active ones. */
-
-	snprintf(cmd, sizeof(cmd), "pfctl -q -t '%s' -T show", table.c_str());
-
-//	if (verbose_pfctl)
-//		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
-
-	fp = popen(cmd, "r");
-	if(fp == NULL){
-//		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process to show table contents.");
-		return;
+bool pf_table_rebalance(string *table, set<string> *skip_addresses) {
+	bool ret;
+	set<string> addresses;
+	ret = pf_get_table(table, &addresses);
+	if (! ret) {
+		return false;
 	}
 
-	string output;
-	char buffer[1024];
-	while (fgets(buffer, 1024, fp) != NULL) {
-		output.append(buffer);
-	}
-	ret = pclose(fp);
-
-	if (ret != 0) {
-//		log_txt(MSG_TYPE_PFCTL, "pf_table_rebalance('%s', ...): returned bad status (%d)", table.c_str(), ret);
-		return;
-	}
-
-	istringstream istr_output(output);
-	string found_ip;
-	while (istr_output >> found_ip ) {
-//		if (verbose_pfctl)
-//			log_txt(MSG_TYPE_PFCTL, "%s %s - node found in table", table.c_str(), found_ip.c_str());
-		if (skip_ips.find(found_ip) == skip_ips.end()) {
-			pf_kill_src_nodes_to(table, found_ip, false);
+	for (auto address: addresses) {
+		if (skip_addresses->find(address) == skip_addresses->end()) {
+			ret = pf_kill_src_nodes_to(table, &address, false);
+			if (! ret) {
+				return false;
+			}
 		}
 	}
+	return true;
 }
 
+bool pf_sync_table(string *table, set<string> *want_set) {
+	set<string> cur_set;
+
+	if (!pf_get_table(table, &cur_set))
+		return false;
+
+	std::set<string> to_add;
+	std::set_difference(
+		want_set->begin(), want_set->end(),
+		cur_set.begin(), cur_set.end(),
+		std::inserter(to_add, to_add.end())
+	);
+
+	/* Add wanted nodes to table */
+	if (!pf_table_add(table, &to_add))
+		return false;
+	/* Kill src_nodes to old entries from table so that connections get rebalanced. */
+	pf_table_rebalance(table, &to_add);
+
+	std::set<string> to_del;
+	std::set_difference(
+		cur_set.begin(), cur_set.end(),
+		want_set->begin(), want_set->end(),
+		std::inserter(to_del, to_del.end())
+	);
+	/* Remove unwanted nodes from table. */
+	if (!pf_table_del(table, &to_del))
+		return false;
+	for (auto del: to_del) {
+		/* Kill all src_nodes, linked states and unlinked states. */
+		pf_kill_src_nodes_to(table, &del, true);
+		pf_kill_states_to_rdr(table, &del, true);
+		/* Kill nodes again, there might be some which were created after last
+		 * kill due to belonging to states with deferred src_nodes.
+		 * See TECH-6711 and around. */
+		pf_kill_src_nodes_to(table, &del, true);
+	}
+
+	return true;
+}
