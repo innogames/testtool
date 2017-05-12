@@ -73,7 +73,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
 	}
 
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->url));
+	log(MSG_INFO, this, fmt::sprintf("url %s created", this->url));
 }
 
 /*

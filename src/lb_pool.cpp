@@ -49,13 +49,10 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto)
 
 	this->state = STATE_DOWN;
 
-	log(MSG_INFO, this, "new lbpool");
+	auto it = fault_policy_names.find(fault_policy);
+	string fault_policy_name = (it == fault_policy_names.end()) ? string("") : it->second;
 
-	if (this->min_nodes) {
-		auto it = fault_policy_names.find(fault_policy);
-		string actionstr = (it == fault_policy_names.end()) ? string("") : it->second;
-		log(MSG_INFO, fmt::sprintf("Action %s below %d nodes", actionstr, this->min_nodes));
-	}
+	log(MSG_INFO, this, fmt::sprintf("min %d max %d policy %s action: created", min_nodes, max_nodes, fault_policy_name));
 
 	/*
 	 * Glue things together. Please note that children append themselves

@@ -37,7 +37,7 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	log(MSG_INFO, this, fmt::sprintf("new lbnode, state: %s", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
+	log(MSG_INFO, this, fmt::sprintf("state %s created", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
 }
 
 LbNode::State LbNode::get_state() {

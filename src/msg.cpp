@@ -35,16 +35,16 @@ void log(int loglevel, string msg) {
 }
 
 void log(int loglevel, LbPool* lbpool, string msg) {
-	string out  =  "lbpool: " + lbpool->name + ", proto: IPv" + lbpool->proto + ", " + msg;
+	string out  =  "lbpool: " + lbpool->name + " " + msg;
 	log(loglevel, out);
 }
 
 void log(int loglevel, LbNode *lbnode, string msg) {
-	string out  =  " lbnode: " + lbnode->name + ", " + msg;
+	string out  =  "lbnode: " + lbnode->name + " " + msg;
 	log(loglevel, lbnode->parent_lbpool, out);
 }
 
 void log(int loglevel, Healthcheck *hc, string msg) {
-	string out  =  " healthckeck: " + hc->type + ", " + msg;
+	string out  =  "healthckeck: " + hc->type + " " + msg;
 	log(loglevel, hc->parent_lbnode, out);
 }
