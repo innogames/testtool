@@ -2,6 +2,7 @@
 #define _CONFIG_H
 
 int parse_int(YAML::Node node, int def_val);
+bool node_defined(YAML::Node node);
 std::string parse_string(YAML::Node node, std::string def_val);
 
 #endif

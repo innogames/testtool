@@ -2,6 +2,7 @@
 #define _LB_POOL_H_
 
 #include <iostream>
+#include <exception>
 #include <list>
 #include <map>
 #include <string>
@@ -12,7 +13,16 @@
 
 using namespace std;
 
-class Mechanism;
+class NotLbPoolException {
+	public:
+		NotLbPoolException(const string& msg) : msg_(msg) {};
+		~NotLbPoolException( ) {};
+		const char* what ( ) {return(msg_.c_str());}
+	private:
+		string msg_;
+
+};
+
 
 class LbPool {
 	/* Enums */

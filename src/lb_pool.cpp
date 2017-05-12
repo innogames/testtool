@@ -31,6 +31,17 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
 LbPool::LbPool(string name, const YAML::Node& config, string proto)
 {
 	this->proto = proto;
+
+	/* Perform some checks to verify if this is really an LB Pool */
+	if  (!node_defined(config["ip"+proto])) {
+		throw(NotLbPoolException(fmt::sprintf("No ip%s configured!", proto)));
+	}
+	if  (!node_defined(config["protocol_port"])) {
+		throw(NotLbPoolException("No protocol_port configured!"));
+	}
+	if  (!node_defined(config["pf_name"])) {
+		throw(NotLbPoolException("No pf_name configured!"));
+	}
 	this->name = name;
 	this->min_nodes = parse_int(config["min_nodes"], 0);
 	this->max_nodes = parse_int(config["max_nodes"], 0);

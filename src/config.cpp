@@ -15,6 +15,12 @@ int parse_int(YAML::Node node, int def_val) {
 	}
 }
 
+bool node_defined(YAML::Node node) {
+	if (!node || node.Type() == YAML::NodeType::Null ) {
+		return false;
+	}
+	return true;
+}
 
 std::string parse_string(YAML::Node node, std::string def_val) {
 	try {

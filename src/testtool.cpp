@@ -82,10 +82,9 @@ void TestTool::load_downtimes() {
 	}
 
 	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
-	for (auto lbpool : lb_pools) {
-		for (auto node : lbpool->nodes) {
-
-			if ( downtimes.count(lbpool->name + " " + node->address) ) {
+	for (auto& lbpool : lb_pools) {
+		for (auto node : lbpool.second->nodes) {
+			if ( downtimes.count(lbpool.second->pf_name + " " + node->address) ) {
 				node->start_downtime();
 			} else {
 				node->end_downtime();
@@ -109,18 +108,24 @@ void TestTool::load_config(string config_file) {
 		pool_it != config.end();
 		pool_it++
 	) {
-		string name;
-
 		// Duplicate LB Pool into IPv4 and IPv6 versions.
 		std::vector<string> protos = {"4", "6"};
 		for (auto proto : protos ) {
-			LbPool *new_lbpool = NULL;
-			name = pool_it->first.as<std::string>();
-
-			new_lbpool = new LbPool(name, pool_it->second, proto);
-
-			lb_pools.push_back(new_lbpool);
-
+			string name = pool_it->first.as<std::string>() + "_" + proto;
+			/*
+			 * Ignore LBPools which have no IP address in given address
+			 * family or have no ports forwarded - they might be SNAT rules.
+			 * Serveradmin gives us evertythng he has seen.
+			 */
+			try {
+				LbPool *new_lbpool = NULL;
+				new_lbpool = new LbPool(name, pool_it->second, proto);
+				lb_pools[new_lbpool->pf_name] = new_lbpool;
+			}
+			catch (NotLbPoolException ex) {
+				/* Nothing to do, just ignore it */
+				log(MSG_INFO, fmt::sprintf("lbpool: %s %s", name, ex.what()));
+			}
 		}
 	}
 
@@ -151,8 +156,8 @@ void TestTool::schedule_healthchecks() {
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
 	/* Iterate over all lbpools and schedule healthchecks. */
-	for (auto lbpool : lb_pools) {
-		lbpool->schedule_healthchecks(&now);
+	for (auto& lbpool : lb_pools) {
+		lbpool.second->schedule_healthchecks(&now);
 	}
 }
 
@@ -228,14 +233,14 @@ void TestTool::configure_bgp() {
 	std::set<string*> ips4_alive_tmp;
 	std::set<string*> ips6_alive_tmp;
 
-	for (auto lb_pool : lb_pools) {
-		if (lb_pool->state == LbPool::STATE_UP) {
-			if (lb_pool->proto == "4") {
-				ips4_alive_tmp.insert(&lb_pool->ip_address);
+	for (auto& lb_pool : lb_pools) {
+		if (lb_pool.second->state == LbPool::STATE_UP) {
+			if (lb_pool.second->proto == "4") {
+				ips4_alive_tmp.insert(&lb_pool.second->ip_address);
 			}
 
-			if (lb_pool->proto == "6") {
-				ips6_alive_tmp.insert(&lb_pool->ip_address);
+			if (lb_pool.second->proto == "6") {
+				ips6_alive_tmp.insert(&lb_pool.second->ip_address);
 			}
 		}
 	}
