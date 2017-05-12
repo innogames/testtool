@@ -208,12 +208,10 @@ void TestTool::dump_status() {
 
 	/* Iterate over all VIPs and write status of each one to the file.
 	   NOTE: Syntax uses old data model due to Nagios parsing. */
-	for (auto lb_pool : lb_pools) {
-		status_file << "lbpool: " << lb_pool->name;
-//		status_file << " nodes_alive: " << lb_pool->count_live_nodes();
-
-//		auto backup_link = vip->get_backup_pool();
-//		status_file << " backup_pool: "  << (backup_link ? (backup_link->active ? "active" : "configured") : "none" );
+	for (auto& lb_pool : lb_pools) {
+		status_file << "lbpool: " << lb_pool.second->pf_name;
+		status_file << " nodes_alive: " << lb_pool.second->count_up_nodes();
+		status_file << " backup_pool: "  << lb_pool.second->get_backup_pool_state();
 		status_file << endl;
 	}
 
