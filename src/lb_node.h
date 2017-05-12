@@ -6,7 +6,6 @@
 #include <yaml-cpp/yaml.h>
 
 #include "healthcheck.h"
-#include "mechanism.h"
 
 using namespace std;
 

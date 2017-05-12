@@ -27,10 +27,17 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 	this->parent_lbpool = parent_lbpool;
 
 	this->admin_state = STATE_UP;
+	bool pf_state = STATE_DOWN;
+	pf_is_in_table(&this->name, &this->address, &pf_state);
+
+	if (pf_state)
+		this->state = STATE_UP;
+	else
+		this->state = STATE_DOWN;
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	log(MSG_INFO, this, fmt::sprintf("new lbnode, state: %s", (STATE_DOWN?"DOWN":"UP")));
+	log(MSG_INFO, this, fmt::sprintf("new lbnode, state: %s", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
 }
 
 LbNode::State LbNode::get_state() {

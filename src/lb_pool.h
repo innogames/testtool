@@ -37,21 +37,6 @@ class LbPool {
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 
-		void add_node(LbNode* node);
-		size_t count_active_nodes(); /* Nodes that are forced to be part of the pool, regardless of their state. */
-		size_t count_live_nodes(); /* Healthy nodes */
-
-		void notify_node_update(LbNode* node, LbNode::State old_state, LbNode::State new_state);
-
-		const set<LbNode*>& active_nodes(); /* Returns active nodes. */
-
-		/* Registers the node with all attached VIPs and returns the initial state. */
-		LbNode::State sync_initial_state(LbNode* node);
-
-	private:
-		void update_state();
-		void update_nodes();
-		bool all_active_nodes_up();
 
 	/* Members */
 	public:
@@ -65,11 +50,8 @@ class LbPool {
 		size_t			 min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
 		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 fault_policy;
-		Mechanism*		 mechanism;
-
-		/* Set of all nodes that are considered alive for any active VIP connections.
-		   These nodes aren't necessarily up, as some fault policies might treat down nodes as up. */
-		set<LbNode*>	 m_active_nodes;
+		set<string>		 wanted_nodes;
+		bool			 wanted_nodes_changed;
 };
 
 #endif

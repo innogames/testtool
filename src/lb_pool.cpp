@@ -6,7 +6,6 @@
 
 #include "lb_pool.h"
 #include "lb_node.h"
-#include "pf_mechanism.h"
 
 using namespace std;
 
@@ -31,7 +30,6 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  */
 LbPool::LbPool(string name, const YAML::Node& config, string proto)
 {
-	this->mechanism = new PfMechanism(this);
 	this->proto = proto;
 	this->name = name;
 	this->min_nodes = parse_int(config["min_nodes"], 0);
