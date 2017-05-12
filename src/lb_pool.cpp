@@ -45,7 +45,13 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto)
 	this->name = name;
 	this->min_nodes = parse_int(config["min_nodes"], 0);
 	this->max_nodes = parse_int(config["max_nodes"], 0);
+	if (max_nodes < min_nodes) {
+		max_nodes = min_nodes;
+	}
 	this->fault_policy = LbPool::fault_policy_by_name(parse_string(config["min_nodes_action"], "force_down"));
+	if (this->backup_pool != "") {
+		this->fault_policy = BACKUP_POOL;
+	}
 
 	this->state = STATE_DOWN;
 

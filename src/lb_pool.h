@@ -34,8 +34,9 @@ class LbPool {
 
 		/* Fault policy infers the pool state from the set of node states. */
 		enum FaultPolicy {
-			FORCE_DOWN = 0, /* Pool fails if number of count_live_nodes() < min_nodes */
-			FORCE_UP   = 1  /* Last min_nodes nodes will be treated as online, even if they seem down */
+			FORCE_DOWN =  0, /* Pool fails if up_nodes < min_nodes. */
+			FORCE_UP    = 1, /* Last min_nodes nodes will be treated as online, even if they seem down */
+			BACKUP_POOL = 2, /* Switch to backup pool. */
 		};
 		static const map<FaultPolicy, string> fault_policy_names;
 		static FaultPolicy fault_policy_by_name(string name);
