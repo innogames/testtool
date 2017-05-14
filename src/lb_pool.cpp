@@ -49,9 +49,6 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	this->pf_name = config["pf_name"].as<std::string>() + "_" + proto;
 	this->min_nodes = parse_int(config["min_nodes"], 0);
 	this->max_nodes = parse_int(config["max_nodes"], 0);
-	if (max_nodes < min_nodes) {
-		max_nodes = min_nodes;
-	}
 	this->fault_policy = LbPool::fault_policy_by_name(parse_string(config["min_nodes_action"], "force_down"));
 	this->backup_pool_name = parse_string(config["backup_pool"], "");
 	if (this->backup_pool_name != "") {
@@ -60,6 +57,19 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	}
 
 	this->state = STATE_DOWN;
+
+	/*
+	 * If this Pool has no healthchecks then force nodes to be always up.
+	 * This is required to have testool manage all LB Pools.
+	 */
+	if (!node_defined(config["healthchecks"])) {
+		this->fault_policy = FORCE_UP;
+		this->min_nodes = config["nodes"].size();
+	}
+
+	if (max_nodes < min_nodes) {
+		max_nodes = min_nodes;
+	}
 
 	auto it = fault_policy_names.find(fault_policy);
 	string fault_policy_name = (it == fault_policy_names.end()) ? string("") : it->second;
