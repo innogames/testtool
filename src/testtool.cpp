@@ -222,7 +222,7 @@ void TestTool::dump_status() {
 	struct timeval  tv;
 	struct tm      *tm;
 
-	ofstream status_file("/var/log/testtool.status",  ios_base::out |  ios_base::trunc);
+	ofstream status_file("/var/log/testtool.status.new",  ios_base::out |  ios_base::trunc);
 
 	gettimeofday(&tv, NULL);
 	tm = localtime(&tv.tv_sec);
@@ -240,6 +240,7 @@ void TestTool::dump_status() {
 	}
 
 	status_file.close();
+	rename ("/var/log/testtool.status.new", "/var/log/testtool.status");
 }
 
 void configure_bgp_callback(evutil_socket_t fd, short what, void *arg) {
@@ -330,9 +331,9 @@ void TestTool::setup_events() {
 	struct event *pfctl_event = event_new(eventBase, -1, EV_PERSIST, pfctl_callback, this);
 	event_add(pfctl_event, &pfctl_interval);
 
-	/* Dump the status to a file every 45 seconds */
+	/* Dump the status to a file every 5 seconds */
 	struct timeval dump_status_interval;
-	dump_status_interval.tv_sec  = 45;
+	dump_status_interval.tv_sec  = 5;
 	dump_status_interval.tv_usec = 0;
 	struct event *dump_status_event = event_new(eventBase, -1, EV_PERSIST, dump_status_callback, this);
 	event_add(dump_status_event, &dump_status_interval);
