@@ -19,7 +19,7 @@ class LbNode {
 
 	/* Methods */
 	public:
-		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
+		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto, set<string> *downtimes);
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
 
@@ -28,6 +28,7 @@ class LbNode {
 		bool is_downtimed();
 
 		State get_state(); /* getter for private member */
+		string get_state_text(); /* same, but text representation */
 
 	/* Members */
 	public:

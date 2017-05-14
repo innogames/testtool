@@ -43,7 +43,7 @@ class LbPool {
 
 	/* Methods */ 
 	public:
-		LbPool(string name, const YAML::Node& config, string proto);
+		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes);
 		void schedule_healthchecks(struct timespec *now);
 		void pool_logic(LbNode *last_node);
 		void parse_healthchecks_results();

@@ -29,7 +29,7 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, const YAML::Node& config, string proto)
+LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes)
 {
 	this->proto = proto;
 
@@ -69,7 +69,7 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto)
 	 */
 	for (auto lbnode_it : config["nodes"]) {
 		if ( ! lbnode_it.second["ip" + proto].IsNull()) {
-			new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto);
+			new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto, downtimes);
 		}
 	}
 	for (auto hc_it : config["healthchecks"]) {
@@ -172,12 +172,12 @@ void LbPool::pool_logic(LbNode *last_node) {
 				last_node->min_nodes_kept = true;
 			}
 			for (auto node: nodes) {
-				if (node->min_nodes_kept && wanted_nodes.size() < min_nodes) {
+				if (node->is_downtimed() == false && node->min_nodes_kept && wanted_nodes.size() < min_nodes) {
 					wanted_nodes.insert(node);
 				}
 			}
 			for (auto node: nodes) {
-				if (wanted_nodes.size() < min_nodes) {
+				if (node->is_downtimed() == false && wanted_nodes.size() < min_nodes) {
 					wanted_nodes.insert(node);
 					node->min_nodes_kept = true;
 				}

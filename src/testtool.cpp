@@ -68,7 +68,7 @@ void TestTool::load_downtimes() {
 
 	string line;
 
-	set<string> downtimes;
+	downtimes.clear();
 
 	/* Read all the lbpool-node pairs and store them. */
 	ifstream downtime_file("/etc/iglb/testtool_downtimes.conf");
@@ -81,7 +81,10 @@ void TestTool::load_downtimes() {
 		log(MSG_INFO, "Could not load downtime list file.");
 	}
 
-	/* Iterate over all lbpools and nodes, start downtime for the loaded ones, end for the ones not in the set. */
+	/* Iterate over all lbpools and nodes, start downtime for the loaded
+	 * ones, end for the ones not in the set. On testtool startup the list
+	 * of pools is empty, this loop should just ignore them.
+	 */
 	for (auto& lbpool : lb_pools) {
 		for (auto node : lbpool.second->nodes) {
 			if ( downtimes.count(lbpool.second->pf_name + " " + node->address) ) {
@@ -103,6 +106,12 @@ void TestTool::load_config(string config_file) {
 
         config = YAML::LoadFile(config_file)["lbpools"];
 
+	/*
+	 * Load downtimes before loading pools and nodes so that they can
+	 * start their operation in desired state.
+	 */
+	load_downtimes();
+
 	for (
 		YAML::const_iterator pool_it = config.begin();
 		pool_it != config.end();
@@ -119,7 +128,7 @@ void TestTool::load_config(string config_file) {
 			 */
 			try {
 				LbPool *new_lbpool = NULL;
-				new_lbpool = new LbPool(name, pool_it->second, proto);
+				new_lbpool = new LbPool(name, pool_it->second, proto, &downtimes);
 				lb_pools[new_lbpool->pf_name] = new_lbpool;
 			}
 			catch (NotLbPoolException ex) {
@@ -128,8 +137,6 @@ void TestTool::load_config(string config_file) {
 			}
 		}
 	}
-
-	load_downtimes();
 }
 
 

@@ -19,7 +19,7 @@ extern int	 	 verbose;
 /*
    Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
-LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
+LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto, set<string> *downtimes) {
 	this->name = name;
 	this->address = config["ip" + proto].as<std::string>();
 
@@ -28,7 +28,6 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 	this->admin_state = STATE_UP;
 	bool pf_state = false;
 	pf_is_in_table(&this->parent_lbpool->pf_name, &this->address, &pf_state);
-	this->state = STATE_DOWN;
 	if (pf_state)
 		this->state = STATE_UP;
 	else
@@ -39,7 +38,19 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
+	if (downtimes->count(parent_lbpool->pf_name + " " + this->address)) {
+		this->admin_state = STATE_DOWN;
+	}
+
+	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", (this->get_state_text())));
+}
+
+string LbNode::get_state_text() {
+	if (admin_state == STATE_DOWN)
+		return "DOWNTIME";
+	if (state == STATE_UP)
+		return "UP";
+	return "DOWN";
 }
 
 LbNode::State LbNode::get_state() {

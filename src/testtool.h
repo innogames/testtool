@@ -21,6 +21,7 @@ public:
     void update_pfctl();
 
 private:
+    set<string> downtimes;
     std::map<std::string, LbPool*> lb_pools;
     std::set<string*> ips4_alive;
     std::set<string*> ips6_alive;
