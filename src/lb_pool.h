@@ -34,7 +34,7 @@ class LbPool {
 
 		/* Fault policy infers the pool state from the set of node states. */
 		enum FaultPolicy {
-			FORCE_DOWN =  0, /* Pool fails if up_nodes < min_nodes. */
+			FORCE_DOWN  = 0, /* Pool fails if up_nodes < min_nodes. */
 			FORCE_UP    = 1, /* Last min_nodes nodes will be treated as online, even if they seem down */
 			BACKUP_POOL = 2, /* Switch to backup pool. */
 		};
@@ -44,9 +44,12 @@ class LbPool {
 	/* Methods */ 
 	public:
 		LbPool(string name, const YAML::Node& config, string proto);
-
 		void schedule_healthchecks(struct timespec *now);
+		void pool_logic(LbNode *last_node);
 		void parse_healthchecks_results();
+		void update_pfctl();
+		size_t count_up_nodes();
+		string get_backup_pool_state();
 
 
 	/* Members */
@@ -54,15 +57,19 @@ class LbPool {
 		string			 name;
 		string			 proto;
 		string			 ip_address;
+		string			 pf_name;
 		State			 state;
 		vector<class LbNode*>	 nodes;
+		set<class LbNode*>	 up_nodes;
+		bool			 up_nodes_changed; /* If pfctl should change anything */
 
 	private:
+		string			 backup_pool;
+		bool			 backup_pool_enabled;
+		set<string>		 used_as_backup;
 		size_t			 min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
 		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 fault_policy;
-		set<string>		 wanted_nodes;
-		bool			 wanted_nodes_changed;
 };
 
 #endif

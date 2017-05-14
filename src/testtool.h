@@ -18,6 +18,7 @@ public:
 
     void schedule_healthchecks();
     void parse_healthchecks_results();
+    void update_pfctl();
 
 private:
     std::map<std::string, LbPool*> lb_pools;

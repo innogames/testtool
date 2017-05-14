@@ -70,6 +70,7 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 	this->extra_delay = rand() % 1000;
 
 	this->is_running = false;
+	this->ran = false;
 
 	/*
 	 * Initialize healthchecks state basing on state of parent node.
@@ -225,4 +226,5 @@ void Healthcheck::handle_result() {
 
 	// Mark the check as not running, so it can be scheduled again.
 	is_running = false;
+	ran = true;
 }

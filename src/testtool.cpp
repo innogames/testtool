@@ -161,7 +161,6 @@ void TestTool::schedule_healthchecks() {
 	}
 }
 
-
 /*
    This function parses the results of healthchecks for all lbpools.
 */
@@ -175,11 +174,29 @@ void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
 
 void TestTool::parse_healthchecks_results() {
 	/* Iterate over all lbpools parse healthcheck results. */
-	for (auto lbpool : lb_pools) {
-		lbpool->parse_healthchecks_results();
+	for (auto& lbpool: lb_pools) {
+		lbpool.second->parse_healthchecks_results();
 	}
 }
 
+/*
+   This function updates pfctl to last wanted_nodes.
+*/
+void pfctl_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
+
+	((TestTool*)arg)->update_pfctl();
+}
+
+void TestTool::update_pfctl() {
+	/* Iterate over all lbpools and update pfctl for each. */
+	for (auto& lbpool : lb_pools) {
+		lbpool.second->update_pfctl();
+
+	}
+}
 
 /*
    Dump status to file. The status consists of:
@@ -255,7 +272,7 @@ void TestTool::configure_bgp() {
 		status_file.close();
 		// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
 		std::rename(tmpfile.c_str(), conffile.c_str());
-		ips4_alive = ips6_alive_tmp;
+		ips4_alive = ips4_alive_tmp;
 		system("/usr/local/sbin/birdcl configure");
 	}
 
@@ -298,6 +315,13 @@ void TestTool::setup_events() {
 	healthcheck_parser_interval.tv_usec = 100000;
 	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, this);
 	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
+
+	/* Run the pfctl configurator multiple times per second. */
+	struct timeval pfctl_interval;
+	pfctl_interval.tv_sec  = 0;
+	pfctl_interval.tv_usec = 100000;
+	struct event *pfctl_event = event_new(eventBase, -1, EV_PERSIST, pfctl_callback, this);
+	event_add(pfctl_event, &pfctl_interval);
 
 	/* Dump the status to a file every 45 seconds */
 	struct timeval dump_status_interval;

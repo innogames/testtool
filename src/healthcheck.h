@@ -90,6 +90,7 @@ class Healthcheck {
 		char			 last_state;
 		char			 hard_state;
 		string			 type;
+		bool			 ran;              // This check was ran at least once.
 
 	protected:
 		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */

@@ -26,17 +26,20 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 	this->parent_lbpool = parent_lbpool;
 
 	this->admin_state = STATE_UP;
-	bool pf_state = STATE_DOWN;
-	pf_is_in_table(&this->name, &this->address, &pf_state);
-
+	bool pf_state = false;
+	pf_is_in_table(&this->parent_lbpool->pf_name, &this->address, &pf_state);
+	this->state = STATE_DOWN;
 	if (pf_state)
 		this->state = STATE_UP;
 	else
 		this->state = STATE_DOWN;
+	this->checked = false;
+	this->min_nodes_kept = false;
+	this->max_nodes_kept = false;
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	log(MSG_INFO, this, fmt::sprintf("state %s created", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
+	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", (this->get_state()==STATE_DOWN?"DOWN":"UP")));
 }
 
 LbNode::State LbNode::get_state() {
@@ -83,21 +86,38 @@ void LbNode::parse_healthchecks_results() {
 
 	/* If there is no downtime, go over all healthchecks for this node and count hard STATE_UP healthchecks. */
 	for (auto& hc : healthchecks) {
-		if (hc->hard_state == STATE_UP) {
+		if (hc->ran)
+			checked = true;
+		if (hc->hard_state == STATE_UP)
 			ok_healthchecks++;
-		}
 	}
+
+	/* Do not check all healthchecks and don't notify pool until all check report at least once */
+	if (!checked)
+		return;
 
 	/* Fill in node state basing on passed healthchecks. Display information.
 	   Log and update pool if state changed. There is no need to check for downtimes. */
+	bool state_changed = false;
 	auto new_state = (ok_healthchecks < num_healthchecks) ? STATE_DOWN : STATE_UP;
 	if (state == STATE_UP && new_state == STATE_DOWN) {
+		state_changed = true;
+		max_nodes_kept = false;
 		state = STATE_DOWN;
 		log(MSG_STATE_DOWN, this, fmt::sprintf("%d of %d checks failed", num_healthchecks-ok_healthchecks, num_healthchecks));
 	} else if (state == STATE_DOWN && new_state == STATE_UP) {
+		state_changed = true;
+		min_nodes_kept = false;
 		state = STATE_UP;
 		log(MSG_STATE_DOWN, this, fmt::sprintf("all of %d checks passed", num_healthchecks));
 	}
+
+	/*
+	 * Notify parent pool only if all checks were done at least once and
+	 * if node really changed its state to avoid flapping.
+	 */
+	if (state_changed)
+		parent_lbpool -> pool_logic(this);
 }
 
 
@@ -120,6 +140,8 @@ void LbNode::start_downtime() {
 	log(MSG_STATE_DOWN, this, "starting downtime");
 
 	admin_state = STATE_DOWN;
+	max_nodes_kept = false;
+	parent_lbpool -> pool_logic(this);
 }
 
 

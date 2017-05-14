@@ -14,7 +14,7 @@ class LbNode {
 	public:
 	enum State {
 		STATE_DOWN = 0,
-		STATE_UP   = 1
+		STATE_UP   = 1,
 	};
 
 	/* Methods */
@@ -37,6 +37,9 @@ class LbNode {
 		State			 state;
 		vector<class Healthcheck*> healthchecks;
 		bool			 downtime;
+		bool			 min_nodes_kept; /* Node was kept to meet min_nodes requirement. */
+		bool			 max_nodes_kept; /* Node was kept because it met max_nodes requirement. */
+		bool			 checked; /* This node has all of its checks ran at least once. */
 
 	private:
 		State			 admin_state;
