@@ -19,6 +19,9 @@ bool node_defined(YAML::Node node) {
 	if (!node || node.Type() == YAML::NodeType::Null ) {
 		return false;
 	}
+	if (node.Type() == YAML::NodeType::Sequence && node.size() == 0 ) {
+		return false;
+	}
 	return true;
 }
 
