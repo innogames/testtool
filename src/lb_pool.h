@@ -43,7 +43,7 @@ class LbPool {
 
 	/* Methods */ 
 	public:
-		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes);
+		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools);
 		void schedule_healthchecks(struct timespec *now);
 		void pool_logic(LbNode *last_node);
 		void parse_healthchecks_results();
@@ -64,12 +64,12 @@ class LbPool {
 		bool			 up_nodes_changed; /* If pfctl should change anything */
 
 	private:
-		string			 backup_pool;
-		bool			 backup_pool_enabled;
-		set<string>		 used_as_backup;
+		string			 backup_pool_name;
+		bool			 backup_pool_active;
 		size_t			 min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
 		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 fault_policy;
+		map<std::string, LbPool*> *all_lb_pools;
 };
 
 #endif

@@ -12,7 +12,8 @@ using namespace std;
 
 const map<LbPool::FaultPolicy, string> LbPool::fault_policy_names = {
 	{FORCE_DOWN, "force_down"},
-	{FORCE_UP, "force_up"}
+	{FORCE_UP, "force_up"},
+	{BACKUP_POOL, "backup_pool"},
 };
 
 LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
@@ -29,9 +30,9 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes)
-{
+LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools) {
 	this->proto = proto;
+	this->all_lb_pools = all_lb_pools;
 
 	/* Perform some checks to verify if this is really an LB Pool */
 	if  (!node_defined(config["ip"+proto])) {
@@ -52,8 +53,10 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 		max_nodes = min_nodes;
 	}
 	this->fault_policy = LbPool::fault_policy_by_name(parse_string(config["min_nodes_action"], "force_down"));
-	if (this->backup_pool != "") {
+	this->backup_pool_name = parse_string(config["backup_pool"], "");
+	if (this->backup_pool_name != "") {
 		this->fault_policy = BACKUP_POOL;
+		this->backup_pool_name = this->backup_pool_name + "_" + proto;
 	}
 
 	this->state = STATE_DOWN;
@@ -100,9 +103,9 @@ size_t LbPool::count_up_nodes() {
 }
 
 string LbPool::get_backup_pool_state() {
-	if (backup_pool == "")
+	if (backup_pool_name == "")
 		return "none";
-	if (backup_pool_enabled)
+	if (backup_pool_active)
 		return "active";
 	return "configured";
 }
@@ -130,8 +133,13 @@ void LbPool::pool_logic(LbNode *last_node) {
 	 * So here is an algorithm that always builds set of wanted nodes from
 	 * scratch.
 	 */
-
         set<LbNode*> wanted_nodes;
+
+	/*
+	 * Try running without backup pool. Enable it only if not enough up
+	 * nodes are found.
+	 */
+	backup_pool_active = false;
 
 	/*
 	 * Add nodes while satisfying max_nodes if it is set. First add nodes
@@ -183,14 +191,13 @@ void LbPool::pool_logic(LbNode *last_node) {
 				}
 			}
 		} else if (fault_policy == BACKUP_POOL) {
-			/*
-			for _, lbn := range lbp.lbNodes {
-				if lbn.primary == false && lbn.state == NodeUp {
-					wantedNodes = append(wantedNodes, lbn)
-					forcedNodes++
-				}
+			if (all_lb_pools->find(backup_pool_name) != all_lb_pools->end()) {
+				log(MSG_INFO, this, fmt::sprintf("Switching to backup pool %s", backup_pool_name));
+				wanted_nodes = all_lb_pools->find(backup_pool_name)->second->up_nodes;
+				backup_pool_active = true;
+			} else {
+				log(MSG_CRIT, this, fmt::sprintf("No LB Pool '%s' to use as backup pool!", backup_pool_name));
 			}
-			*/
 		}
 	}
 
@@ -228,6 +235,13 @@ void LbPool::update_pfctl(void) {
 	}
 
 	pf_sync_table(&pf_name, &wanted_addresses);
+
+	for (auto& lb_pool: *all_lb_pools) {
+		if (lb_pool.second->backup_pool_active && lb_pool.second->backup_pool_name == name) {
+			log(MSG_INFO, this, fmt::sprintf("Updating backup pool of %s", lb_pool.second->name));
+			pf_sync_table(&lb_pool.second->pf_name, &wanted_addresses);
+		}
+	}
 
 	up_nodes_changed = false;
 }

@@ -128,7 +128,7 @@ void TestTool::load_config(string config_file) {
 			 */
 			try {
 				LbPool *new_lbpool = NULL;
-				new_lbpool = new LbPool(name, pool_it->second, proto, &downtimes);
+				new_lbpool = new LbPool(name, pool_it->second, proto, &downtimes, &lb_pools);
 				lb_pools[new_lbpool->name] = new_lbpool;
 			}
 			catch (NotLbPoolException ex) {
