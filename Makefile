@@ -25,9 +25,15 @@ DLIBS=	-levent -levent_core -levent_pthreads -levent_openssl \
 	-l boost_system
 
 UNAME_S := $(shell uname -s)
+UNAME_R := $(shell uname -r)
 
 ifeq ($(UNAME_S),FreeBSD)
+ifeq ($(findstring 10.,$(UNAME_R)),10.)
 DLIBS += -l:libcrypto.so.7 -l:libssl.so.7
+endif
+ifeq ($(findstring 11.,$(UNAME_R)),11.)
+DLIBS += -l:libcrypto.so.8 -l:libssl.so.8
+endif
 endif
 ifeq ($(UNAME_S),Linux)
 DLIBS += -l:libcrypto.so.1.0.2 -l:libssl.so.1.0.2
