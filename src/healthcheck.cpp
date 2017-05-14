@@ -125,7 +125,7 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 int Healthcheck::schedule_healthcheck(struct timespec *now) {
 
 	/* Do not schedule the healthcheck twice nor when there is a downtime. */
-	if (is_running || parent_lbnode->downtime)
+	if (is_running || parent_lbnode->is_downtimed())
 		return false;
 
 	/* Check if host should be checked at this time. */
@@ -212,12 +212,12 @@ void Healthcheck::handle_result() {
 
 		failure_counter++;
 
-		if (!parent_lbnode->downtime)
+		if (!parent_lbnode->is_downtimed())
 			log(MSG_STATE_DOWN, this, fmt::sprintf("failed for the %d time", failure_counter));
 
 		// Mark the hard DOWN state only after the number of failed checks is reached.
 		if (failure_counter >= max_failed_checks) {
-			if (!parent_lbnode->downtime)
+			if (!parent_lbnode->is_downtimed())
 				log(MSG_STATE_DOWN, this, "hard failure reached");
 			hard_state = STATE_DOWN;
 		}

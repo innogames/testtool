@@ -23,7 +23,6 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 	this->name = name;
 	this->address = config["ip" + proto].as<std::string>();
 
-	this->downtime = false;
 	this->parent_lbpool = parent_lbpool;
 
 	this->admin_state = STATE_UP;
