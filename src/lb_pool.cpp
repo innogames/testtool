@@ -137,11 +137,10 @@ void LbPool::pool_logic(LbNode *last_node) {
 	/*
 	 * Now that checks are know, operations can be performed on pf.
 	 * I tried to come multiple times with a differential algorithm.
-	 * I always failed because of:
-	 * - To satisfy min_nodes iteration over other nodes was necessary.
-	 * - They could not properly fill in the pool on program startup.
-	 * So here is an algorithm that always builds set of wanted nodes from
-	 * scratch.
+	 * I always failed because iteration was necessary in some cases anyway:
+	 * - To restore nodes after min_nodes with force_down is satisfied.
+	 * - To fill in a pool without healthchecks.
+	 * - To restore pool after switch from backup_pool.
 	 */
         set<LbNode*> wanted_nodes;
 
@@ -156,7 +155,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 	 * which were added on previous change in order to avoid rebalancing.
 	 */
 	for (auto node: nodes) {
-		if (node->max_nodes_kept == true) {
+		if (node->max_nodes_kept) {
 			if (node->get_state() == node->STATE_UP && (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
 				wanted_nodes.insert(node);
 			}
@@ -164,7 +163,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 	}
 	/* Then add other active nodes if still possible within max_nodes limit. */
 	for (auto node: nodes) {
-		if (node->max_nodes_kept == false) {
+		if (!node->max_nodes_kept) {
 			if (node->get_state() == node->STATE_UP && (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
 				wanted_nodes.insert(node);
 				node->max_nodes_kept = true;
@@ -173,12 +172,14 @@ void LbPool::pool_logic(LbNode *last_node) {
 	}
 	/* Now satisfy minNodes depending on its configuration */
 	if (min_nodes > 0 && wanted_nodes.size() < min_nodes) {
-		if (fault_policy == FORCE_DOWN) {
+		switch (fault_policy) {
+			case FORCE_DOWN:
 			/*
 			 * If there is not enough nodes, bring the whole pool down.
 			 */
 			wanted_nodes.clear();
-		} else if (fault_policy == FORCE_UP) {
+			break;
+			case FORCE_UP:
 			/*
 			 * Still not enough nodes to satisfy min_nodes? Add
 			 * those which changed state recently or which have no
@@ -189,7 +190,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 			}
 			for (auto node: nodes) {
 				if (
-					node->is_downtimed() == false &&
+					!node->is_downtimed() &&
 					wanted_nodes.size() < min_nodes &&
 					(node->min_nodes_kept || node->healthchecks.size() == 0)
 				) {
@@ -197,7 +198,8 @@ void LbPool::pool_logic(LbNode *last_node) {
 					wanted_nodes.insert(node);
 				}
 			}
-		} else if (fault_policy == BACKUP_POOL) {
+			break;
+			case BACKUP_POOL:
 			if (all_lb_pools->find(backup_pool_name) != all_lb_pools->end()) {
 				log(MSG_INFO, this, fmt::sprintf("Switching to backup pool %s", backup_pool_name));
 				wanted_nodes = all_lb_pools->find(backup_pool_name)->second->up_nodes;
@@ -205,6 +207,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 			} else {
 				log(MSG_CRIT, this, fmt::sprintf("No LB Pool '%s' to use as backup pool!", backup_pool_name));
 			}
+			break;
 		}
 	}
 
@@ -231,7 +234,7 @@ void LbPool::pool_logic(LbNode *last_node) {
  * Update pfctl to last known wanted_nodes if necessary.
  */
 void LbPool::update_pfctl(void) {
-	if (up_nodes_changed == false) {
+	if (!up_nodes_changed) {
 		return;
 	}
 
