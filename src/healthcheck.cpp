@@ -100,7 +100,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 
 	Healthcheck * new_healthcheck = NULL;
 
-	std::string type = config["type"].as<std::string>();
+	std::string type = parse_string(config["type"], "");
+
 	if (type == "http")
 		new_healthcheck = new Healthcheck_http(config, _parent_lbnode);
 	else if (type == "https")
@@ -113,6 +114,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 		new_healthcheck = new Healthcheck_postgres(config, _parent_lbnode);
 	else if (type == "dns")
 		new_healthcheck = new Healthcheck_dns(config, _parent_lbnode);
+	else
+		return NULL;
 
 	return new_healthcheck;
 }
