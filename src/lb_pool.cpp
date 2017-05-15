@@ -92,9 +92,9 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	}
 
 	/*
-	 * State of nodes loaded from pf must be verified. Maybe it is empty
-	 * in pf and must have min_nodes added? Maybe it contains entries which
-	 * are not in config file anymore? Maybe it has no checks assigned?
+	 * State of nodes loaded from pf must be verified. Maybe it contains
+	 * entries which are not in config file anymore? Maybe it has no checks
+	 * assigned?
 	 */
 	pool_logic(NULL);
 }
@@ -180,24 +180,21 @@ void LbPool::pool_logic(LbNode *last_node) {
 			wanted_nodes.clear();
 		} else if (fault_policy == FORCE_UP) {
 			/*
-			 * More nodes must be added to pool even if they are
-			 * down. Similar thing as above: start with nodes which
-			 * where in pool on previous change. And even before
-			 * that start with the node from which pool_logic was
-			 * called.
+			 * Still not enough nodes to satisfy min_nodes? Add
+			 * those which changed state recently or which have no
+			 * healthchecks.
 			 */
 			if (last_node) {
 				last_node->min_nodes_kept = true;
 			}
 			for (auto node: nodes) {
-				if (node->is_downtimed() == false && node->min_nodes_kept && wanted_nodes.size() < min_nodes) {
+				if (
+					node->is_downtimed() == false &&
+					wanted_nodes.size() < min_nodes &&
+					(node->min_nodes_kept || node->healthchecks.size() == 0)
+				) {
+					log(MSG_INFO, this, fmt::sprintf("Force keeping node %s", node->name));
 					wanted_nodes.insert(node);
-				}
-			}
-			for (auto node: nodes) {
-				if (node->is_downtimed() == false && wanted_nodes.size() < min_nodes) {
-					wanted_nodes.insert(node);
-					node->min_nodes_kept = true;
 				}
 			}
 		} else if (fault_policy == BACKUP_POOL) {
