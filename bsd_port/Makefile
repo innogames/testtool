@@ -8,16 +8,14 @@ COMMENT=	Testtool checks health of loadbalanced services.
 
 USES=		gmake
 
-BUILD_DEPENDS=	libevent>=libevent-2.1.8:devel/libevent \
-		postgresql93-client:databases/postgresql93-client \
-		yaml-cpp>=0.5.3_2:devel/yaml-cpp \
-		libfmt>=3.0.01:devel/libfmt
+LIB_DEPENDS=	libevent-2.1.so.6:devel/libevent \
+		libpq.so.5:databases/postgresql93-client \
+		libyaml-cpp.so.0.5.3:devel/yaml-cpp \
+		libboost_system.so.1.64.0:devel/boost-libs
 
+BUILD_DEPENDS=	libfmt>=3.0.1_1:devel/libfmt
 
-BUILD_DEPENDS=	${ALL_DEPENDS}
-
-RUN_DEPENDS=	${ALL_DEPENDS} \
-		screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
+RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
 
 PLIST_FILES=	/usr/local/sbin/testtool \
 		/usr/local/sbin/testtool_watchdog \
