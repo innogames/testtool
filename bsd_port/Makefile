@@ -15,10 +15,7 @@ LIB_DEPENDS=	libevent-2.1.so.6:devel/libevent \
 
 BUILD_DEPENDS=	libfmt>=3.0.1_1:devel/libfmt
 
-RUN_DEPENDS=	screen>=4.3.1_2:${PORTSDIR}/sysutils/screen
-
 PLIST_FILES=	/usr/local/sbin/testtool \
-		/usr/local/sbin/testtool_watchdog \
 		/usr/local/etc/rc.d/testtool
 
 .include <bsd.port.options.mk>

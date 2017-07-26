@@ -56,5 +56,4 @@ test:
 
 install:
 	install $(CURDIR)/testtool			${DESTDIR}/${PREFIX}/sbin
-	install $(CURDIR)/scripts/testtool_watchdog	${DESTDIR}/${PREFIX}/sbin
 	install $(CURDIR)/scripts/testtool_bsdrc	${DESTDIR}/${PREFIX}/etc/rc.d/testtool
