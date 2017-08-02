@@ -67,7 +67,11 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 		this->min_nodes = config["nodes"].size();
 	}
 
-	if (max_nodes < min_nodes) {
+	/*
+	 * Ensure that min_ and max_nodes make sense. But only if max_nodes
+	 * was given. Value of 0 means that the feature is disabled.
+	 */
+	if (max_nodes > 0 && max_nodes < min_nodes) {
 		max_nodes = min_nodes;
 	}
 
