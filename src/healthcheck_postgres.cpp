@@ -67,15 +67,15 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
  * The entrypoint of the class
  *
  * This starts the health check by choosing the first step.  After we
- * call the method for the first step, thigs will continue in
- * an asynchronious chain of events.
+ * call the method for the first step, things will continue in
+ * an asynchronous chain of events.
  *
  * XXX Nobody checks the exit code of this function.  We must never
  * fail to call the first step for process to reach the end.
  */
 int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 
-	// Peform general stuff for scheduled healthcheck
+	// Perform general stuff for scheduled health check
 	if (!Healthcheck::schedule_healthcheck(now))
 		return false;
 
@@ -115,7 +115,7 @@ void Healthcheck_postgres::start_conn() {
 	if (this->conn == NULL)
 		return this->end_check(HC_PANIC, "cannot start db connection");
 
-    // The connection can fail right away.
+	// The connection can fail right away.
 	if (PQstatus(this->conn) == CONNECTION_BAD)
 		return this->end_check(HC_FAIL, "db connection failed");
 
@@ -377,7 +377,7 @@ void Healthcheck_postgres::register_io_event(short flag,
  * Helper method to register the timeout event to libevent
  *
  * XXX This is a copy of the function above.  It should be shared by all
- * healthchecks.
+ * health checks.
  */
 void Healthcheck_postgres::register_timeout_event() {
 
@@ -437,7 +437,7 @@ void Healthcheck_postgres::handle_io_event(int fd, short flag, void *arg) {
 /*
  * Static callback for timeout events
  *
- * XXX This should be shared by all healthchecks.
+ * XXX This should be shared by all health checks.
  */
 void Healthcheck_postgres::handle_timeout_event(int fd, short flag, void *arg) {
 	Healthcheck_postgres *hc = (Healthcheck_postgres *) arg;
