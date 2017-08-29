@@ -294,14 +294,13 @@ void Healthcheck_postgres::handle_query() {
 	// Get the single cell
 	val = PQgetvalue(this->query_result, 0, 0);
 
-	if (strlen(val) != 1) {
+	if (strlen(val) != 1)
 		return this->end_check(HC_FAIL, "db result not 1 char");
-	}
 
-	if (val[0] == 't')
-		this->end_check(HC_PASS, "db result true");
-	else
-		this->end_check(HC_FAIL, "db result false");
+	if (val[0] != 't')
+		return this->end_check(HC_FAIL, "db result false");
+
+	return this->end_check(HC_PASS, "db result true");
 }
 
 /*
@@ -317,6 +316,11 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 		if (verbose >= 2)
 			log(MSG_DEBUG, this, fmt::sprintf("Last event %d after %d events",
 				this->event_flag, this->event_counter));
+	}
+
+	if (this->query_result != NULL) {
+		PQclear(this->query_result);
+		this->query_result = NULL;
 	}
 
 	if (this->io_event != NULL) {
