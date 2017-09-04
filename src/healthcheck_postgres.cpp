@@ -67,15 +67,15 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
  * The entrypoint of the class
  *
  * This starts the health check by choosing the first step.  After we
- * call the method for the first step, thigs will continue in
- * an asynchronious chain of events.
+ * call the method for the first step, things will continue in
+ * an asynchronous chain of events.
  *
  * XXX Nobody checks the exit code of this function.  We must never
  * fail to call the first step for process to reach the end.
  */
 int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 
-	// Peform general stuff for scheduled healthcheck
+	// Perform general stuff for scheduled health check
 	if (!Healthcheck::schedule_healthcheck(now))
 		return false;
 
@@ -115,7 +115,7 @@ void Healthcheck_postgres::start_conn() {
 	if (this->conn == NULL)
 		return this->end_check(HC_PANIC, "cannot start db connection");
 
-    // The connection can fail right away.
+	// The connection can fail right away.
 	if (PQstatus(this->conn) == CONNECTION_BAD)
 		return this->end_check(HC_FAIL, "db connection failed");
 
@@ -294,14 +294,13 @@ void Healthcheck_postgres::handle_query() {
 	// Get the single cell
 	val = PQgetvalue(this->query_result, 0, 0);
 
-	if (strlen(val) != 1) {
+	if (strlen(val) != 1)
 		return this->end_check(HC_FAIL, "db result not 1 char");
-	}
 
-	if (val[0] == 't')
-		this->end_check(HC_PASS, "db result true");
-	else
-		this->end_check(HC_FAIL, "db result false");
+	if (val[0] != 't')
+		return this->end_check(HC_FAIL, "db result false");
+
+	return this->end_check(HC_PASS, "db result true");
 }
 
 /*
@@ -317,6 +316,11 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 		if (verbose >= 2)
 			log(MSG_DEBUG, this, fmt::sprintf("Last event %d after %d events",
 				this->event_flag, this->event_counter));
+	}
+
+	if (this->query_result != NULL) {
+		PQclear(this->query_result);
+		this->query_result = NULL;
 	}
 
 	if (this->io_event != NULL) {
@@ -377,7 +381,7 @@ void Healthcheck_postgres::register_io_event(short flag,
  * Helper method to register the timeout event to libevent
  *
  * XXX This is a copy of the function above.  It should be shared by all
- * healthchecks.
+ * health checks.
  */
 void Healthcheck_postgres::register_timeout_event() {
 
@@ -437,7 +441,7 @@ void Healthcheck_postgres::handle_io_event(int fd, short flag, void *arg) {
 /*
  * Static callback for timeout events
  *
- * XXX This should be shared by all healthchecks.
+ * XXX This should be shared by all health checks.
  */
 void Healthcheck_postgres::handle_timeout_event(int fd, short flag, void *arg) {
 	Healthcheck_postgres *hc = (Healthcheck_postgres *) arg;
