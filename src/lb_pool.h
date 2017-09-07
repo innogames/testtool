@@ -61,7 +61,6 @@ class LbPool {
 		State			 state;
 		vector<class LbNode*>	 nodes;
 		set<class LbNode*>	 up_nodes;
-		bool			 up_nodes_changed; /* If pfctl should change anything */
 
 	private:
 		string			 backup_pool_name;

@@ -1,14 +1,19 @@
+#include <string.h>
 #include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "pfctl.h"
+#include "pfctl_worker.h"
 #include "msg.h"
 
 #include "lb_pool.h"
 #include "lb_node.h"
 
 using namespace std;
+
+/* Global variables. */
+extern message_queue		*pfctl_mq;
 
 const map<LbPool::FaultPolicy, string> LbPool::fault_policy_names = {
 	{FORCE_DOWN, "force_down"},
@@ -84,11 +89,23 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	 * Glue things together. Please note that children append themselves
 	 * to property of parent in their own code.
 	 */
+	int node_index = 0;
 	for (auto lbnode_it : config["nodes"]) {
-		if ( ! lbnode_it.second["ip" + proto].IsNull()) {
-			new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto, downtimes);
+		/*
+		 * Silently drop node if there is more than MAX_NODES.
+		 * Only this many nodes can be sent to pfctl worker.
+		 * We have no way of notifying Serveradmin about push failure
+		 * so silently dropping is good enough for now.
+		 * TODO: inform Serveradmin and fail pushing.
+		 */
+		if (node_index < MAX_NODES) {
+			if ( ! lbnode_it.second["ip" + proto].IsNull()) {
+				new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto, downtimes);
+				node_index++;
+			}
 		}
 	}
+
 	for (auto hc_it : config["healthchecks"]) {
 		for (auto node : this->nodes) {
 			Healthcheck::healthcheck_factory(hc_it, node);
@@ -215,15 +232,17 @@ void LbPool::pool_logic(LbNode *last_node) {
 		}
 	}
 
-	if (wanted_nodes != up_nodes) {
-		up_nodes = wanted_nodes;
-		up_nodes_changed = true;
-	}
+	if (wanted_nodes == up_nodes)
+		return;
+
+	up_nodes = wanted_nodes;
 
 	log(MSG_INFO, this, fmt::sprintf("%d/%d nodes up", up_nodes.size(), nodes.size()));
 	for (auto node: up_nodes){
 		log(MSG_INFO, this, fmt::sprintf("up_node: %s", node->name));
 	}
+
+	this->update_pfctl();
 
 	/* Pool state will be used for configuring BGP */
 	if (up_nodes.empty()) {
@@ -238,24 +257,14 @@ void LbPool::pool_logic(LbNode *last_node) {
  * Update pfctl to last known wanted_nodes if necessary.
  */
 void LbPool::update_pfctl(void) {
-	if (!up_nodes_changed) {
-		return;
-	}
+	// Update primary LB Pool
+	send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
 
-	set<string> wanted_addresses;
-
-	for (auto node: up_nodes) {
-		wanted_addresses.insert(node->address);
-	}
-
-	pf_sync_table(&pf_name, &wanted_addresses);
-
+	// Update any other LB Pools which use this one as Backup Pool
 	for (auto& lb_pool: *all_lb_pools) {
 		if (lb_pool.second->backup_pool_active && lb_pool.second->backup_pool_name == name) {
 			log(MSG_INFO, this, fmt::sprintf("Updating backup pool of %s", lb_pool.second->name));
-			pf_sync_table(&lb_pool.second->pf_name, &wanted_addresses);
+			send_message(pfctl_mq, lb_pool.second->name, lb_pool.second->pf_name, this->up_nodes);
 		}
 	}
-
-	up_nodes_changed = false;
 }

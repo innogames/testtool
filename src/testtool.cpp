@@ -7,9 +7,11 @@
 #include <set>
 #include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
+#include <boost/interprocess/ipc/message_queue.hpp>
 
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <signal.h>
 
 #include <event2/event.h>
@@ -25,8 +27,10 @@
 #include "healthcheck.h"
 #include "healthcheck_ping.h"
 #include "testtool.h"
+#include "pfctl_worker.h"
 
 using namespace std;
+using namespace boost::interprocess;
 
 /* Global variables, some are exported to other modules. */
 struct event_base	*eventBase = NULL;
@@ -35,6 +39,7 @@ int			 verbose = 0;
 int			 verbose_pfctl = 0;
 bool			 pf_action = true;
 bool			 check_downtimes = false; /* Whether downtimes should be reloaded. */
+message_queue		*pfctl_mq;
 
 void signal_handler(int signum) {
 	switch (signum) {
@@ -186,24 +191,6 @@ void TestTool::parse_healthchecks_results() {
 	}
 }
 
-/*
-   This function updates pfctl to last wanted_nodes.
-*/
-void pfctl_callback(evutil_socket_t fd, short what, void *arg) {
-	/* Make compiler happy. */
-	(void)(fd);
-	(void)(what);
-
-	((TestTool*)arg)->update_pfctl();
-}
-
-void TestTool::update_pfctl() {
-	/* Iterate over all lbpools and update pfctl for each. */
-	for (auto& lbpool : lb_pools) {
-		lbpool.second->update_pfctl();
-
-	}
-}
 
 /*
    Dump status to file. The status consists of:
@@ -313,23 +300,17 @@ void TestTool::setup_events() {
 	/* Run the healthcheck scheduler multiple times per second. */
 	struct timeval healthcheck_scheduler_interval;
 	healthcheck_scheduler_interval.tv_sec  = 0;
-	healthcheck_scheduler_interval.tv_usec = 100000;
+	healthcheck_scheduler_interval.tv_usec = 100000; // 0.1s
 	struct event *healthcheck_scheduler_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_scheduler_callback, this);
 	event_add(healthcheck_scheduler_event, &healthcheck_scheduler_interval);
 
 	/* Run the healthcheck result parser multiple times per second. */
 	struct timeval healthcheck_parser_interval;
 	healthcheck_parser_interval.tv_sec  = 0;
-	healthcheck_parser_interval.tv_usec = 100000;
+	healthcheck_parser_interval.tv_usec = 100000; // 0.1s
 	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, this);
 	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
 
-	/* Run the pfctl configurator multiple times per second. */
-	struct timeval pfctl_interval;
-	pfctl_interval.tv_sec  = 0;
-	pfctl_interval.tv_usec = 100000;
-	struct event *pfctl_event = event_new(eventBase, -1, EV_PERSIST, pfctl_callback, this);
-	event_add(pfctl_event, &pfctl_interval);
 
 	/* Dump the status to a file every 5 seconds */
 	struct timeval dump_status_interval;
@@ -400,11 +381,6 @@ int main (int argc, char *argv[]) {
 
 	srand(time(NULL));;
 
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-	signal(SIGHUP, signal_handler);
-	signal(SIGPIPE, signal_handler);
-	signal(SIGUSR1, signal_handler);
 
 	string config_file_name = "/etc/iglb/iglb.json";
 
@@ -431,14 +407,24 @@ int main (int argc, char *argv[]) {
 	}
 
 	log(MSG_INFO, "Initializing various stuff...");
+
+	pfctl_mq = start_pfctl_worker();
+	setproctitle("%s", "main process");
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGHUP, signal_handler);
+	signal(SIGPIPE, signal_handler);
+	signal(SIGUSR1, signal_handler);
+
 	if (!init_libssl()) {
-		log(MSG_CRIT, "Unable to initialise OpenSSL!");
+		log(MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
 		exit(-1);
 	}
 	init_libevent();
 
 	if (!Healthcheck_ping::initialize()) {
-		log(MSG_CRIT, "Unable to initialize Healthcheck_ping!");
+		log(MSG_CRIT, "Unable to initialize Healthcheck_ping, terminating!");
 		exit(-1);
 	}
 
@@ -451,11 +437,15 @@ int main (int argc, char *argv[]) {
 	log(MSG_INFO, "Left the main loop.");
 
 	delete tool;
-	log(MSG_INFO, "Ending testtool, bye!");
+	log(MSG_INFO, "Stopping testtool");
 
 	Healthcheck_ping::destroy();
 
 	finish_libevent();
 	finish_libssl();
+	stop_pfctl_worker();
+	log(MSG_INFO, "Waiting for pfctl worker");
+	wait(NULL);
+	log(MSG_INFO, "Testtool finished, bye!");
 }
 
