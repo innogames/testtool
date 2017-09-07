@@ -47,8 +47,15 @@ void pfctl_worker_loop(message_queue* mq) {
 				wanted_addresses.insert(wanted_address);
 		}
 
+		/*
+		 * Measure total time of all pfctl operations.
+		 * Don't use std::chrono, there is a conflict with boost.
+		 */
+		chrono::high_resolution_clock::time_point t1 = chrono::high_resolution_clock::now();
 		pf_sync_table(table_name, wanted_addresses);
-		log(MSG_INFO, fmt::sprintf("lbpool: %s finished synchronizing pf table %s", msg.pool_name, msg.table_name));
+		chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
+		auto duration = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
+		log(MSG_INFO, fmt::sprintf("lbpool: %s finished synchronizing pf table %s time: %dms", msg.pool_name, msg.table_name, duration));
 	}
 	message_queue::remove("pfctl");
 }

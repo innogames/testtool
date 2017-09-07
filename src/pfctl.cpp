@@ -14,6 +14,7 @@
 #include "pfctl.h"
 
 using namespace std;
+using namespace std::chrono;
 
 extern bool	 pf_action;
 extern int	 verbose_pfctl;
@@ -36,9 +37,10 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
 		log(MSG_INFO, cmd);
 	}
 
+	high_resolution_clock::time_point t1 = high_resolution_clock::now();
 	fp = popen(cmd.c_str(), "r");
 	if (!fp) {
-		log(MSG_CRIT, "Can't spawn pfctl process: " + cmd);
+		log(MSG_CRIT, fmt::sprintf("pfctl: '%s' can't spanw process", cmd));
 		return false;
 	}
 
@@ -54,11 +56,12 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
 		}
 	}
 	pclose(fp);
+	high_resolution_clock::time_point t2 = high_resolution_clock::now();
+	auto duration = duration_cast<milliseconds>( t2 - t1 ).count();
+	log(MSG_DEBUG, fmt::sprintf("pfctl: '%s' exit code %d time: %dms", cmd, ret, duration));
 
-	if (ret != 0) {
-		log(MSG_CRIT, "pfctl failed with error code: " + cmd);
+	if (ret != 0)
 		return false;
-	}
 	return true;
 }
 
