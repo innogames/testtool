@@ -209,43 +209,46 @@ bool pf_table_rebalance(string *table, set<string> *skip_addresses) {
 	return true;
 }
 
-bool pf_sync_table(string *table, set<string> *want_set) {
+bool pf_sync_table(string table, set<string> want_set) {
 	set<string> cur_set;
 
-	if (!pf_get_table(table, &cur_set))
+	if (!pf_get_table(&table, &cur_set))
 		return false;
 
+	/* Prepare nodes to add and remove */
 	std::set<string> to_add;
 	std::set_difference(
-		want_set->begin(), want_set->end(),
+		want_set.begin(), want_set.end(),
 		cur_set.begin(), cur_set.end(),
 		std::inserter(to_add, to_add.end())
 	);
 
-	/* Add wanted nodes to table */
-	if (!pf_table_add(table, &to_add))
-		return false;
-	/* Kill src_nodes to old entries from table so that connections get rebalanced. */
-	pf_table_rebalance(table, &to_add);
-
 	std::set<string> to_del;
 	std::set_difference(
 		cur_set.begin(), cur_set.end(),
-		want_set->begin(), want_set->end(),
+		want_set.begin(), want_set.end(),
 		std::inserter(to_del, to_del.end())
 	);
+
 	/* Remove unwanted nodes from table. */
-	if (!pf_table_del(table, &to_del))
+	if (!pf_table_del(&table, &to_del))
 		return false;
 	for (auto del: to_del) {
 		/* Kill all src_nodes, linked states and unlinked states. */
-		pf_kill_src_nodes_to(table, &del, true);
-		pf_kill_states_to_rdr(table, &del, true);
+		pf_kill_src_nodes_to(&table, &del, true);
+		pf_kill_states_to_rdr(&table, &del, true);
 		/* Kill nodes again, there might be some which were created after last
 		 * kill due to belonging to states with deferred src_nodes.
 		 * See TECH-6711 and around. */
-		pf_kill_src_nodes_to(table, &del, true);
+		pf_kill_src_nodes_to(&table, &del, true);
 	}
+
+
+	/* Add wanted nodes to table */
+	if (!pf_table_add(&table, &to_add))
+		return false;
+	/* Kill src_nodes to old entries from table so that connections get rebalanced. */
+	pf_table_rebalance(&table, &to_add);
 
 	return true;
 }
