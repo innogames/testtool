@@ -76,12 +76,14 @@ class Healthcheck {
 		static Healthcheck *healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode);
 		virtual int schedule_healthcheck(struct timespec *now);
 		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode);
-		void handle_result();
 		void force_failure();
 		virtual void finalize_result();
 
 	protected:
 		void end_check(HealthcheckResult result, string message);
+
+	private:
+		void handle_result(string message);
 
 
 	/* Members */

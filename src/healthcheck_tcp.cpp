@@ -35,36 +35,34 @@ Healthcheck_tcp::Healthcheck_tcp(const YAML::Node& config, class LbNode *_parent
    The callback is called by libevent, it's a static method that requires the Healthcheck object to be passed to it.
 */
 void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg) {
-	Healthcheck_tcp *hc = (Healthcheck_tcp *)arg;
+	Healthcheck_tcp		*hc = (Healthcheck_tcp *)arg;
+	string			 message = fmt::sprintf("wrong event %d", what);
+	HealthcheckResult	 result = HC_PANIC;
+
 	if (what & EV_TIMEOUT) {
-		hc->last_state = STATE_DOWN;
-		if (verbose>1 || hc->hard_state != STATE_DOWN)
-			log(
-				MSG_STATE_DOWN,
-				hc,
-				fmt::sprintf("Healthcheck_%s: timeout after %d,%3ds",
-				hc->type.c_str(),
-				hc->timeout.tv_sec,
-				hc->timeout.tv_usec / 1000)
-			);
+		result = HC_FAIL;
+		message = fmt::sprintf(
+			"timeout after %d.%3ds",
+			hc->timeout.tv_sec,
+			hc->timeout.tv_usec / 1000
+		);
 
 	} else if (what & EV_READ) {
 		char buf[256];
-		if (read(socket_fd, buf, 255) == -1){
-			hc->last_state = STATE_DOWN;
-			if (verbose>1 || hc->hard_state != STATE_DOWN)
-				log(MSG_STATE_DOWN, hc, "connection refused");
+		if (read(socket_fd, buf, 255) == -1) {
+			result = HC_FAIL;
+			message = "connection refused";
 		}
 	} else if (what & EV_WRITE) {
-		hc->last_state = STATE_UP;
-		if (verbose>1 || hc->last_state == STATE_DOWN)
-			log(MSG_STATE_UP, hc, "connection successful");
+		result = HC_PASS;
+		message = "connection successful";
 	}
+
 	/* Be sure to free the memory! */
 	event_del(hc->ev);
 	event_free(hc->ev);
 	close(socket_fd);
-	hc->handle_result();
+	hc->end_check(result, message);
 }
 
 

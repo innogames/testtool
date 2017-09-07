@@ -190,20 +190,19 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	char			 raw_packet[DNS_BUFFER_SIZE];
 	int			 bytes_received;
 	struct dns_header	*dns_query_struct = (struct dns_header*)raw_packet;
+	string			 message = "bad event";
+	HealthcheckResult	 result = HC_PANIC;
 
 	// Prepare memory
-	memset (&raw_packet, 0, sizeof(raw_packet));
+	memset(&raw_packet, 0, sizeof(raw_packet));
 
 	if (what & EV_TIMEOUT) {
-		healthcheck->last_state = STATE_DOWN;
-		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			log(MSG_STATE_DOWN, healthcheck,
-				fmt::sprintf(
-					"timeout after %d,%03ds",
-					healthcheck->timeout.tv_sec,
-			    		healthcheck->timeout.tv_usec / 1000
-				)
-			);
+		result = HC_FAIL;
+		message = fmt::sprintf(
+			"timeout after %d.%03ds",
+			healthcheck->timeout.tv_sec,
+			healthcheck->timeout.tv_usec / 1000
+		);
 	}
 	else if (what & EV_READ) {
 		bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
@@ -214,32 +213,27 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 			 * Although sending send() returns no error.
 			 * Or when an ICMP dst unreachable is received.
 			 */
-			healthcheck->last_state = STATE_DOWN;
-			if (verbose > 1 || healthcheck->hard_state != STATE_DOWN)
-				log(MSG_STATE_DOWN, healthcheck, "connection rejected");
+			result = HC_FAIL;
+			message = "connection refused";
 		}
 		else if (bytes_received < (int) sizeof(struct dns_header) || bytes_received > DNS_BUFFER_SIZE) {
 			/* Size of the received message shall be between the size of header and the maximum dns packet size. */
-			healthcheck->last_state = STATE_DOWN;
-			if (verbose > 1 || healthcheck->hard_state != STATE_DOWN)
-				log(MSG_STATE_DOWN, healthcheck, "received malformed data");
+			result = HC_FAIL;
+			message = "received malformed data";
 		}
 		else if (ntohs(dns_query_struct->ancount) == 0 ) {
 			/* No answers means that the server knows nothing about the domain. Therefore it fails the check. */
-			healthcheck->last_state = STATE_DOWN;
-			if (verbose > 1 || healthcheck->hard_state != STATE_DOWN)
-				log(MSG_STATE_DOWN, healthcheck, "received no DNS answers");
+			result = HC_FAIL;
+			message = "received no DNS answers";
 		}
 		else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id ) {
 			/* Received transaction id must be the same as in the last query sent to the server. */
-			healthcheck->last_state = STATE_DOWN;
-			if (verbose > 1 || healthcheck->hard_state != STATE_DOWN)
-				log(MSG_STATE_DOWN, healthcheck, "received wrong transaction id");
+			result = HC_FAIL;
+			message = "received wrong transaction id";
 		} else {
 			/* Finally, it seems that all is fine. */
-			if (verbose > 1 || healthcheck->last_state == STATE_DOWN)
-				log(MSG_STATE_UP, healthcheck, "received a DNS answer");
-			healthcheck->last_state = STATE_UP;
+			result = HC_PASS;
+			message = "received a DNS answer";
 
 			/*
 			 * We do not really check the contents of the answer sections.
@@ -251,5 +245,5 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what, void *arg)
 	// Be sure to free the memory
 	event_free(healthcheck->ev);
 	close(socket_fd);
-	healthcheck->handle_result();
+	healthcheck->end_check(result, message);
 }

@@ -164,6 +164,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	struct icmp_echo_struct	*icmp_packet;
 	struct timespec		 now;
 	int			 received_bytes;
+	string			 message;
 
 	/* There should be no other event types. */
 	if (what != EV_READ)
@@ -218,18 +219,11 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		else
 			return;
 
-		if (verbose>1 || healthcheck->hard_state != STATE_DOWN)
-			log(
-				MSG_STATE_DOWN,
-				healthcheck,
-				fmt::sprintf("Received a Destination Unreachable message, seq: %d.",
-				ntohs(icmp_packet->icmp_header.icmp_seq))
-			);
-		healthcheck->last_state = STATE_DOWN;
+		message = ("destination unreachable");
+		healthcheck->end_check(HC_FAIL, message);
 	}
-
 	/* Finally! The answer we are waiting for! Yay! */
-	if (icmp_packet->icmp_header.icmp_type == ICMP_ECHOREPLY) {
+	else if (icmp_packet->icmp_header.icmp_type == ICMP_ECHOREPLY) {
 		/* Is it addressed to us? */
 		if (icmp_packet->icmp_header.icmp_id != htons(ping_id))
 			return;
@@ -246,22 +240,10 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		int ms_full = nsec_diff / 1000000;
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
 
-		if (verbose>1 || healthcheck->last_state == STATE_DOWN)
-			log(
-				MSG_STATE_UP,
-				healthcheck,
-			    	fmt::sprintf("got ICMP Echo Reply in: %d.%dms, seq: %d",
-					ms_full,
-					ms_dec,
-					ntohs(icmp_packet->icmp_header.icmp_seq)
-				)
-			);
+		message = fmt::sprintf("reply after %d.%dms,", ms_full, ms_dec);
 
-		healthcheck->last_state = STATE_UP;
+		healthcheck->end_check(HC_PASS, message);
 	}
-
-	if (healthcheck)
-		healthcheck->handle_result();
 }
 
 
@@ -271,6 +253,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 */
 void Healthcheck_ping::finalize_result() {
 	struct timespec now;
+	string message;
 
 	/* Check for timeouts only for checks that are still running. */
 	if (is_running == false)
@@ -283,20 +266,12 @@ void Healthcheck_ping::finalize_result() {
 	if (now.tv_sec > this->timeout.tv_sec ||
 	    (now.tv_sec == this->timeout.tv_sec &&
 	     now.tv_nsec > this->timeout.tv_usec * 1000)) {
-		if (verbose>1 || hard_state != STATE_DOWN)
-			log(
-				MSG_STATE_DOWN,
-				this,
-				fmt::sprintf(
-					"timeout after %d,%03ds, seq %d",
-					this->timeout.tv_sec,
-					this->timeout.tv_usec / 10000,
-					ping_my_seq
-				)
-			   );
+		message = fmt::sprintf("timeout after %d.%03dsd",
+			this->timeout.tv_sec,
+			this->timeout.tv_usec / 1000
+		);
 		ping_my_seq = 0;
-		last_state = STATE_DOWN;
-		handle_result();
+		return end_check(HC_FAIL, message);
 	}
 }
 

@@ -166,30 +166,26 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 
 	switch (result) {
 		case HC_PASS:
-			log_type = MSG_STATE_DOWN;
-			statemsg = "state changed to up";
+			log_type = MSG_STATE_UP;
 			this->last_state = STATE_UP;
-			this->handle_result();
+			statemsg = fmt::sprintf("state: up message: %s", message);
+			this->handle_result(statemsg);
 			break;
 
 		case HC_FAIL:
 			log_type = MSG_STATE_DOWN;
-			statemsg = "state changed to down";
 			this->last_state = STATE_DOWN;
-			this->handle_result();
+			statemsg = fmt::sprintf("state: down message: %s", message);
+			this->handle_result(statemsg);
 			break;
 
 		case HC_PANIC:
 			log_type = MSG_CRIT;
-			statemsg = "check result failure";
+			statemsg = fmt::sprintf("state: failure message: %s", message);
+			log(log_type, this, statemsg);
+			exit(2);
 			break;
 	}
-
-	if (verbose > 1 || this->last_state != this->hard_state || result > HC_FAIL)
-		log(log_type, this, statemsg);
-
-	if (result == HC_PANIC)
-		exit(2);
 }
 
 /*
@@ -199,7 +195,10 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
  * XXX This method is deprecated.  Use end_check() instead.  This will
  * be made private.
  */
-void Healthcheck::handle_result() {
+void Healthcheck::handle_result(string message) {
+	string fail_message;
+	bool changed = false;
+	int log_level = MSG_INFO;
 
 	// If a healtcheck has passed, zero the failure counter.
 	if (last_state == STATE_UP)
@@ -207,24 +206,27 @@ void Healthcheck::handle_result() {
 
 	// Change from DOWN to UP. The healthcheck has passed again.
 	if (hard_state == STATE_DOWN && last_state == STATE_UP) {
-		log(MSG_STATE_UP, this, "passed again");
 		hard_state = STATE_UP;
 		failure_counter = 0;
+		changed = true;
+		log_level = MSG_STATE_UP;
 	}
 	// Change from UP to DOWN. The healthcheck has failed.
 	else if (hard_state == STATE_UP && last_state == STATE_DOWN) {
+		changed = true;
+		log_level = MSG_STATE_DOWN;
 
 		failure_counter++;
-
-		if (!parent_lbnode->is_downtimed())
-			log(MSG_STATE_DOWN, this, fmt::sprintf("failed for the %d time", failure_counter));
+		fail_message = fmt::sprintf("failure: %d of %d", failure_counter, max_failed_checks);
 
 		// Mark the hard DOWN state only after the number of failed checks is reached.
 		if (failure_counter >= max_failed_checks) {
-			if (!parent_lbnode->is_downtimed())
-				log(MSG_STATE_DOWN, this, "hard failure reached");
 			hard_state = STATE_DOWN;
 		}
+	}
+
+	if ((!parent_lbnode->is_downtimed() && changed) || verbose) {
+		log(log_level, this, fmt::sprintf("message: %s %s", message, fail_message));
 	}
 
 	// Mark the check as not running, so it can be scheduled again.
