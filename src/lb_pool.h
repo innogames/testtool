@@ -46,7 +46,7 @@ class LbPool {
 		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools);
 		void schedule_healthchecks(struct timespec *now);
 		void pool_logic(LbNode *last_node);
-		void parse_healthchecks_results();
+		void finalize_healthchecks();
 		void update_pfctl();
 		size_t count_up_nodes();
 		string get_backup_pool_state();

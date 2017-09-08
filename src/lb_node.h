@@ -21,7 +21,8 @@ class LbNode {
 	public:
 		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto, set<string> *downtimes);
 		void schedule_healthchecks(struct timespec *now);
-		void parse_healthchecks_results();
+		void finalize_healthchecks();
+		void node_logic();
 
 		void start_downtime();
 		void end_downtime();

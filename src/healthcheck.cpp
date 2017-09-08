@@ -149,7 +149,7 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
 /*
  * This metod allows the check to have some final thoughts on its result.
  */
-void Healthcheck::finalize_result() {
+void Healthcheck::finalize() {
 	/* Nothing to do here, it is used only for some types of healthchecks. */
 }
 
@@ -186,14 +186,13 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 			exit(2);
 			break;
 	}
+
+	this->parent_lbnode->node_logic();
 }
 
 /*
  * This method handles the change betwen UP and DOWN hard_state.
  * It performs no pf actions, this is to be done via lb_node or lb_pool!
- *
- * XXX This method is deprecated.  Use end_check() instead.  This will
- * be made private.
  */
 void Healthcheck::handle_result(string message) {
 	string fail_message;
@@ -226,7 +225,7 @@ void Healthcheck::handle_result(string message) {
 	}
 
 	if ((!parent_lbnode->is_downtimed() && changed) || verbose) {
-		log(log_level, this, fmt::sprintf("message: %s %s", message, fail_message));
+		log(log_level, this, fmt::sprintf("%s %s", message, fail_message));
 	}
 
 	// Mark the check as not running, so it can be scheduled again.

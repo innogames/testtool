@@ -266,7 +266,7 @@ void Healthcheck_ping::finalize_result() {
 	if (now.tv_sec > this->timeout.tv_sec ||
 	    (now.tv_sec == this->timeout.tv_sec &&
 	     now.tv_nsec > this->timeout.tv_usec * 1000)) {
-		message = fmt::sprintf("timeout after %d.%03dsd",
+		message = fmt::sprintf("timeout after %d.%03ds",
 			this->timeout.tv_sec,
 			this->timeout.tv_usec / 1000
 		);

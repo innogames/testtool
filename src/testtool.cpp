@@ -178,18 +178,18 @@ void TestTool::schedule_healthchecks() {
 /*
    This function parses the results of healthchecks for all lbpools.
 */
-void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
+void healthcheck_finalizer_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */
 	(void)(fd);
 	(void)(what);
 
-	((TestTool*)arg)->parse_healthchecks_results();
+	((TestTool*)arg)->finalize_healthchecks();
 }
 
-void TestTool::parse_healthchecks_results() {
+void TestTool::finalize_healthchecks() {
 	/* Iterate over all lbpools parse healthcheck results. */
 	for (auto& lbpool: lb_pools) {
-		lbpool.second->parse_healthchecks_results();
+		lbpool.second->finalize_healthchecks();
 	}
 }
 
@@ -336,12 +336,16 @@ void TestTool::setup_events() {
 	struct event *healthcheck_scheduler_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_scheduler_callback, this);
 	event_add(healthcheck_scheduler_event, &healthcheck_scheduler_interval);
 
-	/* Run the healthcheck result parser multiple times per second. */
-	struct timeval healthcheck_parser_interval;
-	healthcheck_parser_interval.tv_sec  = 0;
-	healthcheck_parser_interval.tv_usec = 100000; // 0.1s
-	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, this);
-	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
+	/*
+	 * Run the healthcheck finalizer multiple times per second.
+	 * This is for special healthchecks like ping which can't handle
+	 * its own timeouts.
+	 */
+	struct timeval healthcheck_finalizer_interval;
+	healthcheck_finalizer_interval.tv_sec  = 0;
+	healthcheck_finalizer_interval.tv_usec = 100000; // 0.1s
+	struct event *healthcheck_finalizer_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_finalizer_callback, this);
+	event_add(healthcheck_finalizer_event, &healthcheck_finalizer_interval);
 
 	/* Check if pfctl worker thread is still alive multiple times per second. */
 	struct timeval worker_check_interval;

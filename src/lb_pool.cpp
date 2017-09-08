@@ -144,14 +144,14 @@ string LbPool::get_backup_pool_state() {
 /*
  * Check state of all nodes in this pool
  */
-void LbPool::parse_healthchecks_results() {
+void LbPool::finalize_healthchecks() {
 
 	/*
 	 * Go over all nodes in this pool, each node will gather state
 	 * from its healthchecks and update its own state.
 	 */
 	for (auto node : this->nodes)
-		node->parse_healthchecks_results();
+		node->finalize_healthchecks();
 }
 
 void LbPool::pool_logic(LbNode *last_node) {

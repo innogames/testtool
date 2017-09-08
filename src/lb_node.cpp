@@ -75,25 +75,35 @@ void LbNode::schedule_healthchecks(struct timespec *now) {
 }
 
 
+
+/*
+ * Some types of Healthchecks might require additional work to fully finish
+ * their job. This is particulary true for ping test which requires manual
+ * intervetion to check for timeouts.
+ */
+void LbNode::finalize_healthchecks() {
+	if (is_downtimed()) {
+		return;
+	}
+
+	for (auto& hc : healthchecks) {
+		hc->finalize();
+	}
+}
+
 /*
    Check results of all healthchecks for this node and act accordingly:
    - set hard_state
    - display messages
    - notify pool about state changes
 */
-void LbNode::parse_healthchecks_results() {
+void LbNode::node_logic() {
 	if (is_downtimed()) {
 		return;
 	}
 
 	unsigned int num_healthchecks = healthchecks.size();
 	unsigned int ok_healthchecks = 0;
-
-	/* Some typs of healthchecks might require additional work to fully finish their job.
-	   This is particulary true for ping test which requires manual intervetion to check for timeouts. */
-	for (auto& hc : healthchecks) {
-		hc->finalize_result();
-	}
 
 	/* If there is no downtime, go over all healthchecks for this node and count hard STATE_UP healthchecks. */
 	for (auto& hc : healthchecks) {

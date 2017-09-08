@@ -17,7 +17,7 @@ public:
     void configure_bgp();
 
     void schedule_healthchecks();
-    void parse_healthchecks_results();
+    void finalize_healthchecks();
     boost::interprocess::message_queue* pfctl_mq;
 
 private:

@@ -77,7 +77,7 @@ class Healthcheck {
 		virtual int schedule_healthcheck(struct timespec *now);
 		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode);
 		void force_failure();
-		virtual void finalize_result();
+		virtual void finalize();
 
 	protected:
 		void end_check(HealthcheckResult result, string message);
