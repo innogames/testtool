@@ -40,6 +40,8 @@ int			 verbose_pfctl = 0;
 bool			 pf_action = true;
 bool			 check_downtimes = false; /* Whether downtimes should be reloaded. */
 message_queue		*pfctl_mq;
+pid_t			 parent_pid;
+pid_t			 worker_pid;
 
 void signal_handler(int signum) {
 	switch (signum) {
@@ -193,6 +195,36 @@ void TestTool::parse_healthchecks_results() {
 
 
 /*
+   Check if pfctl worker is still alive.
+*/
+void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
+	/* Make compiler happy. */
+	(void)(fd);
+	(void)(what);
+
+	int status;
+	pid_t result = waitpid(worker_pid, &status, WNOHANG);
+	if (result == 0) {
+		// Worker still working.
+	} else if (result == -1) {
+		// Unable to get worker status
+		log(MSG_CRIT, "testtool: pfctl worker died");
+		event_base_loopbreak(eventBase);
+	} else {
+		// Worker exited normally, status is its exit code
+		switch (status) {
+			case EXIT_FAILURE:
+				log(MSG_CRIT, "testtool: pfctl worked died with error code");
+				event_base_loopbreak(eventBase);
+			break;
+			case EXIT_SUCCESS:
+				log(MSG_INFO, "testtool: pfclt worker terminated normally");
+			break;
+		}
+	}
+}
+
+/*
    Dump status to file. The status consists of:
    - Pools with no nodes to serve the traffic.
 */
@@ -311,6 +343,12 @@ void TestTool::setup_events() {
 	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, this);
 	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
 
+	/* Check if pfctl worker thread is still alive multiple times per second. */
+	struct timeval worker_check_interval;
+	worker_check_interval.tv_sec  = 0;
+	worker_check_interval.tv_usec = 100000; // 0.1s
+	struct event *worker_check_event = event_new(eventBase, -1, EV_PERSIST, worker_check_callback, this);
+	event_add(worker_check_event, &worker_check_interval);
 
 	/* Dump the status to a file every 5 seconds */
 	struct timeval dump_status_interval;
@@ -401,13 +439,14 @@ int main (int argc, char *argv[]) {
 				break;
 			case 'h':
 				usage();
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 		}
 	}
 
 	log(MSG_INFO, "Initializing various stuff...");
 
+	parent_pid = getpid();
 	pfctl_mq = start_pfctl_worker();
 	setproctitle("%s", "main process");
 
@@ -419,13 +458,13 @@ int main (int argc, char *argv[]) {
 
 	if (!init_libssl()) {
 		log(MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 	init_libevent();
 
 	if (!Healthcheck_ping::initialize()) {
 		log(MSG_CRIT, "Unable to initialize Healthcheck_ping, terminating!");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
 
 	auto tool = new TestTool();
@@ -448,4 +487,3 @@ int main (int argc, char *argv[]) {
 	wait(NULL);
 	log(MSG_INFO, "Testtool finished, bye!");
 }
-
