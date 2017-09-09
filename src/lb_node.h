@@ -35,6 +35,7 @@ class LbNode {
 	public:
 		string			 name;
 		string			 address; /* libevent wants the address passed as char[] so keep to some string-like. */
+		int			 address_family;
 		class LbPool		*parent_lbpool;
 		State			 state;
 		vector<class Healthcheck*> healthchecks;

@@ -42,7 +42,28 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 		this->admin_state = STATE_DOWN;
 	}
 
-	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", (this->get_state_text())));
+	/*
+	 * Determine type of IP address given to this node.
+	 * Checks based on functions of libevent take IP address in string form
+	 * and perform their own magic. Custom checks like tcp or ping operate
+	 * on old style structures and have different code for each address
+	 * family so we can as well help them.
+	 */
+	struct addrinfo hint, *res = NULL;
+	int ret;
+
+	memset(&hint, 0, sizeof hint);
+	hint.ai_family = PF_UNSPEC;
+	hint.ai_flags = AI_NUMERICHOST;
+	ret = getaddrinfo(this->address.c_str(), NULL, &hint, &res);
+	if (ret) {
+		// We should throw an exception.
+	} else {
+		this->address_family = res->ai_family;
+		freeaddrinfo(res);
+	}
+
+	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", this->get_state_text()));
 }
 
 string LbNode::get_state_text() {

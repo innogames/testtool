@@ -11,10 +11,7 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <netinet/ip.h>
-#include <netinet/ip_icmp.h>
 
 #include <sys/types.h>
 #include <unistd.h>
@@ -37,8 +34,10 @@ extern int			 verbose;
 
 
 /* In the .h file there are only declarations of static variables, here we have definitions. */
-int			 Healthcheck_ping::socket_fd;
-struct event		*Healthcheck_ping::ev;
+int			 Healthcheck_ping::socket4_fd;
+int			 Healthcheck_ping::socket6_fd;
+struct event		*Healthcheck_ping::ev4;
+struct event		*Healthcheck_ping::ev6;
 uint16_t		 Healthcheck_ping::ping_id;
 uint16_t		 Healthcheck_ping::ping_global_seq = 0;
 Healthcheck_ping	**Healthcheck_ping::seq_map;
@@ -92,6 +91,7 @@ u_short in_cksum(u_short *addr, int len) {
    A common initializator for all healthchecks of this type. Should be called once at the startup of testtool.
 */
 int Healthcheck_ping::initialize() {
+	int sockopt;
 
 	/* So I was told that using the pid number for ping id is the Unix Way... */
 	ping_id = getpid();
@@ -99,25 +99,48 @@ int Healthcheck_ping::initialize() {
 	/* Allocate memory for seq map. */
 	seq_map = (Healthcheck_ping**)calloc(1<<(sizeof(uint16_t)*8), sizeof(Healthcheck_ping*) );
 
-	/* Create a socket. */
-	socket_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
-	if (socket_fd == -1) {
-		log(MSG_CRIT, fmt::sprintf("socket() error: %s", strerror(errno)));
+	/* Create sockets for both protocols. */
+	socket4_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
+	if (socket4_fd == -1) {
+		log(MSG_CRIT, fmt::sprintf("socket4() error: %s", strerror(errno)));
 		return false;
 	}
 
+	/* Create sockets for both protocols. */
+	struct icmp6_filter filterv6;
+	ICMP6_FILTER_SETBLOCKALL(&filterv6);
+	ICMP6_FILTER_SETPASS(ICMP6_DST_UNREACH, &filterv6);
+	ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filterv6);
+	socket6_fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	if (socket6_fd == -1) {
+		log(MSG_CRIT, fmt::sprintf("socket6() error: %s", strerror(errno)));
+		return false;
+	}
+	sockopt = setsockopt(socket6_fd, IPPROTO_ICMPV6, ICMP6_FILTER, &filterv6, sizeof (filterv6));
+	if (sockopt < 0) {
+		log(MSG_CRIT, fmt::sprintf("sockopt IPv6 filter error: %s", strerror(errno)));
+		return false;
+	}
+	log(MSG_DEBUG, fmt::sprintf("protocols initialized"));
+
 	/* The default 9kB buffer loses some packets. */
 	int newbuf = 262144;
-	setsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, &newbuf, sizeof(int));
-
-	int bufsize;
-	socklen_t bufbuflen;
-	getsockopt(socket_fd, SOL_SOCKET, SO_RCVBUF, (char*)&bufsize, &bufbuflen);
-	log(MSG_DEBUG, fmt::sprintf("Healthcheck_ping's socket buffer is %d bytes.", bufsize));
+	sockopt = setsockopt(socket4_fd, SOL_SOCKET, SO_RCVBUF, &newbuf, sizeof(int));
+	if (sockopt < 0) {
+		log(MSG_CRIT, fmt::sprintf("sockopt IPv4 buffer error: %s", strerror(errno)));
+		return false;
+	}
+	sockopt = setsockopt(socket6_fd, SOL_SOCKET, SO_RCVBUF, &newbuf, sizeof(int));
+	if (sockopt < 0) {
+		log(MSG_CRIT, fmt::sprintf("sockopt IPv6 buffer error: %s", strerror(errno)));
+		return false;
+	}
 
 	/* Create an event and make it pending. */
-	ev = event_new(eventBase, socket_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);
-	event_add(ev, NULL);
+	ev4 = event_new(eventBase, socket4_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);
+	event_add(ev4, NULL);
+	ev6 = event_new(eventBase, socket6_fd, EV_READ|EV_PERSIST, Healthcheck_ping::callback, NULL);
+	event_add(ev6, NULL);
 
 	return true;
 }
@@ -127,9 +150,14 @@ int Healthcheck_ping::initialize() {
    A common "destructor" for all healthchecks of this type. Should be called when testtool terminates.
 */
 void Healthcheck_ping::destroy() {
-	event_del(ev);
-	event_free(ev);
-	close(socket_fd);
+	event_del(ev4);
+	event_free(ev4);
+	close(socket4_fd);
+
+	event_del(ev6);
+	event_free(ev6);
+	close(socket6_fd);
+
 	free(seq_map);
 }
 
@@ -143,6 +171,7 @@ Healthcheck_ping::Healthcheck_ping(const YAML::Node& config, class LbNode *_pare
 	log(MSG_INFO, this, "new healthcheck");
 }
 
+#define OFFSETOF(type, field)    ((unsigned long) &(((type *) 0)->field))
 
 /*
    The callback is called by libevent, it's a static method.
@@ -158,13 +187,14 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 	(void)(arg); /* Make compiler happy. */
 
 	Healthcheck_ping	*healthcheck = NULL;
-	char			 raw_packet[IP_MAXPACKET];
-	struct ip		*ip_packet;
-	int			 ip_header_len;
-	struct icmp_echo_struct	*icmp_packet;
+	unsigned char		 raw_packet[IP_MAXPACKET];
+	struct ip		*ip4_packet;
+	ssize_t			 ip_header_len;
+	union icmp_echo		*icmp_packet;
 	struct timespec		 now;
-	int			 received_bytes;
+	ssize_t			 received_bytes;
 	string			 message;
+	uint16_t		 recvd_seq, recvd_id;
 
 	/* There should be no other event types. */
 	if (what != EV_READ)
@@ -181,61 +211,59 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		log(MSG_CRIT, fmt::sprintf("recvfrom() error: %s", strerror(errno)));
 	}
 
-	ip_packet = (struct ip *)raw_packet;
-
-	ip_header_len = ip_packet->ip_hl << 2; /* IHL is the number of 32-bit (4 bytes) words, multiply it by 4 to get bytes. */
+	/* Calculate offset to ICMP in IP */
+	if (socket_fd == socket4_fd) {
+		ip4_packet = (struct ip*)raw_packet;
+		ip_header_len = ip4_packet->ip_hl << 2; /* IHL is the number of 32-bit (4 bytes) words, multiply it by 4 to get bytes. */
+	} else {
+		ip_header_len = 0;
+	}
 
 	/* First we must check if the received packet is:
-	   - ICMP at all
+	   - ICMP at all (can't really for IPv6)
 	   - A valid ICMP packet.
 	   - Addressed to us (by ping id).
 	 */
 
-	/* Is it ICMP? */
-	if (ip_packet->ip_p != IPPROTO_ICMP && received_bytes < ip_header_len + ICMP_MINLEN)
-		return;
+	icmp_packet = (union icmp_echo *)(raw_packet + ip_header_len);
 
-	/* Looks like a real ICMP packet, let us proceed decoding it. */
-	icmp_packet = (struct icmp_echo_struct *)(raw_packet + ip_header_len);
-
-	/* A destination unreachable packet contains the IP header of the original request.
-	   We have to move our pointers a bit. */
-	if (icmp_packet->icmp_header.icmp_type == ICMP_UNREACH) {
-		ip_packet = (struct ip*)&icmp_packet->icmp_header.icmp_data; /* Move to place after icmp header. */
-
-		ip_header_len = ip_packet->ip_hl << 2; /* IHL is the number of 32-bit (4 bytes) words, multiply it by 4 to get bytes. */
-
-		/* Cast ip_packet to char*, so + operation on pointer is performed in bytes and not in struct ips. */
-		icmp_packet = (struct icmp_echo_struct *)((char*)ip_packet + ip_header_len);
+	if (
+		(socket_fd == socket4_fd && icmp_packet->icmp4.icmp_header.icmp_type == ICMP_ECHOREPLY) ||
+		(socket_fd == socket6_fd && icmp_packet->icmp6.icmp6_header.icmp6_type == ICMP6_ECHO_REPLY)
+	) {
+		/*
+		 * ECHO REPLY is a correct answer so it contains id and seq
+		 * directly in itself. No need to dig into further headers.
+		 */
+		if (socket_fd == socket4_fd) {
+			if (received_bytes < ip_header_len + ICMP_MINLEN)
+				return;
+			recvd_id = icmp_packet->icmp4.icmp_header.icmp_id;
+			recvd_seq = icmp_packet->icmp4.icmp_header.icmp_seq;
+		} else {
+			if (received_bytes <(ssize_t)sizeof(struct icmp6_echo))
+				return;
+			recvd_id = icmp_packet->icmp6.icmp6_header.icmp6_id;
+			recvd_seq = icmp_packet->icmp6.icmp6_header.icmp6_seq;
+		}
+		recvd_seq = ntohs(recvd_seq);
 
 		/* Is it addressed to us? */
-		if (icmp_packet->icmp_header.icmp_id != htons(ping_id))
+		if (recvd_id != htons(ping_id))
 			return;
 
 		/* Now let's map the received packet to a Healthcheck_icmp object. */
-		uint16_t this_seq = ntohs(icmp_packet->icmp_header.icmp_seq);
-		if (seq_map[this_seq] != NULL && seq_map[this_seq]->ping_my_seq == this_seq)
-			healthcheck = seq_map[this_seq];
+		if (seq_map[recvd_seq] != NULL && seq_map[recvd_seq]->ping_my_seq == recvd_seq)
+			healthcheck = seq_map[recvd_seq];
 		else
 			return;
 
-		message = ("destination unreachable");
-		healthcheck->end_check(HC_FAIL, message);
-	}
-	/* Finally! The answer we are waiting for! Yay! */
-	else if (icmp_packet->icmp_header.icmp_type == ICMP_ECHOREPLY) {
-		/* Is it addressed to us? */
-		if (icmp_packet->icmp_header.icmp_id != htons(ping_id))
-			return;
-
-		/* Now let's map the received packet to a Healthcheck_icmp object. */
-		uint16_t this_seq = ntohs(icmp_packet->icmp_header.icmp_seq);
-		if (seq_map[this_seq] != NULL && seq_map[this_seq]->ping_my_seq == this_seq)
-			healthcheck = seq_map[this_seq];
-		else
-			return;
-
-		long int nsec_diff  = (now.tv_sec - icmp_packet->timestamp.tv_sec) * 1000000000 + (now.tv_nsec - icmp_packet->timestamp.tv_nsec);
+		long int nsec_diff;
+		if (socket_fd == socket4_fd) {
+			nsec_diff = (now.tv_sec - icmp_packet->icmp4.timestamp.tv_sec) * 1000000000 + (now.tv_nsec - icmp_packet->icmp4.timestamp.tv_nsec);
+		} else {
+			nsec_diff = (now.tv_sec - icmp_packet->icmp6.timestamp.tv_sec) * 1000000000 + (now.tv_nsec - icmp_packet->icmp6.timestamp.tv_nsec);
+		}
 
 		int ms_full = nsec_diff / 1000000;
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
@@ -243,6 +271,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		message = fmt::sprintf("reply after %d.%dms,", ms_full, ms_dec);
 
 		healthcheck->end_check(HC_PASS, message);
+		return;
 	}
 }
 
@@ -277,8 +306,6 @@ void Healthcheck_ping::finalize_result() {
 
 
 int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
-	struct sockaddr_in	 to_addr;
-	struct icmp_echo_struct	 echo_request;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
@@ -291,34 +318,73 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 	ping_my_seq = ping_global_seq;
 	seq_map[ping_my_seq] = this;
 
-	/* Build the ICMP Echo Request packet to be send. */
-	memset(&echo_request, 0, sizeof(echo_request));
+	if (parent_lbnode->address_family == AF_INET) {
+		struct sockaddr_in	 to_addr;
+		struct icmp4_echo	 echo_request;
 
-	/* Fill in the headers. */
-	echo_request.icmp_header.icmp_type = ICMP_ECHO;
-	echo_request.icmp_header.icmp_code = 0;
-	echo_request.icmp_header.icmp_id = htons(ping_id);
-	echo_request.icmp_header.icmp_seq = htons(ping_my_seq);
+		/* Build the ICMP Echo Request packet to be send. */
+		memset(&echo_request, 0, sizeof(echo_request));
 
-	/* Remember time when this request was sent. */
-	memcpy(&echo_request.timestamp, now, sizeof(struct timespec));
+		/* Fill in the headers. */
+		echo_request.icmp_header.icmp_type = ICMP_ECHO;
+		echo_request.icmp_header.icmp_code = 0;
+		echo_request.icmp_header.icmp_id = htons(ping_id);
+		echo_request.icmp_header.icmp_seq = htons(ping_my_seq);
 
-	/* Fill in the data. */
-	memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE);
+		/* Remember time when this request was sent. */
+		memcpy(&echo_request.timestamp, now, sizeof(struct timespec));
 
-	/* Calculate packet checksum. */
-	echo_request.icmp_header.icmp_cksum = in_cksum((uint16_t *)&echo_request, sizeof(icmp_echo_struct));
+		/* Fill in the data. */
+		memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE);
 
-	/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
-	memset(&to_addr, 0, sizeof(sockaddr_in));
-	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
-	to_addr.sin_port = htons(port);
+		/* Calculate packet checksum. */
+		echo_request.icmp_header.icmp_cksum = in_cksum((uint16_t *)&echo_request, sizeof(icmp4_echo));
 
-	/* Send the echo request. */
-	int bsent = sendto(socket_fd, (void *) &echo_request, sizeof(icmp_echo_struct), 0, (struct sockaddr *) &to_addr, sizeof(struct sockaddr_in));
-	if (bsent<0) {
-		return false;
+		/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
+		memset(&to_addr, 0, sizeof(sockaddr_in));
+		to_addr.sin_family = AF_INET;
+		to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
+		to_addr.sin_port = htons(0);
+
+		/* Send the echo request. */
+		int bsent = sendto(socket4_fd, (void *) &echo_request, sizeof(icmp4_echo), 0, (struct sockaddr *) &to_addr, sizeof(struct sockaddr_in));
+		if (bsent<0) {
+			return false;
+		}
+
+	} else if (parent_lbnode->address_family == AF_INET6) {
+		struct sockaddr_in6	 to_addr;
+		struct icmp6_echo	 echo_request;
+
+		/* Build the ICMP Echo Request packet to be send. */
+		memset(&echo_request, 0, sizeof(echo_request));
+
+		/* Fill in the headers. */
+		echo_request.icmp6_header.icmp6_type = ICMP6_ECHO_REQUEST;
+		echo_request.icmp6_header.icmp6_code = 0;
+		echo_request.icmp6_header.icmp6_id = htons(ping_id);
+		echo_request.icmp6_header.icmp6_seq = htons(ping_my_seq);
+
+		/* Remember time when this request was sent. */
+		memcpy(&echo_request.timestamp, now, sizeof(struct timespec));
+
+		/* Fill in the data. */
+		memcpy(echo_request.data, ICMP_FILL_DATA, ICMP_FILL_SIZE);
+
+		/* Calculate packet checksum. */
+		echo_request.icmp6_header.icmp6_cksum = in_cksum((uint16_t *)&echo_request, sizeof(icmp6_echo));
+
+		/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
+		memset(&to_addr, 0, sizeof(sockaddr_in6));
+		to_addr.sin6_family = AF_INET6;
+		inet_pton(AF_INET6, parent_lbnode->address.c_str(), &to_addr.sin6_addr);
+		to_addr.sin6_port = htons(0);
+
+		/* Send the echo request. */
+		int bsent = sendto(socket6_fd, (void *) &echo_request, sizeof(icmp6_echo), 0, (struct sockaddr *) &to_addr, sizeof(struct sockaddr_in6));
+		if (bsent<0) {
+			return false;
+		}
 	}
 
 	return true;
@@ -338,5 +404,4 @@ void Healthcheck_ping::end_check(HealthcheckResult result, string message) {
 	seq_map[this->ping_my_seq] = NULL;
 
 	/* Call parent method. */
-	Healthcheck::end_check(result, message);
 }
