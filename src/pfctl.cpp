@@ -9,6 +9,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <sys/wait.h>
 
 #include "msg.h"
 #include "pfctl.h"
@@ -55,7 +56,7 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
 
 		}
 	}
-	pclose(fp);
+	ret = WEXITSTATUS(pclose(fp));
 	high_resolution_clock::time_point t2 = high_resolution_clock::now();
 	auto duration = duration_cast<milliseconds>( t2 - t1 ).count();
 	log(MSG_DEBUG, fmt::sprintf("pfctl: '%s' exit code %d time: %dms", cmd, ret, duration));

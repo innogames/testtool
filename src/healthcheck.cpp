@@ -31,16 +31,6 @@ int timespec_diffms(struct timespec *a, struct timespec *b) {
 
 
 /*
- * Pretend that this healthcheck is fully failed.  This is to be used
- * for downtimes.
- */
-void Healthcheck::force_failure() {
-	failure_counter = max_failed_checks;
-	hard_state      = STATE_DOWN;
-	last_state      = STATE_DOWN;
-}
-
-/*
  * Link the healthcheck and its parent node, initialize some variables,
  * print diagnostic information if necessary.  Remember that this
  * constructor is called from each healthcheck's type-specific
@@ -128,8 +118,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
  */
 int Healthcheck::schedule_healthcheck(struct timespec *now) {
 
-	/* Do not schedule the healthcheck twice nor when there is a downtime. */
-	if (is_running || parent_lbnode->is_downtimed())
+	/* Do not schedule the healthcheck twice. */
+	if (is_running)
 		return false;
 
 	/* Check if host should be checked at this time. */
@@ -224,7 +214,7 @@ void Healthcheck::handle_result(string message) {
 		}
 	}
 
-	if ((!parent_lbnode->is_downtimed() && changed) || verbose) {
+	if (changed || verbose) {
 		log(log_level, this, fmt::sprintf("%s %s", message, fail_message));
 	}
 

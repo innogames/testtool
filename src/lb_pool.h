@@ -69,6 +69,7 @@ class LbPool {
 		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 fault_policy;
 		map<std::string, LbPool*> *all_lb_pools;
+		bool			 pf_synced;
 };
 
 #endif

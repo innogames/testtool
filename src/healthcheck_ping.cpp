@@ -271,7 +271,6 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		message = fmt::sprintf("reply after %d.%dms,", ms_full, ms_dec);
 
 		healthcheck->end_check(HC_PASS, message);
-		return;
 	}
 }
 
@@ -300,7 +299,7 @@ void Healthcheck_ping::finalize_result() {
 			this->timeout.tv_usec / 1000
 		);
 		ping_my_seq = 0;
-		return end_check(HC_FAIL, message);
+		end_check(HC_FAIL, message);
 	}
 }
 
@@ -404,4 +403,5 @@ void Healthcheck_ping::end_check(HealthcheckResult result, string message) {
 	seq_map[this->ping_my_seq] = NULL;
 
 	/* Call parent method. */
+	Healthcheck::end_check(result, message);
 }

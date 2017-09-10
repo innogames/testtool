@@ -26,7 +26,6 @@ class LbNode {
 
 		void start_downtime();
 		void end_downtime();
-		bool is_downtimed();
 
 		State get_state(); /* getter for private member */
 		string get_state_text(); /* same, but text representation */
@@ -39,13 +38,13 @@ class LbNode {
 		class LbPool		*parent_lbpool;
 		State			 state;
 		vector<class Healthcheck*> healthchecks;
-		bool			 downtime;
 		bool			 min_nodes_kept; /* Node was kept to meet min_nodes requirement. */
 		bool			 max_nodes_kept; /* Node was kept because it met max_nodes requirement. */
 		bool			 checked; /* This node has all of its checks ran at least once. */
+		bool			 state_changed; /* This node hs changed its state since last check. */
+		State			 admin_state;  /* Keeps information about downtimes. */
 
 	private:
-		State			 admin_state;
 		bool			 backup;
 };
 

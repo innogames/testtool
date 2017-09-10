@@ -154,7 +154,7 @@ message_queue* attach_pfctl_queue() {
 	return rmq;
 }
 
-void send_message(message_queue* mq, string pool_name, string table_name, set<LbNode*> lb_nodes) {
+bool send_message(message_queue* mq, string pool_name, string table_name, set<LbNode*> lb_nodes) {
 	pfctl_msg msg;
 
 	memset(&msg, 0, sizeof(msg));
@@ -166,7 +166,7 @@ void send_message(message_queue* mq, string pool_name, string table_name, set<Lb
 		strncpy(msg.wanted_addresses[node_index], node->address.c_str(), ADDR_LEN);
 		node_index++;
 	}
-	mq->send(&msg, sizeof(pfctl_msg), 0);
+	return mq->try_send(&msg, sizeof(pfctl_msg), 0);
 }
 
 message_queue* start_pfctl_worker() {

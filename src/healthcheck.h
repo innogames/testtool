@@ -76,7 +76,6 @@ class Healthcheck {
 		static Healthcheck *healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode);
 		virtual int schedule_healthcheck(struct timespec *now);
 		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode);
-		void force_failure();
 		virtual void finalize();
 
 	protected:
