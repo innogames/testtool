@@ -324,3 +324,19 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 	return true;
 }
 
+
+/*
+ * Override end_check() method to clean up things
+ */
+void Healthcheck_ping::end_check(HealthcheckResult result, string message) {
+
+	/*
+	 * Clean sequence mapping for this instance of Healthcheck.
+	 * This is required so that ICMP Echo Reply coming after timeout
+	 * won't match.
+	 */
+	seq_map[this->ping_my_seq] = NULL;
+
+	/* Call parent method. */
+	Healthcheck::end_check(result, message);
+}

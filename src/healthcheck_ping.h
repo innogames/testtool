@@ -40,6 +40,7 @@ class Healthcheck_ping: public Healthcheck {
 
 
 	protected:
+		void end_check(HealthcheckResult result, string message);
 		static void callback(evutil_socket_t fd, short what, void *arg);
 
 	private:
