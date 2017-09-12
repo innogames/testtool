@@ -145,7 +145,22 @@ bool pf_get_table(string *table, set<string> *result) {
 	vector<string> out;
 	bool ret = pfctl_run_command(&cmd, &out);
 	if (! ret){
-		return false;
+		/*
+		 * The first operation on testtool startup is checking if
+		 * LB Node is already in LB Pool's pf table. If the table does
+		 * not exist, all subsequent operations will fail until something
+		 * is added to table. Therefore create a table* and fail getting
+		 * the table only if that creation fails.
+		 */
+		vector<string> create_cmd;
+		create_cmd.push_back("-t");
+		create_cmd.push_back(*table);
+		create_cmd.push_back("-T");
+		create_cmd.push_back("add");
+		bool create_ret = pfctl_run_command(&cmd, &out);
+		if (!create_ret) {
+			return false;
+		}
 	}
 	boost::system::error_code ec;
 	if (verbose_pfctl) {
@@ -172,12 +187,13 @@ bool pf_get_table(string *table, set<string> *result) {
 */
 bool pf_is_in_table(string *table, string *address, bool *answer) {
 	set<string> lines;
+
+	*answer = false;
 	bool ret = pf_get_table(table, &lines);
 	if (! ret) {
 		return false;
 	}
 
-	*answer = false;
 	for (auto line: lines ) {
 		if (line == *address)
 			*answer = true;

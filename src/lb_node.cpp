@@ -26,6 +26,7 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 	this->parent_lbpool = parent_lbpool;
 
 	this->admin_state = STATE_UP;
+	/* Read initial state of host from pf. */
 	bool pf_state = false;
 	pf_is_in_table(&this->parent_lbpool->pf_name, &this->address, &pf_state);
 	if (pf_state)
