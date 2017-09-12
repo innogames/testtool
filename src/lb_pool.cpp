@@ -167,17 +167,17 @@ void LbPool::pool_logic(LbNode *last_node) {
         set<LbNode*> wanted_nodes;
 
 	/*
-	 * Try running without backup pool. Enable it only if not enough up
-	 * nodes are found.
-	 */
-	backup_pool_active = false;
-
-	/*
 	 * The algorithm for calculating wanted nodes is quite big.
 	 * Don't run it unless we are called from a node with changed state
 	 * or right at start of testtool.
 	 */
 	if (last_node == NULL || last_node->state_changed) {
+		/*
+		* Try running without backup pool. Enable it only if not enough up
+		* nodes are found.
+		*/
+		backup_pool_active = false;
+
 		/*
 		* Add nodes while satisfying max_nodes if it is set. First add nodes
 		* which were added on previous change in order to avoid rebalancing.
@@ -230,11 +230,8 @@ void LbPool::pool_logic(LbNode *last_node) {
 				break;
 				case BACKUP_POOL:
 					if (all_lb_pools->find(backup_pool_name) != all_lb_pools->end()) {
-						log(MSG_INFO, this, fmt::sprintf("Switching to backup pool %s", backup_pool_name));
 						wanted_nodes = all_lb_pools->find(backup_pool_name)->second->up_nodes;
 						backup_pool_active = true;
-					} else {
-						log(MSG_CRIT, this, fmt::sprintf("No LB Pool '%s' to use as backup pool!", backup_pool_name));
 					}
 				break;
 			}
@@ -243,8 +240,11 @@ void LbPool::pool_logic(LbNode *last_node) {
 		/* Log only if state has changed. */
 		if (wanted_nodes != up_nodes) {
 			up_nodes = wanted_nodes;
-
-			log(MSG_INFO, this, fmt::sprintf("%d/%d nodes up", up_nodes.size(), nodes.size()));
+			if (this->backup_pool_active) {
+				log(MSG_INFO, this, fmt::sprintf("%d backup nodes up", up_nodes.size()));
+			} else {
+				log(MSG_INFO, this, fmt::sprintf("%d/%d nodes up", up_nodes.size(), nodes.size()));
+			}
 			for (auto node: up_nodes){
 				log(MSG_INFO, this, fmt::sprintf("up_node: %s", node->name));
 			}
@@ -280,8 +280,7 @@ void LbPool::update_pfctl(void) {
 
 	// Update any other LB Pools which use this one as Backup Pool
 	for (auto& lb_pool: *all_lb_pools) {
-		if (lb_pool.second->backup_pool_active && lb_pool.second->backup_pool_name == name) {
-			log(MSG_INFO, lb_pool.second, fmt::sprintf("syncing to backup pool %s", this->name));
+		if (lb_pool.second->backup_pool_name == name && lb_pool.second->backup_pool_active) {
 			lb_pool.second->pool_logic(NULL);
 		}
 	}
