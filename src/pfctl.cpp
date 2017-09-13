@@ -264,8 +264,9 @@ bool pf_sync_table(string table, set<string> want_set) {
 	/* Add wanted nodes to table */
 	if (!pf_table_add(&table, &to_add))
 		return false;
-	/* Kill src_nodes to old entries from table so that connections get rebalanced. */
-	pf_table_rebalance(&table, &to_add);
+	/* Rebalance table if new hosts are added. Kill src_nodes to old entries */
+	if (to_add.size())
+		pf_table_rebalance(&table, &to_add);
 
 	return true;
 }

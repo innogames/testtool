@@ -47,13 +47,18 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 			hc->timeout.tv_usec / 1000
 		);
 
-	} else if (what & EV_READ) {
+	}
+
+	if (what & EV_READ && result != HC_FAIL) {
+		/* A rejected connection is reported with READ event to us. */
 		char buf[256];
 		if (read(socket_fd, buf, 255) == -1) {
 			result = HC_FAIL;
 			message = "connection refused";
 		}
-	} else if (what & EV_WRITE) {
+	}
+
+	if (what & EV_WRITE && result != HC_FAIL) {
 		result = HC_PASS;
 		message = "connection successful";
 	}
