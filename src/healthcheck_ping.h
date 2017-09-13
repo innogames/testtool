@@ -7,6 +7,8 @@
 
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <netinet/ip6.h>
+#include <netinet/icmp6.h>
 
 #include <event2/event.h>
 #include <event2/event_struct.h>
@@ -21,12 +23,22 @@
 /* As far as I understand, the target system should just reflect the packet to us,
    therefore apart from some basic, necessary headers, the rest of packet is all
    usable for any purposes we want. */
-struct icmp_echo_struct {
+struct icmp4_echo {
 	struct icmp		 icmp_header; /* Contains icmp_type, _code, _cksum, _id and _seq and some other stuff. */
 	struct timespec		 timestamp;   /* I'm gonna go build my own timestamp. With blackjack and hookers! */
 	char			 data[ICMP_FILL_SIZE];
 };
 
+struct icmp6_echo {
+	struct icmp6_hdr	 icmp6_header; /* Contains icmp_type, _code, _cksum, _id and _seq*/
+	struct timespec		 timestamp;   /* I'm gonna go build my own timestamp. With blackjack and hookers! */
+	char			 data[ICMP_FILL_SIZE];
+};
+
+union icmp_echo {
+	struct icmp4_echo icmp4;
+	struct icmp6_echo icmp6;
+};
 
 class Healthcheck_ping: public Healthcheck {
 
@@ -40,6 +52,7 @@ class Healthcheck_ping: public Healthcheck {
 
 
 	protected:
+		void end_check(HealthcheckResult result, string message);
 		static void callback(evutil_socket_t fd, short what, void *arg);
 
 	private:
@@ -48,8 +61,10 @@ class Healthcheck_ping: public Healthcheck {
 	/* Members */
 	private:
 		/* Some variables and functions are static for all ping healthchecks. */
-		static int		 socket_fd;
-		static struct event	*ev;
+		static int		 socket4_fd;
+		static int		 socket6_fd;
+		static struct event	*ev4;
+		static struct event	*ev6;
 		static uint16_t		 ping_id;
 		static uint16_t		 ping_global_seq;
 		uint16_t		 ping_my_seq;

@@ -46,7 +46,7 @@ class LbPool {
 		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools);
 		void schedule_healthchecks(struct timespec *now);
 		void pool_logic(LbNode *last_node);
-		void parse_healthchecks_results();
+		void finalize_healthchecks();
 		void update_pfctl();
 		size_t count_up_nodes();
 		string get_backup_pool_state();
@@ -61,7 +61,6 @@ class LbPool {
 		State			 state;
 		vector<class LbNode*>	 nodes;
 		set<class LbNode*>	 up_nodes;
-		bool			 up_nodes_changed; /* If pfctl should change anything */
 
 	private:
 		string			 backup_pool_name;
@@ -70,6 +69,7 @@ class LbPool {
 		size_t			 max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 fault_policy;
 		map<std::string, LbPool*> *all_lb_pools;
+		bool			 pf_synced;
 };
 
 #endif

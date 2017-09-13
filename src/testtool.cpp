@@ -7,9 +7,11 @@
 #include <set>
 #include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
+#include <boost/interprocess/ipc/message_queue.hpp>
 
 #include <unistd.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <signal.h>
 
 #include <event2/event.h>
@@ -25,8 +27,10 @@
 #include "healthcheck.h"
 #include "healthcheck_ping.h"
 #include "testtool.h"
+#include "pfctl_worker.h"
 
 using namespace std;
+using namespace boost::interprocess;
 
 /* Global variables, some are exported to other modules. */
 struct event_base	*eventBase = NULL;
@@ -35,6 +39,9 @@ int			 verbose = 0;
 int			 verbose_pfctl = 0;
 bool			 pf_action = true;
 bool			 check_downtimes = false; /* Whether downtimes should be reloaded. */
+message_queue		*pfctl_mq;
+pid_t			 parent_pid;
+pid_t			 worker_pid;
 
 void signal_handler(int signum) {
 	switch (signum) {
@@ -171,37 +178,49 @@ void TestTool::schedule_healthchecks() {
 /*
    This function parses the results of healthchecks for all lbpools.
 */
-void healthcheck_parser_callback(evutil_socket_t fd, short what, void *arg) {
+void healthcheck_finalizer_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */
 	(void)(fd);
 	(void)(what);
 
-	((TestTool*)arg)->parse_healthchecks_results();
+	((TestTool*)arg)->finalize_healthchecks();
 }
 
-void TestTool::parse_healthchecks_results() {
+void TestTool::finalize_healthchecks() {
 	/* Iterate over all lbpools parse healthcheck results. */
 	for (auto& lbpool: lb_pools) {
-		lbpool.second->parse_healthchecks_results();
+		lbpool.second->finalize_healthchecks();
 	}
 }
 
+
 /*
-   This function updates pfctl to last wanted_nodes.
+   Check if pfctl worker is still alive.
 */
-void pfctl_callback(evutil_socket_t fd, short what, void *arg) {
+void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
 	/* Make compiler happy. */
 	(void)(fd);
 	(void)(what);
 
-	((TestTool*)arg)->update_pfctl();
-}
-
-void TestTool::update_pfctl() {
-	/* Iterate over all lbpools and update pfctl for each. */
-	for (auto& lbpool : lb_pools) {
-		lbpool.second->update_pfctl();
-
+	int status;
+	pid_t result = waitpid(worker_pid, &status, WNOHANG);
+	if (result == 0) {
+		// Worker still working.
+	} else if (result == -1) {
+		// Unable to get worker status
+		log(MSG_CRIT, "testtool: pfctl worker died");
+		event_base_loopbreak(eventBase);
+	} else {
+		// Worker exited normally, status is its exit code
+		switch (status) {
+			case EXIT_FAILURE:
+				log(MSG_CRIT, "testtool: pfctl worked died with error code");
+				event_base_loopbreak(eventBase);
+			break;
+			case EXIT_SUCCESS:
+				log(MSG_INFO, "testtool: pfclt worker terminated normally");
+			break;
+		}
 	}
 }
 
@@ -313,23 +332,27 @@ void TestTool::setup_events() {
 	/* Run the healthcheck scheduler multiple times per second. */
 	struct timeval healthcheck_scheduler_interval;
 	healthcheck_scheduler_interval.tv_sec  = 0;
-	healthcheck_scheduler_interval.tv_usec = 100000;
+	healthcheck_scheduler_interval.tv_usec = 100000; // 0.1s
 	struct event *healthcheck_scheduler_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_scheduler_callback, this);
 	event_add(healthcheck_scheduler_event, &healthcheck_scheduler_interval);
 
-	/* Run the healthcheck result parser multiple times per second. */
-	struct timeval healthcheck_parser_interval;
-	healthcheck_parser_interval.tv_sec  = 0;
-	healthcheck_parser_interval.tv_usec = 100000;
-	struct event *healthcheck_parser_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_parser_callback, this);
-	event_add(healthcheck_parser_event, &healthcheck_parser_interval);
+	/*
+	 * Run the healthcheck finalizer multiple times per second.
+	 * This is for special healthchecks like ping which can't handle
+	 * its own timeouts.
+	 */
+	struct timeval healthcheck_finalizer_interval;
+	healthcheck_finalizer_interval.tv_sec  = 0;
+	healthcheck_finalizer_interval.tv_usec = 100000; // 0.1s
+	struct event *healthcheck_finalizer_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_finalizer_callback, this);
+	event_add(healthcheck_finalizer_event, &healthcheck_finalizer_interval);
 
-	/* Run the pfctl configurator multiple times per second. */
-	struct timeval pfctl_interval;
-	pfctl_interval.tv_sec  = 0;
-	pfctl_interval.tv_usec = 100000;
-	struct event *pfctl_event = event_new(eventBase, -1, EV_PERSIST, pfctl_callback, this);
-	event_add(pfctl_event, &pfctl_interval);
+	/* Check if pfctl worker thread is still alive. */
+	struct timeval worker_check_interval;
+	worker_check_interval.tv_sec  = 1;
+	worker_check_interval.tv_usec = 0; // Just once a second.
+	struct event *worker_check_event = event_new(eventBase, -1, EV_PERSIST, worker_check_callback, this);
+	event_add(worker_check_event, &worker_check_interval);
 
 	/* Dump the status to a file every 5 seconds */
 	struct timeval dump_status_interval;
@@ -400,11 +423,6 @@ int main (int argc, char *argv[]) {
 
 	srand(time(NULL));;
 
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-	signal(SIGHUP, signal_handler);
-	signal(SIGPIPE, signal_handler);
-	signal(SIGUSR1, signal_handler);
 
 	string config_file_name = "/etc/iglb/iglb.json";
 
@@ -425,21 +443,32 @@ int main (int argc, char *argv[]) {
 				break;
 			case 'h':
 				usage();
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 		}
 	}
 
 	log(MSG_INFO, "Initializing various stuff...");
+
+	parent_pid = getpid();
+	pfctl_mq = start_pfctl_worker();
+	setproctitle("%s", "main process");
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+	signal(SIGHUP, signal_handler);
+	signal(SIGPIPE, signal_handler);
+	signal(SIGUSR1, signal_handler);
+
 	if (!init_libssl()) {
-		log(MSG_CRIT, "Unable to initialise OpenSSL!");
-		exit(-1);
+		log(MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
+		exit(EXIT_FAILURE);
 	}
 	init_libevent();
 
 	if (!Healthcheck_ping::initialize()) {
-		log(MSG_CRIT, "Unable to initialize Healthcheck_ping!");
-		exit(-1);
+		log(MSG_CRIT, "Unable to initialize Healthcheck_ping, terminating!");
+		exit(EXIT_FAILURE);
 	}
 
 	auto tool = new TestTool();
@@ -451,11 +480,14 @@ int main (int argc, char *argv[]) {
 	log(MSG_INFO, "Left the main loop.");
 
 	delete tool;
-	log(MSG_INFO, "Ending testtool, bye!");
+	log(MSG_INFO, "Stopping testtool");
 
 	Healthcheck_ping::destroy();
 
 	finish_libevent();
 	finish_libssl();
+	stop_pfctl_worker();
+	log(MSG_INFO, "Waiting for pfctl worker");
+	wait(NULL);
+	log(MSG_INFO, "Testtool finished, bye!");
 }
-

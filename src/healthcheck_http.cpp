@@ -156,13 +156,20 @@ void Healthcheck_http::read_callback(struct bufferevent *bev, void * arg) {
 void Healthcheck_http::event_callback(struct bufferevent *bev, short events, void *arg) {
 	(void)(bev);
 	Healthcheck_http *hc = (Healthcheck_http *)arg;
+	string message;
 
 	// Ignore READING, WRITING, CONNECTED events
 	if (!(events & (BEV_EVENT_ERROR|BEV_EVENT_TIMEOUT|BEV_EVENT_EOF)))
 		return;
 
-	if (events & BEV_EVENT_TIMEOUT)
-		return hc->end_check(HC_FAIL, "timeout");
+	if (events & BEV_EVENT_TIMEOUT) {
+		message = fmt::sprintf(
+			"timeout after %d.%3ds",
+			hc->timeout.tv_sec,
+			hc->timeout.tv_usec / 1000
+		);
+		return hc->end_check(HC_FAIL, message);
+	}
 
 	if (events & BEV_EVENT_ERROR)
 		return hc->end_check(HC_FAIL, "connection error");
@@ -185,15 +192,14 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 	pos = statusline.find(" ");
 	statusline = statusline.substr(0, pos);
 
-	std::stringstream message;
-	message << "HTTP code " << statusline;
+	message = fmt::sprintf("HTTP code %s", statusline);
 
 	unsigned int i;
 	for (i = 0; i<hc->http_ok_codes.size(); i++)
 		if (statusline.compare(hc->http_ok_codes[i]) == 0)
-			return hc->end_check(HC_PASS, message.str());
+			return hc->end_check(HC_PASS, message);
 
-	return hc->end_check(HC_FAIL, message.str());
+	return hc->end_check(HC_FAIL, message);
 }
 
 /*

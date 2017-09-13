@@ -17,8 +17,8 @@ public:
     void configure_bgp();
 
     void schedule_healthchecks();
-    void parse_healthchecks_results();
-    void update_pfctl();
+    void finalize_healthchecks();
+    boost::interprocess::message_queue* pfctl_mq;
 
 private:
     set<string> downtimes;
