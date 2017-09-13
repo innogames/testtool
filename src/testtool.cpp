@@ -347,10 +347,10 @@ void TestTool::setup_events() {
 	struct event *healthcheck_finalizer_event = event_new(eventBase, -1, EV_PERSIST, healthcheck_finalizer_callback, this);
 	event_add(healthcheck_finalizer_event, &healthcheck_finalizer_interval);
 
-	/* Check if pfctl worker thread is still alive multiple times per second. */
+	/* Check if pfctl worker thread is still alive. */
 	struct timeval worker_check_interval;
-	worker_check_interval.tv_sec  = 0;
-	worker_check_interval.tv_usec = 100000; // 0.1s
+	worker_check_interval.tv_sec  = 1;
+	worker_check_interval.tv_usec = 0; // Just once a second.
 	struct event *worker_check_event = event_new(eventBase, -1, EV_PERSIST, worker_check_callback, this);
 	event_add(worker_check_event, &worker_check_interval);
 
