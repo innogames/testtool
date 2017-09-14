@@ -157,7 +157,7 @@ bool pf_get_table(string *table, set<string> *result) {
 		create_cmd.push_back(*table);
 		create_cmd.push_back("-T");
 		create_cmd.push_back("add");
-		bool create_ret = pfctl_run_command(&cmd, &out);
+		bool create_ret = pfctl_run_command(&create_cmd, &out);
 		if (!create_ret) {
 			return false;
 		}
