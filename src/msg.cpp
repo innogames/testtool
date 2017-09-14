@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <syslog.h>
+#include <fmt/format.h>
 
 #include "msg.h"
 #include "lb_pool.h"
@@ -31,7 +32,7 @@ void log(int loglevel, string msg) {
 			sysloglevel = LOG_INFO;
 		break;
 	}
-	syslog(sysloglevel | LOG_LOCAL3, msg.c_str());
+	syslog(sysloglevel | LOG_LOCAL3, "%s", msg.c_str());
 }
 
 void log(int loglevel, LbPool* lbpool, string msg) {
