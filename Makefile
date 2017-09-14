@@ -32,7 +32,7 @@ ifeq ($(findstring 10.,$(UNAME_R)),10.)
 DLIBS += -l:libcrypto.so.7 -l:libssl.so.7
 endif
 ifeq ($(findstring 11.,$(UNAME_R)),11.)
-DLIBS += -l:libcrypto.so.8 -l:libssl.so.8
+DLIBS += -l:libcrypto.so.8 -l:libssl.so.8 -lthr
 endif
 endif
 ifeq ($(UNAME_S),Linux)
