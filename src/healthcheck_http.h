@@ -32,7 +32,8 @@ class Healthcheck_http: public Healthcheck {
 		bufferevent			*bev;
 		string				 query;
 		string				 host;
-		YAML::Node			http_ok_codes;
+		int			 	 port;
+		vector<string>			 ok_codes;
 		struct addrinfo			*addrinfo;
 		string				 reply;
 

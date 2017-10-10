@@ -94,7 +94,6 @@ class Healthcheck {
 		bool			 ran;              // This check was ran at least once.
 
 	protected:
-		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timeval		 timeout;
 		bool			 is_running;

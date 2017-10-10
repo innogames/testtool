@@ -37,14 +37,27 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	bev = NULL;
 
 	// Set defaults
-	if (this->port == 0)
-		this->port = 80;
-
 	this->type = parse_string(config["hc_type"], "http");
+	if (this->type == "https") {
+		this->port = parse_int(config["hc_port"], 443);
+	} else {
+		this->port = parse_int(config["hc_port"], 80);
+	}
 	this->query = parse_string(config["hc_query"], "HEAD /");
-	this->http_ok_codes = config["hc_ok_codes"];
 	this->host = parse_string(config["hc_host"], "");
 
+	for (YAML::Node ok_code_node: config["hc_ok_codes"]) {
+		/*
+		 * OK Codes are stored as integers in Serveradmin but HTTP
+		 * protocol returns strings. Convert them now and compare
+		 * strings later.
+		 */
+		int ok_code = parse_int(ok_code_node, 200);
+		this->ok_codes.push_back(fmt::sprintf("%d", ok_code));
+	}
+	if (this->ok_codes.size() == 0) {
+		this->ok_codes.push_back("200");
+	}
 	// If host was not given, use IP address
 	if (host == "")
 		host = parent_lbnode->address.c_str();
@@ -69,8 +82,10 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
  * It only calls HTTP constructor.  Now that's what I call inheritance!
  */
 Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck_http(config, _parent_lbnode) {
-	if (this->port == 0)
-		this->port = 443;
+	/*
+	 * Nothing to do. Due to constructor calling order default port
+	 * must be specified in parent class.
+	 */
 }
 
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
@@ -181,8 +196,8 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 
 	message = fmt::sprintf("HTTP code %s", statusline);
 
-	for (YAML::Node ok_code: hc->http_ok_codes)
-		if (statusline.compare(ok_code.as<string>().c_str()) == 0)
+	for (auto ok_code: hc->ok_codes)
+		if (statusline.compare(ok_code) == 0)
 			return hc->end_check(HC_PASS, message);
 
 	return hc->end_check(HC_FAIL, message);

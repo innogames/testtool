@@ -60,6 +60,7 @@ class Healthcheck_postgres: public Healthcheck {
 	 */
 	protected:
 		string				 host;
+		int	 			 port;
 		string				 dbname;
 		string				 user;
 		string				 query;

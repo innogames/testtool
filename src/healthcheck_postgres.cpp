@@ -50,9 +50,7 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
 	this->type = "postgres";
 
 	// Set defaults
-	if (this->port == 0)
-		this->port = 5432;
-
+	this->port = parse_int(config["hc_port"], 5432);
 	this->host = parse_string(config["hc_host"], parent_lbnode->address);
 	this->dbname = parse_string(config["hc_dbname"], "");
 	this->user = parse_string(config["hc_user"], "");

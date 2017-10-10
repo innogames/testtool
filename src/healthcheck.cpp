@@ -49,7 +49,6 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 	parent_lbnode->healthchecks.push_back(this);
 
 	/* Set defaults, same as with old testtool. */
-	this->port = parse_int(config["hc_port"], 0);
 	this->check_interval = parse_int(config["hc_interval"], 2);
 	this->max_failed_checks = parse_int(config["hc_max_failed"], 3);
 	int tmp_timeout = parse_int(config["hc_timeout"], 1500);
