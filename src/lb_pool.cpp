@@ -67,7 +67,7 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	 * If this Pool has no healthchecks then force nodes to be always up.
 	 * This is required to have testool manage all LB Pools.
 	 */
-	if (!node_defined(config["healthchecks"])) {
+	if (!node_defined(config["health_checks"])) {
 		this->fault_policy = FORCE_UP;
 		this->min_nodes = config["nodes"].size();
 	}
@@ -106,8 +106,8 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 		}
 	}
 
-	for (auto hc_it : config["healthchecks"]) {
-		for (auto node : this->nodes) {
+	for (auto hc_it: config["health_checks"]) {
+		for (auto node: this->nodes) {
 			Healthcheck::healthcheck_factory(hc_it, node);
 		}
 	}

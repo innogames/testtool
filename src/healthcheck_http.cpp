@@ -40,10 +40,10 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	if (this->port == 0)
 		this->port = 80;
 
-	this->type = parse_string(config["type"], "http");
-	this->url = parse_string(config["url"], "/");
-	this->st_http_ok_codes = parse_string(config["ok_codes"], "200");
-	this->host = parse_string(config["host"], "");
+	this->type = parse_string(config["hc_type"], "http");
+	this->query = parse_string(config["hc_query"], "HEAD /");
+	this->http_ok_codes = config["hc_ok_codes"];
+	this->host = parse_string(config["hc_host"], "");
 
 	// If host was not given, use IP address
 	if (host == "")
@@ -60,20 +60,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	snprintf(port_str, sizeof(port_str), "%d", port);
 	getaddrinfo(parent_lbnode->address.c_str(), port_str, NULL, &addrinfo);
 
-	// Split the list by ".", copy each found code into the vector
-	stringstream ss_http_ok_codes(this->st_http_ok_codes);
-	string http_ok_code;
-	while(getline(ss_http_ok_codes, http_ok_code, '.'))
-		http_ok_codes.push_back(http_ok_code);
-
-	// Print codes as they were parsed
-	char codes_buf[1024];
-	int offset = 0;
-	for (unsigned int i = 0; i<http_ok_codes.size(); i++) {
-		offset = snprintf(codes_buf+offset, sizeof(codes_buf)-offset, "%s,", http_ok_codes[i].c_str());
-	}
-
-	log(MSG_INFO, this, fmt::sprintf("url %s created", this->url));
+	log(MSG_INFO, this, fmt::sprintf("query %s created", this->query));
 }
 
 /*
@@ -100,7 +87,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->query.c_str(), this->host.c_str());
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -126,7 +113,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "HEAD %s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->url.c_str(), this->host.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->query.c_str(), this->host.c_str());
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -194,9 +181,8 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 
 	message = fmt::sprintf("HTTP code %s", statusline);
 
-	unsigned int i;
-	for (i = 0; i<hc->http_ok_codes.size(); i++)
-		if (statusline.compare(hc->http_ok_codes[i]) == 0)
+	for (YAML::Node ok_code: hc->http_ok_codes)
+		if (statusline.compare(ok_code.as<string>().c_str()) == 0)
 			return hc->end_check(HC_PASS, message);
 
 	return hc->end_check(HC_FAIL, message);

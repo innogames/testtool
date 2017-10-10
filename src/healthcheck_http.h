@@ -30,10 +30,9 @@ class Healthcheck_http: public Healthcheck {
 	/* Members */
 	protected:
 		bufferevent			*bev;
-		string				 url;
+		string				 query;
 		string				 host;
-		string				 st_http_ok_codes;
-		vector<string>			 http_ok_codes;
+		YAML::Node			http_ok_codes;
 		struct addrinfo			*addrinfo;
 		string				 reply;
 

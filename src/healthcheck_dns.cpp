@@ -64,10 +64,9 @@ Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent
 	if (this->port == 0)
 		this->port = 53;
 
-	this->dns_query = parse_string(config["query"], "/");
-	if (this->dns_query.at(this->dns_query.length()-1) != '.') {
+	this->dns_query = parse_string(config["hc_query"], "/");
+	if (this->dns_query.at(this->dns_query.length() - 1) != '.')
 		this->dns_query += '.';
-	}
 
 	this->type = "dns";
 	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->dns_query));
