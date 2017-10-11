@@ -3,6 +3,7 @@
 #include <vector>
 #include <fmt/format.h>
 #include <yaml-cpp/yaml.h>
+#include <boost/algorithm/string/join.hpp>
 
 #include <errno.h>
 
@@ -73,7 +74,12 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	snprintf(port_str, sizeof(port_str), "%d", port);
 	getaddrinfo(parent_lbnode->address.c_str(), port_str, NULL, &addrinfo);
 
-	log(MSG_INFO, this, fmt::sprintf("query %s created", this->query));
+	this->log_prefix = fmt::sprintf(
+		"query: '%s' port: %d ok_codes: %s",
+		this->query,
+		this->port,
+		boost::algorithm::join(this->ok_codes, ",")
+	);
 }
 
 /*

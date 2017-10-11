@@ -67,7 +67,11 @@ Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent
 	if (this->dns_query.at(this->dns_query.length() - 1) != '.')
 		this->dns_query += '.';
 
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, query: %s", this->dns_query));
+	this->log_prefix = fmt::sprintf(
+		"query: '%s' port: %d",
+		this->dns_query,
+		this->port
+	);
 }
 
 int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {

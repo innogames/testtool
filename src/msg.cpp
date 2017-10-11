@@ -46,6 +46,6 @@ void log(int loglevel, LbNode *lbnode, string msg) {
 }
 
 void log(int loglevel, Healthcheck *hc, string msg) {
-	string out  =  "healthcheck: " + hc->type + " " + msg;
+	string out  =  "healthcheck: " + hc->type + " " + hc->log_prefix + " " + msg;
 	log(loglevel, hc->parent_lbnode, out);
 }

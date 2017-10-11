@@ -106,6 +106,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 	else
 		return NULL;
 
+	log(MSG_INFO, new_healthcheck, "state: created");
+
 	return new_healthcheck;
 }
 

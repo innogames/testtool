@@ -41,7 +41,7 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 
 	/* Perform some checks to verify if this is really an LB Pool */
 	if  (!node_defined(config["ip"+proto])) {
-		throw(NotLbPoolException(fmt::sprintf("No ip%s configured!", proto)));
+		throw(NotLbPoolException(fmt::sprintf("No IPv%s configured!", proto)));
 	}
 	if  (!node_defined(config["protocol_port"])) {
 		throw(NotLbPoolException("No protocol_port configured!"));
@@ -83,7 +83,7 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 	auto it = fault_policy_names.find(fault_policy);
 	string fault_policy_name = (it == fault_policy_names.end()) ? string("") : it->second;
 
-	log(MSG_INFO, this, fmt::sprintf("min %d max %d policy %s action: created", min_nodes, max_nodes, fault_policy_name));
+	log(MSG_INFO, this, fmt::sprintf("min_nodes: %d max_nodes: %d policy: %s state: created", min_nodes, max_nodes, fault_policy_name));
 
 	/*
 	 * Glue things together. Please note that children append themselves
@@ -240,14 +240,13 @@ void LbPool::pool_logic(LbNode *last_node) {
 		/* Log only if state has changed. */
 		if (wanted_nodes != up_nodes) {
 			up_nodes = wanted_nodes;
-			if (this->backup_pool_active) {
-				log(MSG_INFO, this, fmt::sprintf("%d backup nodes up", up_nodes.size()));
-			} else {
-				log(MSG_INFO, this, fmt::sprintf("%d/%d nodes up", up_nodes.size(), nodes.size()));
+
+			string up_nodes_str;
+			for (auto node: up_nodes) {
+				up_nodes_str += node->name;
 			}
-			for (auto node: up_nodes){
-				log(MSG_INFO, this, fmt::sprintf("up_node: %s", node->name));
-			}
+
+			log(MSG_INFO, this, fmt::sprintf("up_lbnodes: %s", up_nodes_str));
 
 			/* Pool state will be used for configuring BGP */
 			if (up_nodes.empty()) {
@@ -273,9 +272,9 @@ void LbPool::update_pfctl(void) {
 	if (!pf_synced) {
 		pf_synced = send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
 		if (!pf_synced)
-			log(MSG_INFO, this, fmt::sprintf("delayed sync"));
+			log(MSG_INFO, this, fmt::sprintf("sync: delayed"));
 		else
-			log(MSG_INFO, this, fmt::sprintf("immediate sync"));
+			log(MSG_INFO, this, fmt::sprintf("sync: immediate"));
 	}
 
 	// Update any other LB Pools which use this one as Backup Pool

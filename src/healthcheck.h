@@ -92,6 +92,7 @@ class Healthcheck {
 		char			 hard_state;
 		string			 type;
 		bool			 ran;              // This check was ran at least once.
+		string			 log_prefix;       // Common logging string
 
 	protected:
 		struct timespec		 last_checked;     // The last time this host was checked.

@@ -56,7 +56,11 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
 	this->user = parse_string(config["hc_user"], "");
 	this->query = parse_string(config["hc_query"], "");
 
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, query: %s", this->query));
+	this->log_prefix = fmt::sprintf(
+		"query: '%s' port: %d",
+		this->query,
+		this->port
+	);
 }
 
 

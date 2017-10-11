@@ -31,7 +31,8 @@ extern int			 verbose;
 Healthcheck_tcp::Healthcheck_tcp(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	this->port = parse_int(config["hc_port"], 80);
 	type = "tcp";
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, port: %d", this->port));
+
+	this->log_prefix = fmt::sprintf("port: %d", this->port);
 }
 
 /*
