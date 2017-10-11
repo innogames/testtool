@@ -168,7 +168,6 @@ void Healthcheck_ping::destroy() {
 Healthcheck_ping::Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	/* Oh wait, there are none for this healthcheck! */
 	type = "ping";
-	log(MSG_INFO, this, "new healthcheck");
 }
 
 #define OFFSETOF(type, field)    ((unsigned long) &(((type *) 0)->field))
@@ -268,7 +267,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what, void *arg
 		int ms_full = nsec_diff / 1000000;
 		int ms_dec  = (nsec_diff - ms_full * 1000000) / 1000;
 
-		message = fmt::sprintf("reply after %d.%dms,", ms_full, ms_dec);
+		message = fmt::sprintf("reply after %d.%dms", ms_full, ms_dec);
 
 		healthcheck->end_check(HC_PASS, message);
 	}

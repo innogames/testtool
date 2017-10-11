@@ -27,6 +27,7 @@ class Healthcheck_tcp: public Healthcheck {
 	private:
 		int		 socket_fd;
 		struct event	*ev;
+		int	 	 port;
 };
 
 

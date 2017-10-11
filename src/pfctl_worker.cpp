@@ -68,7 +68,7 @@ bool pfctl_worker_loop(message_queue* mq) {
 
 		assert (recvd_size == sizeof(pfctl_msg));
 
-		log(MSG_INFO, fmt::sprintf("lbpool: %s starting synchronizing pf table %s", msg.pool_name, msg.table_name));
+		log(MSG_INFO, fmt::sprintf("lbpool: %s sync: start pf_table: %s", msg.pool_name, msg.table_name));
 
 		// Decode the message
 		string table_name(msg.table_name);
@@ -88,7 +88,7 @@ bool pfctl_worker_loop(message_queue* mq) {
 		pf_sync_table(table_name, wanted_addresses);
 		chrono::high_resolution_clock::time_point t2 = chrono::high_resolution_clock::now();
 		auto duration = chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
-		log(MSG_INFO, fmt::sprintf("lbpool: %s finished synchronizing pf table %s time: %dms", msg.pool_name, msg.table_name, duration));
+		log(MSG_INFO, fmt::sprintf("lbpool: %s sync: finish pf_table: %s time: %dms", msg.pool_name, msg.table_name, duration));
 	}
 	return true;
 }

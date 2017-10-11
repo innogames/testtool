@@ -61,16 +61,17 @@ static unsigned int build_dns_question(string &dns_query, char *question_buffer)
 Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 
 	// Set defaults
-	if (this->port == 0)
-		this->port = 53;
-
-	this->dns_query = parse_string(config["query"], "/");
-	if (this->dns_query.at(this->dns_query.length()-1) != '.') {
-		this->dns_query += '.';
-	}
-
 	this->type = "dns";
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, url: %s", this->dns_query));
+	this->port = parse_int(config["hc_port"], 53);
+	this->dns_query = parse_string(config["hc_query"], "af-control.ig.local.");
+	if (this->dns_query.at(this->dns_query.length() - 1) != '.')
+		this->dns_query += '.';
+
+	this->log_prefix = fmt::sprintf(
+		"query: '%s' port: %d",
+		this->dns_query,
+		this->port
+	);
 }
 
 int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {

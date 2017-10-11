@@ -140,7 +140,7 @@ void TestTool::load_config(string config_file) {
 			}
 			catch (NotLbPoolException ex) {
 				/* Nothing to do, just ignore it */
-				log(MSG_INFO, fmt::sprintf("lbpool: %s %s", name, ex.what()));
+				log(MSG_INFO, fmt::sprintf("lbpool: %s state: not created message: %s", name, ex.what()));
 			}
 		}
 	}

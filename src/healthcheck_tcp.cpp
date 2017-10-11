@@ -2,6 +2,7 @@
 #include <sstream>
 #include <vector>
 #include <fmt/format.h>
+#include <yaml-cpp/yaml.h>
 
 #include <errno.h>
 #include <arpa/inet.h>
@@ -11,6 +12,7 @@
 #include <event2/util.h>
 #include <event2/event_struct.h>
 
+#include "config.h"
 #include "msg.h"
 
 #include "lb_pool.h"
@@ -27,8 +29,10 @@ extern int			 verbose;
    Constructor for TCP healthcheck.
 */
 Healthcheck_tcp::Healthcheck_tcp(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+	this->port = parse_int(config["hc_port"], 80);
 	type = "tcp";
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, port: %d", this->port));
+
+	this->log_prefix = fmt::sprintf("port: %d", this->port);
 }
 
 /*

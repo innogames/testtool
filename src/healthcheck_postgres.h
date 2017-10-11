@@ -60,10 +60,10 @@ class Healthcheck_postgres: public Healthcheck {
 	 */
 	protected:
 		string				 host;
+		int	 			 port;
 		string				 dbname;
 		string				 user;
-		string				 function;
-		char				 query[256];
+		string				 query;
 		PGconn				*conn;
 		PostgresPollingStatusType	*poll_status;
 		PGresult			*query_result = NULL;

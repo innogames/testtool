@@ -92,9 +92,9 @@ class Healthcheck {
 		char			 hard_state;
 		string			 type;
 		bool			 ran;              // This check was ran at least once.
+		string			 log_prefix;       // Common logging string
 
 	protected:
-		int			 port;             // Healthchecks assigned to one node can be performed against multiple ports. */
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timeval		 timeout;
 		bool			 is_running;

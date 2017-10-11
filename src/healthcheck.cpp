@@ -49,10 +49,9 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 	parent_lbnode->healthchecks.push_back(this);
 
 	/* Set defaults, same as with old testtool. */
-	this->port = parse_int(config["port"], 0);
-	this->check_interval = parse_int(config["interval"], 2);
-	this->max_failed_checks = parse_int(config["max_failed"], 3);
-	int tmp_timeout = parse_int(config["timeout"], 1500);
+	this->check_interval = parse_int(config["hc_interval"], 2);
+	this->max_failed_checks = parse_int(config["hc_max_failed"], 3);
+	int tmp_timeout = parse_int(config["hc_timeout"], 1500);
 	/* Timeout was read in ms, convert it to s and ns. */
 	this->timeout.tv_sec   =  tmp_timeout / 1000;
 	this->timeout.tv_usec  = (tmp_timeout % 1000) * 1000;
@@ -90,7 +89,7 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 
 	Healthcheck * new_healthcheck = NULL;
 
-	std::string type = parse_string(config["type"], "");
+	std::string type = parse_string(config["hc_type"], "");
 
 	if (type == "http")
 		new_healthcheck = new Healthcheck_http(config, _parent_lbnode);
@@ -106,6 +105,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class Lb
 		new_healthcheck = new Healthcheck_dns(config, _parent_lbnode);
 	else
 		return NULL;
+
+	log(MSG_INFO, new_healthcheck, "state: created");
 
 	return new_healthcheck;
 }

@@ -69,6 +69,7 @@ class Healthcheck_dns: public Healthcheck {
 	private:
 		int		 socket_fd;
 		struct event	*ev;
+		int		 port;
 		string		 dns_query;
 
 		/* Each check is run with different transaction id. */

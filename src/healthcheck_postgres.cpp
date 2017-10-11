@@ -50,16 +50,17 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
 	this->type = "postgres";
 
 	// Set defaults
-	if (this->port == 0)
-		this->port = 5432;
+	this->port = parse_int(config["hc_port"], 5432);
+	this->host = parse_string(config["hc_host"], parent_lbnode->address);
+	this->dbname = parse_string(config["hc_dbname"], "");
+	this->user = parse_string(config["hc_user"], "");
+	this->query = parse_string(config["hc_query"], "");
 
-	this->host = parse_string(config["host"], parent_lbnode->address);
-	this->dbname = parse_string(config["dbname"], "");
-	this->user = parse_string(config["user"], "");
-	this->function = parse_string(config["function"], "");
-
-	this->prepare_query();
-	log(MSG_INFO, this, fmt::sprintf("new healthcheck, query: %s", this->query));
+	this->log_prefix = fmt::sprintf(
+		"query: '%s' port: %d",
+		this->query,
+		this->port
+	);
 }
 
 
@@ -176,19 +177,6 @@ void Healthcheck_postgres::poll_conn() {
 }
 
 /*
- * Prepare the database query
- *
- * Currently, we only know how to call a function.  We could prepare
- * the function in server-side, but it doesn't worth the effort.
- */
-void Healthcheck_postgres::prepare_query() {
-	snprintf(this->query, sizeof(this->query), "SELECT %s()",
-		 this->function.c_str());
-
-	log(MSG_DEBUG, this, fmt::sprintf("db query: %s", this->query));
-}
-
-/*
  * Send the query to the database and continue
  */
 void Healthcheck_postgres::send_query() {
@@ -200,7 +188,7 @@ void Healthcheck_postgres::send_query() {
 	 * PQsendQuery() can fail in non-blocking mode, and has to be
 	 * re-tried.
 	 */
-	if (!PQsendQuery(this->conn, query))
+	if (!PQsendQuery(this->conn, this->query.c_str()))
 		return this->register_io_event(EV_WRITE,
 					       &Healthcheck_postgres::send_query);
 

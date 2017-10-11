@@ -64,7 +64,7 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 		freeaddrinfo(res);
 	}
 
-	log(MSG_INFO, this, fmt::sprintf("initial_state %s created", this->get_state_text()));
+	log(MSG_INFO, this, fmt::sprintf("state: created initial_state: %s", this->get_state_text()));
 }
 
 
@@ -138,12 +138,12 @@ void LbNode::node_logic() {
 		state_changed = true;
 		max_nodes_kept = false;
 		state = STATE_DOWN;
-		log(MSG_STATE_DOWN, this, fmt::sprintf("%d of %d checks failed", num_healthchecks-ok_healthchecks, num_healthchecks));
+		log(MSG_STATE_DOWN, this, fmt::sprintf("message: %d of %d checks failed", num_healthchecks-ok_healthchecks, num_healthchecks));
 	} else if (state == STATE_DOWN && new_state == STATE_UP) {
 		state_changed = true;
 		min_nodes_kept = false;
 		state = STATE_UP;
-		log(MSG_STATE_DOWN, this, fmt::sprintf("all of %d checks passed", num_healthchecks));
+		log(MSG_STATE_DOWN, this, fmt::sprintf("message: all of %d checks passed", num_healthchecks));
 	}
 
 	/*
