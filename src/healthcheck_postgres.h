@@ -45,7 +45,6 @@ class Healthcheck_postgres: public Healthcheck {
 	protected:
 		void start_conn();
 		void poll_conn();
-		void prepare_query();
 		void send_query();
 		void flush_query();
 		void handle_query();
@@ -66,7 +65,7 @@ class Healthcheck_postgres: public Healthcheck {
 		string				 query;
 		PGconn				*conn;
 		PostgresPollingStatusType	*poll_status;
-		PGresult			*query_result = NULL;
+		PGresult			*result = NULL;
 		struct event			*io_event;
 		struct event			*timeout_event;
 		short				 event_flag;

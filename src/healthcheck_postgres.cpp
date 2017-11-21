@@ -265,22 +265,22 @@ void Healthcheck_postgres::handle_query() {
 	 */
 	assert(!PQisBusy(this->conn));
 
-	this->query_result = PQgetResult(this->conn);
+	this->result = PQgetResult(this->conn);
 
-	if (PQresultStatus(this->query_result) != PGRES_TUPLES_OK)
+	if (PQresultStatus(this->result) != PGRES_TUPLES_OK)
 		return this->end_check(HC_FAIL, "db result not ok");
 
-	if (PQntuples(this->query_result) != 1)
+	if (PQntuples(this->result) != 1)
 		return this->end_check(HC_FAIL, "db result not 1 row");
 
-	if (PQnfields(this->query_result) != 1)
+	if (PQnfields(this->result) != 1)
 		return this->end_check(HC_FAIL, "db result not 1 column");
 
 	// 0 means the format is text which must always be the case.
-	assert(PQfformat(this->query_result, 0) == 0);
+	assert(PQfformat(this->result, 0) == 0);
 
 	// Get the single cell
-	val = PQgetvalue(this->query_result, 0, 0);
+	val = PQgetvalue(this->result, 0, 0);
 
 	if (strlen(val) != 1)
 		return this->end_check(HC_FAIL, "db result not 1 char");
@@ -306,9 +306,9 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 				this->event_flag, this->event_counter));
 	}
 
-	if (this->query_result != NULL) {
-		PQclear(this->query_result);
-		this->query_result = NULL;
+	if (this->result != NULL) {
+		PQclear(this->result);
+		this->result = NULL;
 	}
 
 	if (this->io_event != NULL) {
