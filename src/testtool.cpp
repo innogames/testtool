@@ -389,12 +389,25 @@ int init_libssl() {
 
 	log(MSG_INFO, fmt::sprintf("OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION)));
 
-	sctx = SSL_CTX_new (SSLv23_client_method ());
+	sctx = SSL_CTX_new (TLSv1_2_client_method ());
 	if (!sctx) {
 		return false;
 	}
 
 	SSL_CTX_set_verify(sctx, SSL_VERIFY_NONE, NULL);
+
+	/*
+	 * Ensure that only *fast* ciphers are available.
+	 * The ones without Diffie-Hellman algorithms.
+	 *
+	 * https://www.paypal-engineering.com/2014/04/01/outbound-ssl-performance-in-node-js
+	 * https://gitlab.innogames.de/puppet/ig/blob/master/manifests/software/openssl.pp
+	 */
+	string ciphers = "AES128-SHA256:AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384";
+	if (!SSL_CTX_set_cipher_list(sctx, ciphers.c_str())) {
+		log(MSG_CRIT, fmt::sprintf("SSL_CTX_set_cipher_list failed!"));
+		return false;
+	}
 
 	return true;
 }
