@@ -1,7 +1,7 @@
-VALID_CATEGORIES+= iglb
+VALID_CATEGORIES+= igports
 PORTNAME=	testtool
 PORTVERSION=	_PV_
-CATEGORIES=	iglb
+CATEGORIES=	igports
 
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
 COMMENT=	Testtool checks health of loadbalanced services.
