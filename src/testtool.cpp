@@ -399,7 +399,7 @@ int init_libssl() {
 
 	log(MSG_INFO, fmt::sprintf("OpenSSL version: %s", SSLeay_version (SSLEAY_VERSION)));
 
-	sctx = SSL_CTX_new (TLSv1_2_client_method ());
+	sctx = SSL_CTX_new(TLSv1_2_client_method());
 	if (!sctx) {
 		return false;
 	}
@@ -413,7 +413,13 @@ int init_libssl() {
 	 * https://www.paypal-engineering.com/2014/04/01/outbound-ssl-performance-in-node-js
 	 * https://gitlab.innogames.de/puppet/ig/blob/master/manifests/software/openssl.pp
 	 */
-	string ciphers = "AES128-SHA256:AES256-SHA256:AES128-GCM-SHA256:AES256-GCM-SHA384";
+	string ciphers =
+		// First try fast ciphers without extra DH or ECDHE.
+		"AES128-SHA256:AES256-SHA256:"
+		"AES128-GCM-SHA256:AES256-GCM-SHA384:"
+		// Only then try slower ones, some servers are paranoid.
+		"ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:"
+		"DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
 	if (!SSL_CTX_set_cipher_list(sctx, ciphers.c_str())) {
 		log(MSG_CRIT, fmt::sprintf("SSL_CTX_set_cipher_list failed!"));
 		return false;
