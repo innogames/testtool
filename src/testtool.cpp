@@ -406,25 +406,6 @@ int init_libssl() {
 
 	SSL_CTX_set_verify(sctx, SSL_VERIFY_NONE, NULL);
 
-	/*
-	 * Ensure that only *fast* ciphers are available.
-	 * The ones without Diffie-Hellman algorithms.
-	 *
-	 * https://www.paypal-engineering.com/2014/04/01/outbound-ssl-performance-in-node-js
-	 * https://gitlab.innogames.de/puppet/ig/blob/master/manifests/software/openssl.pp
-	 */
-	string ciphers =
-		// First try fast ciphers without extra DH or ECDHE.
-		"AES128-SHA256:AES256-SHA256:"
-		"AES128-GCM-SHA256:AES256-GCM-SHA384:"
-		// Only then try slower ones, some servers are paranoid.
-		"ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:"
-		"DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384";
-	if (!SSL_CTX_set_cipher_list(sctx, ciphers.c_str())) {
-		log(MSG_CRIT, fmt::sprintf("SSL_CTX_set_cipher_list failed!"));
-		return false;
-	}
-
 	return true;
 }
 
