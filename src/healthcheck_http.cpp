@@ -38,6 +38,8 @@ extern int			 verbose;
 Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
 	// This is not done automatically.
 	bev = NULL;
+	ssl_session = NULL;
+	ssl = NULL;
 
 	// Set defaults
 	this->type = parse_string(config["hc_type"], "http");
@@ -104,7 +106,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	reply = "";
 
-	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
+	bev = bufferevent_socket_new(eventBase, -1, 0);
 	if (bev == NULL)
 		return false;
 
@@ -121,8 +123,6 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 }
 
 int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
-	SSL *ssl;
-
 	// Peform general stuff for scheduled healthcheck
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
@@ -130,6 +130,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 	reply = "";
 
 	ssl = SSL_new(sctx);
+
 	bev = bufferevent_openssl_socket_new(eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE);
 	if (bev == NULL)
 		return false;
@@ -139,6 +140,10 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->query.c_str(), this->host.c_str());
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
+
+	if (this->ssl_session) {
+		SSL_set_session(this->ssl, this->ssl_session);
+	}
 
 	if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) < 0)
 		return false;
@@ -168,7 +173,18 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 	Healthcheck_http *hc = (Healthcheck_http *)arg;
 	string message;
 
-	// Ignore READING, WRITING, CONNECTED events
+	// CONNECTED event is when connection is ready for us.
+	// In case of HTTPS checks it means that TLS was negotiated.
+	if (events & BEV_EVENT_CONNECTED && hc->ssl != NULL) {
+
+		if (hc->ssl_session != NULL)
+			SSL_SESSION_free(hc->ssl_session);
+
+		hc->ssl_session = SSL_get1_session(hc->ssl);
+	}
+
+	// Ignore READING, WRITING, CONNECTED events.
+	// Pass through for connection errors, timeouts and connection closed.
 	if (!(events & (BEV_EVENT_ERROR|BEV_EVENT_TIMEOUT|BEV_EVENT_EOF)))
 		return;
 
@@ -228,6 +244,12 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 	for (auto ok_code: hc->ok_codes)
 		if (statusline.compare(ok_code) == 0)
 			return hc->end_check(HC_PASS, message);
+
+	if (hc->ssl != NULL) {
+		SSL *ctx = bufferevent_openssl_get_ssl(bev);
+		SSL_set_shutdown(ctx, SSL_RECEIVED_SHUTDOWN);
+		SSL_shutdown(ctx);
+	}
 
 	return hc->end_check(HC_FAIL, message);
 }

@@ -36,6 +36,8 @@ class Healthcheck_http: public Healthcheck {
 		vector<string>			 ok_codes;
 		struct addrinfo			*addrinfo;
 		string				 reply;
+		SSL				*ssl;
+		SSL_SESSION			*ssl_session;
 
 };
 
