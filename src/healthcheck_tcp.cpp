@@ -84,7 +84,7 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 	/* Create a socket. */
 	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (socket_fd == -1) {
-		log(MSG_CRIT, this, fmt::sprintf("socket() error: %s", strerror(errno)));
+		this->end_check(HC_FAIL, fmt::sprintf("socket() error %s", strerror(errno)));
 		return false;
 	}
 	memset(&to_addr, 0, sizeof(sockaddr_in));
