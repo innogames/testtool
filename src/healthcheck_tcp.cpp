@@ -46,11 +46,10 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 	if (what & EV_TIMEOUT) {
 		result = HC_FAIL;
 		message = fmt::sprintf(
-			"timeout after %d.%3ds",
+			"timeout after %d.%03ds",
 			hc->timeout.tv_sec,
 			hc->timeout.tv_usec / 1000
 		);
-
 	}
 
 	if (what & EV_READ && result != HC_FAIL) {
