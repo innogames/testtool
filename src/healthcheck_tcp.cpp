@@ -75,29 +75,46 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what, void *arg)
 
 
 int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
-	struct sockaddr_in	to_addr;
+	int result;
 
 	/* Peform general stuff for scheduled healthcheck. */
 	if (Healthcheck::schedule_healthcheck(now) == false)
 		return false;
 
 	/* Create a socket. */
-	socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+	socket_fd = socket(parent_lbnode->address_family, SOCK_STREAM, 0);
 	if (socket_fd == -1) {
 		this->end_check(HC_FAIL, fmt::sprintf("socket() error %s", strerror(errno)));
 		return false;
 	}
-	memset(&to_addr, 0, sizeof(sockaddr_in));
-	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
-	to_addr.sin_port = htons(port);
 
 	/* In fact I'm not really sure if it needs to be nonblocking. */
 	evutil_make_socket_nonblocking(socket_fd);
 
-	/* Sending to host is one thing, but we want answers only from our target in this socket.
-	   "connect" makes the socket receive only traffic from that host. */
-	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
+	int pton_res;
+	if (parent_lbnode->address_family == AF_INET) {
+		struct sockaddr_in to_addr4;
+		memset(&to_addr4, 0, sizeof(to_addr4));
+		to_addr4.sin_family = AF_INET;
+		pton_res = inet_pton(AF_INET, parent_lbnode->address.c_str(), &to_addr4.sin_addr);
+		to_addr4.sin_port = htons(port);
+		result = connect(socket_fd, (struct sockaddr*)&to_addr4, sizeof(to_addr4));
+	} else if (parent_lbnode->address_family == AF_INET6) {
+		struct sockaddr_in6 to_addr6;
+		memset(&to_addr6, 0, sizeof(to_addr6));
+		to_addr6.sin6_family = AF_INET6;
+		pton_res = inet_pton(AF_INET6, parent_lbnode->address.c_str(), &to_addr6.sin6_addr);
+		to_addr6.sin6_port = htons(port);
+		result = connect(socket_fd, (struct sockaddr*)&to_addr6, sizeof(to_addr6));
+
+	} else {
+		return false;
+	}
+
+	if (result == -1 && errno != EINPROGRESS) {
+		this->end_check(HC_FAIL, fmt::sprintf("connect() error %s pton %d", strerror(errno), pton_res));
+		return false;
+	}
 
 	/* Create an event and make it pending. */
 	ev = event_new(eventBase, socket_fd, EV_WRITE|EV_READ|EV_TIMEOUT, Healthcheck_tcp::callback, this);
