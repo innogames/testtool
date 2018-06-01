@@ -259,7 +259,11 @@ void TestTool::dump_status() {
 	}
 
 	status_file.close();
-	rename ("/var/log/testtool.status.new", "/var/log/testtool.status");
+	if (status_file.good()) {
+		rename ("/var/log/testtool.status.new", "/var/log/testtool.status");
+	} else {
+		log(MSG_CRIT, fmt::sprintf("Could not write status file, will retry next time."));
+	}
 }
 
 void configure_bgp_callback(evutil_socket_t fd, short what, void *arg) {
@@ -272,53 +276,58 @@ void configure_bgp_callback(evutil_socket_t fd, short what, void *arg) {
 
 void TestTool::configure_bgp() {
 
-	std::set<string*> ips4_alive_tmp;
-	std::set<string*> ips6_alive_tmp;
+	std::set<string*> bird_ips_alive_tmp[2];
 
 	for (auto& lb_pool : lb_pools) {
 		if (lb_pool.second->state == LbPool::STATE_UP) {
 			if (lb_pool.second->proto == "4") {
-				ips4_alive_tmp.insert(&lb_pool.second->ip_address);
+				bird_ips_alive_tmp[0].insert(&lb_pool.second->ip_address);
 			}
 
 			if (lb_pool.second->proto == "6") {
-				ips6_alive_tmp.insert(&lb_pool.second->ip_address);
+				bird_ips_alive_tmp[1].insert(&lb_pool.second->ip_address);
 			}
 		}
 	}
 
-	string conffile = "/usr/local/etc/bird_testtool_nets.conf";
-	string tmpfile  = conffile + ".new";
-	if (ips4_alive_tmp != ips4_alive) {
-		ofstream status_file(tmpfile,  ios_base::out |  ios_base::trunc);
-		status_file << "testtool_pools = [ 0.0.0.0/32+";
-		for (auto ip_alive : ips4_alive_tmp) {
-			status_file << ", " << *ip_alive << "/32+ ";
-		}
-		status_file << " ];" << endl;
-		status_file.close();
-		// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
-		std::rename(tmpfile.c_str(), conffile.c_str());
-		ips4_alive = ips4_alive_tmp;
-		system("/usr/local/sbin/birdcl configure");
-	}
+	for(int i=0; i<=1; i++) {
+		string bird_suffix = "";
+		string bird_mask = "/32";
+		string bird_empty_net = "0.0.0.0/32";
 
-	conffile = "/usr/local/etc/bird6_testtool_nets.conf";
-	tmpfile  = conffile + ".new";
-	if (ips6_alive_tmp != ips6_alive) {
-		ofstream status_file(tmpfile,  ios_base::out |  ios_base::trunc);
-		status_file << "testtool_pools = [ ::/128+";
-		for (auto ip_alive : ips6_alive_tmp) {
-			status_file << ", " << *ip_alive << "/128+ ";
+		if (i==1) {
+			bird_suffix = "6";
+			bird_mask = "/128";
+			bird_empty_net = "::/128";
 		}
-		status_file << " ];" << endl;
-		status_file.close();
-		// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
-		std::rename(tmpfile.c_str(), conffile.c_str());
-		ips6_alive = ips6_alive_tmp;
-		system("/usr/local/sbin/birdcl6 configure");
-	}
 
+		string conf_file = "/usr/local/etc/bird" + bird_suffix + "_testtool_nets.conf";
+		string temp_file = conf_file + ".new";
+
+		if (bird_ips_alive_tmp[i] != bird_ips_alive[i]) {
+			ofstream conf_stream(temp_file,  ios_base::out |  ios_base::trunc);
+			conf_stream << "testtool_pools = [ " << bird_empty_net;
+			for (auto ip_alive : bird_ips_alive_tmp[i]) {
+				conf_stream << ", ";
+				conf_stream << *ip_alive << bird_mask;
+			}
+			conf_stream << " ];" << endl;
+			conf_stream.close();
+
+			if (conf_stream.good()) {
+				// Create real file in "atomic" way, in case BIRD reloads it in the meantime.
+				std::rename(temp_file.c_str(), conf_file.c_str());
+				bird_ips_alive[i] = bird_ips_alive_tmp[i];
+				if (system(fmt::sprintf("/usr/local/sbin/birdcl%s configure", bird_suffix).c_str()) != 0) {
+					log(MSG_CRIT, fmt::sprintf("Reloading Bird%s failed!", bird_suffix));
+				} else {
+					log(MSG_INFO, fmt::sprintf("Reloading Bird%s succeeded", bird_suffix));
+				}
+			} else {
+				log(MSG_CRIT, fmt::sprintf("Could not write Bird%s filters, will retry next time!", bird_suffix));
+			}
+		}
+	}
 }
 
 void TestTool::setup_events() {
