@@ -300,7 +300,7 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 		char *error = PQerrorMessage(this->conn);
 
 		if (error != NULL && strlen(error) > 0)
-			log(MSG_CRIT, this, fmt::sprintf("db error: %s", error));
+			message += fmt::sprintf(" db error: %s", error);
 
 		if (verbose >= 2)
 			log(MSG_DEBUG, this, fmt::sprintf("Last event %d after %d events",
