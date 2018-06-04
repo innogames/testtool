@@ -1,5 +1,6 @@
 #include <string.h>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 
 #include "config.h"

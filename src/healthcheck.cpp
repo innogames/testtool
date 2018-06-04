@@ -3,6 +3,7 @@
 #include <typeinfo>
 #include <stdlib.h>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 
 #include "config.h"

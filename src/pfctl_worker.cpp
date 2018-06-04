@@ -3,6 +3,7 @@
 #include <signal.h>
 #include <iostream>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <boost/interprocess/ipc/message_queue.hpp>
 
 #include "msg.h"

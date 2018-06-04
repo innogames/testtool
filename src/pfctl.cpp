@@ -6,6 +6,7 @@
 #include <boost/system/error_code.hpp>
 #include <boost/asio.hpp>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 
 #include <stdarg.h>
 #include <stdio.h>

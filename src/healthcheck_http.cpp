@@ -2,6 +2,7 @@
 #include <sstream>
 #include <vector>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/algorithm/string/join.hpp>
 

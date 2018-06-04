@@ -2,6 +2,7 @@
 #include <sstream>
 #include <vector>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 
 #include <errno.h>
 #include <stdlib.h>

@@ -2,6 +2,7 @@
 #include <iostream>
 #include <syslog.h>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 
 #include "msg.h"
 #include "lb_pool.h"

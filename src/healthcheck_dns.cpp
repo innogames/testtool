@@ -15,6 +15,7 @@
 #include <sstream>
 #include <vector>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 
 #include <errno.h>

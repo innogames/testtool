@@ -6,6 +6,7 @@
 #include <vector>
 #include <set>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/interprocess/ipc/message_queue.hpp>
 

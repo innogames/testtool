@@ -12,6 +12,7 @@
 #include <vector>
 #include <cassert>
 #include <fmt/format.h>
+#include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 
 #include <errno.h>
