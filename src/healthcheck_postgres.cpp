@@ -303,8 +303,8 @@ void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
 			message += fmt::sprintf(" db error: %s", error);
 
 		if (verbose >= 2)
-			log(MSG_DEBUG, this, fmt::sprintf("Last event %d after %d events",
-				this->event_flag, this->event_counter));
+			message += fmt::sprintf("Last event flag 0x%02x after %d events",
+				this->event_flag, this->event_counter);
 	}
 
 	if (this->result != NULL) {

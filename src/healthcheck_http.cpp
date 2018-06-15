@@ -218,7 +218,7 @@ void Healthcheck_http::end_check(HealthcheckResult result, string message) {
 		char *error = evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR());
 
 		if (error != NULL && strlen(error) > 0)
-			log(MSG_CRIT, fmt::sprintf("socket(): error: %s", strerror(errno)));
+			message += fmt::sprintf(", socket() error: %s", strerror(errno));
 	}
 
 	if (this->bev != NULL) {
