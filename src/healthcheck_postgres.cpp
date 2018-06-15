@@ -82,6 +82,9 @@ int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 		return false;
 
 	this->event_counter = 0;
+	this->event_flag = 0;
+	this->io_event = NULL;
+	this->timeout_event = NULL;
 	this->register_timeout_event();
 
 	// The first step
