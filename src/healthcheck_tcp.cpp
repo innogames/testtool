@@ -114,6 +114,7 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 
 	if (result == -1 && errno != EINPROGRESS) {
 		this->end_check(HC_FAIL, fmt::sprintf("connect() error %s pton %d", strerror(errno), pton_res));
+		close(socket_fd);
 		return false;
 	}
 
