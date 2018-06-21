@@ -54,39 +54,52 @@ void log_txt(msgType type, const char *fmt, ...) {
 		/* Node state changes. */
 		case MSG_TYPE_NODE_UP:
 			loglevel = LOG_NOTICE;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_GREEN "  Node Up  "CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_GREEN "  Node Up  " CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(pbuf), "Node up");
 		break;
 
 		case MSG_TYPE_NODE_DOWN:
 			loglevel = LOG_CRIT;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_YELLOW" Node Down "CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_YELLOW" Node Down " CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(pbuf), "Node down");
+		break;
+
+		/* Pool state changes. */
+		case MSG_TYPE_POOL_UP:
+			loglevel = LOG_NOTICE;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_GREEN "  Pool Up  " CL_WHITE  "]" CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Pool up");
+		break;
+
+		case MSG_TYPE_POOL_DOWN:
+			loglevel = LOG_CRIT;
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_YELLOW" Pool Down " CL_WHITE  "]" CL_RESET);
+			snprintf(pbuf, sizeof(pbuf), "Pool down");
 		break;
 
 		/* Healthcheck results. */
 		case MSG_TYPE_HC_PASS:
 			loglevel = LOG_NOTICE;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_GREEN " HC Passed "CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_GREEN " HC Passed " CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(pbuf), "HC Passed");
 		break;
 
 		case MSG_TYPE_HC_FAIL:
 			loglevel = LOG_ERR;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_RED   " HC Failed "CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_RED   " HC Failed " CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(mbuf), "HC Failed");
 		break;
 
 		case MSG_TYPE_HC_HFAIL:
 			loglevel = LOG_ERR;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_RED   "HC HardFail"CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_RED   "HC HardFail" CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(mbuf), "HC HardFail");
 		break;
 
 		/* pfctl operations */
 		case MSG_TYPE_PFCTL:
 			loglevel = LOG_NOTICE;
-			snprintf(cbuf, sizeof(cbuf), CL_WHITE"["CL_CYAN  "   pfctl   "CL_WHITE"]"CL_RESET);
+			snprintf(cbuf, sizeof(cbuf), CL_WHITE "[" CL_CYAN  "   pfctl   " CL_WHITE  "]" CL_RESET);
 			snprintf(pbuf, sizeof(pbuf), "pfctl");
 		break;
 

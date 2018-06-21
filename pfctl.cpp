@@ -1,7 +1,9 @@
 #include <iostream>
+#include <set>
 #include <string>
 #include <sstream>
 
+#include <stdarg.h>
 #include <stdio.h>
 
 #include "msg.h"
@@ -11,6 +13,41 @@ using namespace std;
 
 extern bool	 pf_action;
 extern int	 verbose_pfctl;
+
+static pair<int, string> run(const char* format, ...) {
+	char cmd[1024];
+	va_list va;
+	va_start(va, format);
+
+	int n = vsnprintf(cmd, sizeof(cmd), format, va);
+	va_end(va);
+	if (n < 0 || n >= (int)sizeof(cmd)) {
+		log_txt(MSG_TYPE_PFCTL, "Format error -- should never happen!");
+		return pair<int, string>(-1, "");
+	}
+
+	if (verbose_pfctl)
+		log_txt(MSG_TYPE_PFCTL, "command: %s", cmd);
+
+	FILE* fp = popen(cmd, "r");
+	if(fp == NULL){
+		log_txt(MSG_TYPE_PFCTL, "cannot spawn pfctl process '%s'", cmd);
+		return pair<int, string>(-1, "");
+	}
+
+	string output;
+	char buffer[1024];
+	while (fgets(buffer, 1024, fp) != NULL) {
+		output.append(buffer);
+	}
+
+	int ret = pclose(fp);
+
+	if (ret != 0) {
+		log_txt(MSG_TYPE_PFCTL, "cmd '%s' returned bad status (%d)", cmd, ret);
+	}
+	return pair<int, string>(ret, output);
+}
 
 /*
    Kill states created by pf rules using given table and IP address for redirection.
@@ -198,15 +235,37 @@ int pf_is_in_table(string &table, string &ip){
 
 
 /*
-   Remove src_nodes to all IPs in the given table apart from the specified one.
+   Returns all IP addresses in a table.
+*/
+const set<string> pf_table_members(string &table) {
+	pair<int,string> res = run("pfctl -q -t '%s' -T show", table.c_str());
+
+	set<string> result;
+	int code = res.first;
+	if (code != 0) {
+		return result;
+	}
+
+	istringstream istr_output(res.second);
+	string found_ip;
+	while (istr_output >> found_ip ) {
+		result.insert(found_ip);
+	}
+
+	return result;
+}
+
+
+/*
+   Remove src_nodes to all IPs in the given table apart from the specified ones.
    States of existing connections will not be killed, only src_nodes.
 */
-void pf_table_rebalance(string &table, string &skip_ip) {
+void pf_table_rebalance(string &table, const set<string> &skip_ips) {
 	FILE	*fp;
 	char	 cmd[1024];
 	int	 ret;
 
-	log_txt(MSG_TYPE_PFCTL, "%s %s - rebalancing table", table.c_str(), skip_ip.c_str());
+	log_txt(MSG_TYPE_PFCTL, "%s - rebalancing table", table.c_str());
 
 	/* Do not skip this function even if pf_action is false, this one is passive, it calls active ones. */
 
@@ -229,7 +288,7 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	ret = pclose(fp);
 
 	if (ret != 0) {
-		log_txt(MSG_TYPE_PFCTL, "pf_table_rebalance('%s', '%s'): returned bad status (%d)", table.c_str(), skip_ip.c_str(), ret);
+		log_txt(MSG_TYPE_PFCTL, "pf_table_rebalance('%s', ...): returned bad status (%d)", table.c_str(), ret);
 		return;
 	}
 
@@ -238,8 +297,9 @@ void pf_table_rebalance(string &table, string &skip_ip) {
 	while (istr_output >> found_ip ) {
 		if (verbose_pfctl)
 			log_txt(MSG_TYPE_PFCTL, "%s %s - node found in table", table.c_str(), found_ip.c_str());
-		if (found_ip != skip_ip)
+		if (skip_ips.find(found_ip) == skip_ips.end()) {
 			pf_kill_src_nodes_to(table, found_ip, false);
+		}
 	}
 }
 

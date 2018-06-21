@@ -103,7 +103,7 @@ Healthcheck::Healthcheck(istringstream &definition, class LbNode *_parent_lbnode
 
 	/* Initialize healthchecks state basing on state of parent node.
 	   Proper initial state for the healthcheck quarantees no unnecessary messages. */
-	if (parent_lbnode->hard_state == STATE_UP) {
+	if (parent_lbnode->state() == LbNode::STATE_UP) {
 		hard_state      = STATE_UP;
 		last_state      = STATE_UP;
 		failure_counter = 0;

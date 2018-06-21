@@ -10,8 +10,10 @@
 
 #include "lb_node.h"
 
-#define STATE_DOWN       0
-#define STATE_UP         1
+enum HealthcheckState {
+    STATE_DOWN = 0,
+    STATE_UP   = 1
+};
 
 #define RESULT_OK        0
 #define RESULT_FAILED	 1

@@ -4,32 +4,55 @@
 #include "msg.h"
 #include "pfctl.h"
 
+#include "lb_vip.h"
 #include "lb_pool.h"
 #include "lb_node.h"
 
 using namespace std;
 
+const map<LbPool::FaultPolicy, string> LbPool::fault_policy_names = {
+	{FORCE_DOWN, "force_down"},
+	{FORCE_UP, "force_up"}
+};
 
-/* Global variables. */
-extern bool	 	 pf_action;
-extern int	 	 verbose;
-
+LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
+	for (auto& it : fault_policy_names) {
+		if (it.second == name) {
+			return it.first;
+		}
+	}
+	log_txt(MSG_TYPE_CRITICAL, "Unknown min_nodes_action '%s'. Falling back to force_down.", name.c_str());
+	return FORCE_DOWN;
+}
 
 /*
    The constructor has not much work to do, init some variables
    and display the LbPool name if verbose.
 */
-LbPool::LbPool(istringstream &parameters) {
-	backup_pool_trigger = 0;
-	parameters >> name >> default_hwlb >> backup_pool_trigger >> backup_pool_names;
-	switched_to_backup = false;
-	backup_pool = NULL;
-	nodes_alive = 0;
-	all_down_noticed = false;
+LbPool::LbPool(string name, string hwlb, int min_nodes, LbPool::FaultPolicy fault_policy)
+	: name(name), hwlb(hwlb)
+{
+	m_min_nodes = min_nodes;
+	m_fault_policy = fault_policy;
+	this->state = STATE_DOWN;
 
-	log_txt(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %d", name.c_str(), default_hwlb);
-	if (backup_pool_trigger)
-		log_txt(MSG_TYPE_DEBUG, "  backup lbpools %s below %d nodes", backup_pool_names.c_str(), backup_pool_trigger);
+	log_txt(MSG_TYPE_DEBUG, "* New LbPool %s on HWLB %s", name.c_str(), hwlb.c_str());
+	if (m_min_nodes) {
+		auto it = fault_policy_names.find(m_fault_policy);
+		string actionstr = (it == fault_policy_names.end()) ? string("") : it->second;
+			log_txt(MSG_TYPE_DEBUG, "  action %s below %d nodes", actionstr.c_str(), m_min_nodes);
+	}
+}
+
+
+LbNode::State LbPool::sync_initial_state(LbNode* node) {
+	auto initial_state = LbNode::STATE_DOWN;
+	for (auto link : vips) {
+		if (link->mechanism->sync_initial_state(link, node)) {
+			initial_state = LbNode::STATE_UP;
+		}
+	}
+	return initial_state;
 }
 
 
@@ -37,115 +60,128 @@ LbPool::LbPool(istringstream &parameters) {
    Go over all healthchecks and try to schedule them.
 */
 void LbPool::schedule_healthchecks(struct timespec *now) {
-
-	for(unsigned int nd=0; nd<nodes.size(); nd++) {
-		nodes[nd]->schedule_healthchecks(now);
+	for (auto node : nodes) {
+		node->schedule_healthchecks(now);
 	}
 }
 
 
 /*
-   Check state of all nodes in this pool and react accordingly.
+   Check state of all nodes in this pool. Nodes will notify us about state changes later on.
 */
 void LbPool::parse_healthchecks_results() {
-
 	/* Go over all nodes in this pool, each node will gather state from its healthchecks and update its own state. */
-	for (unsigned int nd=0; nd<nodes.size(); nd++) {
-		nodes[nd]->parse_healthchecks_results();
+	for (auto node : nodes) {
+		/* Gather results from node. */
+		node->parse_healthchecks_results();
 	}
-
-	/* Backup pool configured and enough dead nodes to switch to backup pool? */
-	if (backup_pool && nodes_alive < backup_pool_trigger && switched_to_backup == false) {
-		log_lb(MSG_TYPE_NODE_DOWN,
-		    name.c_str(),
-		    "",
-		    0,
-		    "Less than %d nodes alive, switching to backup_pool %s", backup_pool_trigger, backup_pool->name.c_str());
-
-		/* Remove original nodes if there any left, we are switching to backup pool! */
-		for (unsigned int nd=0; nd<nodes.size(); nd++) {
-			/* Remove only nodes which are STATE_UP, the ones in STATE_DOWN were already removed. */
-			if (nodes[nd]->hard_state == STATE_UP) {
-				pf_table_del(name, nodes[nd]->address);
-				pf_kill_src_nodes_to(name, nodes[nd]->address, true);
-				pf_kill_states_to_rdr(name, nodes[nd]->address, true);
-				/* Kill nodes again, there might be some which were created after last kill
-				   due to belonging to states with deferred src_nodes. */
-				pf_kill_src_nodes_to(name, nodes[nd]->address, true);
-			}
-		}
-
-		/* Add backup nodes, should there be any alive. */
-		if (backup_pool->nodes_alive > 0) {
-			for (unsigned int nd=0; nd<backup_pool->nodes.size(); nd++) {
-				if (backup_pool->nodes[nd]->hard_state == STATE_UP) {
-					string address = backup_pool->nodes[nd]->address;
-					pf_table_add(name, address); /* Add backup pool's IP to this pool. */
-				}
-			}
-		}
-
-		switched_to_backup = true;
-	}
-
-	/* Enough nodes alive to switch back to normal pool? */
-	else if (backup_pool && nodes_alive >= backup_pool_trigger && switched_to_backup == true) {
-		log_lb(MSG_TYPE_NODE_UP,
-		    name.c_str(),
-		    "",
-		    0,
-		    "At least %d nodes alive, removing backup_pool %s", backup_pool_trigger, backup_pool->name.c_str());
-
-		/* Add original nodes back when leaving the backup pool mode. */
-		for (unsigned int nd=0; nd<nodes.size(); nd++) {
-			/* Add only the ones which were STATE_UP. */
-			if (nodes[nd]->hard_state == STATE_UP) {
-				pf_table_add(name, nodes[nd]->address);
-			}
-		}
-
-		/* Remove backup nodes, only the ones which are STATE_UP. The ones in STATE_DOWN were already removed. */
-		for (unsigned int nd=0; nd<backup_pool->nodes.size(); nd++) {
-			if (backup_pool->nodes[nd]->hard_state == STATE_UP) {
-				string address = backup_pool->nodes[nd]->address;
-					pf_table_del(name, address);
-					/* Kill src_nodes, linked states and unlinked states to backup node. */
-					pf_kill_src_nodes_to(name, address, true);
-					pf_kill_states_to_rdr(name, address, true);
-					/* Kill nodes again, there might be some which were created after last kill
-					   due to belonging to states with deferred src_nodes. */
-					pf_kill_src_nodes_to(name, address, true);
-
-				}
-		}
-
-		switched_to_backup = false;
-	}
-
-	/* Complain if there are no nodes alive in the pool or backup pool, should it be used. */
-	if ( (nodes_alive <= 0 || (switched_to_backup && backup_pool->nodes_alive <= 0) ) && all_down_noticed == false ) {
-		all_down_noticed = true;
-		log_lb(MSG_TYPE_NODE_DOWN,
-		    name.c_str(),
-		    "",
-		    0,
-		    "no nodes left to serve the traffic!");
-	}
-
 }
 
+void LbPool::update_state() {
+	size_t nodes_alive = count_live_nodes();
+
+	/* Determine new state. */
+	auto new_state = nodes_alive >= m_min_nodes ? STATE_UP : STATE_DOWN;
+
+	if (new_state == STATE_DOWN && m_fault_policy == FORCE_UP) {
+		new_state = STATE_UP;
+	}
+
+	if (new_state != this->state) {
+		log_txt(MSG_TYPE_DEBUG, "%s - pool changed state: %d -> %d", this->name.c_str(), this->state, new_state);
+		this->state = new_state;
+	}
+	update_nodes();
+}
+
+
+const set<LbNode*>& LbPool::active_nodes() {
+	return m_active_nodes;
+}
+
+void LbPool::update_nodes() {
+	set<LbNode*> new_nodes;
+	for (auto node : nodes) {
+		if (node->state() == LbNode::STATE_UP) {
+			new_nodes.insert(node);
+		}
+
+	if (new_nodes.size() >= m_min_nodes) {
+		/* If we have a sufficient number of live nodes, just use all of them. */
+		log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, pool is UP.", this->name.c_str(), new_nodes.size(), nodes.size());
+	} else {
+		/* We need more nodes. Now the fault policy comes into play. */
+		switch (m_fault_policy) {
+		case FORCE_UP:
+			/* Pick live nodes, then active ones (which just went down), then random down ones. */
+			log_txt(MSG_TYPE_POOL_UP, "%s - %d/%d nodes alive, FORCING UP STATE.", this->name.c_str(), new_nodes.size(), nodes.size());
+
+			for (auto& node : m_active_nodes) {
+				if (new_nodes.size() >= m_min_nodes) {
+					break;
+				}
+				if (node->is_downtimed()) {
+					continue;
+				}
+				new_nodes.insert(node);
+			}
+			for (auto& node : nodes) {
+				if (new_nodes.size() >= m_min_nodes) {
+					break;
+				}
+				if (node->is_downtimed()) {
+					continue;
+				}
+				new_nodes.insert(node);
+			}
+			break;
+
+		default: /* fallback to FORCE_DOWN */
+		case FORCE_DOWN:
+			log_txt(MSG_TYPE_POOL_DOWN, "%s - %d/%d nodes alive, pool is DOWN.", this->name.c_str(), new_nodes.size(), nodes.size());
+			new_nodes.clear();
+			break;
+		}
+	}
+
+	m_active_nodes = new_nodes;
+
+	/* Notify all VIPs (even inactive ones, they might reactivate themselves.) */
+	for (auto link : vips) {
+		link->vip->notify_pool_update(link);
+	}
+}
 
 /*
-   Count nodes in hard STATE_UP state.
+   Add a node to the pool.
 */
-int LbPool::count_live_nodes() {
-	int ret = 0;
-	for(unsigned int node=0; node<nodes.size(); node++) {
-		if (nodes[node]->hard_state == STATE_UP)
-			ret++;
+void LbPool::add_node(LbNode* node) {
+	nodes.push_back(node);
+
+	if (node->state() == LbNode::STATE_UP) {
+		m_active_nodes.insert(node);
 	}
 
-	return ret;
+	update_state();
 }
 
+void LbPool::notify_node_update(LbNode* node, LbNode::State old_state, LbNode::State new_state) {
+	update_state();
+}
 
+/*
+   Count nodes that should be part of the pool.
+*/
+size_t LbPool::count_active_nodes() {
+	return m_active_nodes.size();
+}
+
+size_t LbPool::count_live_nodes() {
+	size_t nodes_alive = 0;
+	for (auto node : nodes) {
+		if (node->state() == LbNode::STATE_UP) {
+			nodes_alive++;
+		}
+	}
+	return nodes_alive;
+}
