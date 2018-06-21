@@ -32,7 +32,7 @@ class LbPool {
 
 	/* Methods */ 
 	public:
-		LbPool(string name, string hwlb, int min_nodes, FaultPolicy fault_policy);
+		LbPool(string name, string hwlb, int min_nodes, int max_nodes, FaultPolicy fault_policy);
 
 		void schedule_healthchecks(struct timespec *now);
 		void parse_healthchecks_results();
@@ -63,6 +63,7 @@ class LbPool {
 
 	private:
 		size_t			 m_min_nodes; /* Minimum number of UP hosts (inclusive) before the fault policy kicks in. */
+		size_t			 m_max_nodes; /* Maximum number of UP hosts (inclusive) for security.  0 disables the check.*/
 		FaultPolicy		 m_fault_policy;
 
 		/* Set of all nodes that are considered alive for any active VIP connections.

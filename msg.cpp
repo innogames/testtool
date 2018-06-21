@@ -77,6 +77,12 @@ void log_txt(msgType type, const char *fmt, ...) {
 			snprintf(pbuf, sizeof(pbuf), "Pool down");
 		break;
 
+		case MSG_TYPE_POOL_CRIT:
+			loglevel = LOG_CRIT;
+			snprintf(cbuf, sizeof(cbuf), CL_RED   "[" CL_GREEN " Pool Error " CL_RED    "]" CL_RESET);
+			snprintf(pbuf, sizeof(mbuf), "Pool Error");
+		break;
+
 		/* Healthcheck results. */
 		case MSG_TYPE_HC_PASS:
 			loglevel = LOG_NOTICE;

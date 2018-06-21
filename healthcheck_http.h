@@ -23,7 +23,7 @@ class Healthcheck_http: public Healthcheck {
 	protected:
 		static void event_callback(struct bufferevent *bev, short events, void *arg);
 		static void read_callback(struct bufferevent *bev, void *arg);
-		void cleanup_connection();
+		void end_check(HealthcheckResult result, string message);
 
 	private:
 		void confline_callback(string &var, istringstream &val);
