@@ -92,25 +92,34 @@ int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 
 /*
  * Connect or reconnect if necessary and continue
+ *
+ * This is the part of libpq documentation we are implementing:
+ *
+ * > To begin a nonblocking connection request, call
+ * > conn = PQconnectStart("connection_info_string").  If conn is null,
+ * > then libpq has been unable to allocate a new PGconn structure.
+ * > Otherwise, a valid PGconn pointer is returned (though not yet
+ * > representing a valid connection to the database).  On return from
+ * > PQconnectStart, call status = PQstatus(conn).  If status equals
+ * > CONNECTION_BAD, PQconnectStart has failed.
  */
 void Healthcheck_postgres::start_conn() {
-	char conninfo[256];
-
-	// TODO Use PQconnectStartParams
-	snprintf(conninfo, sizeof(conninfo), "host=%s port=%d dbname=%s user=%s client_encoding=SQL_ASCII fallback_application_name=testtool", this->host.c_str(), this->port, this->dbname.c_str(), this->user.c_str());
-	this->conn = PQconnectStart(conninfo);
+	std::string port_str = std::to_string(this->port);
+	char const *keys[] = {"host", "port", "dbname", "user",
+			      "client_encoding", "fallback_application_name",
+			      NULL};
+	char const *values[] = {this->host.c_str(), port_str.c_str(),
+				this->dbname.c_str(), this->user.c_str(),
+				"SQL_ASCII", "testtool", NULL};
+	this->conn = PQconnectStartParams(keys, values, 0);
 
 	// If it is NULL, the memory allocation must have been failed.
 	if (this->conn == NULL)
 		return this->end_check(HC_PANIC, "cannot start db connection");
 
-	/*
-	 * We haven't got any response from the server yet.  If it
-	 * fails right away, that should be a configuration error which
-	 * wouldn't fix itself.
-	 */
+    // The connection can fail right away.
 	if (PQstatus(this->conn) == CONNECTION_BAD)
-		return this->end_check(HC_FATAL, "db connection failed");
+		return this->end_check(HC_FAIL, "db connection failed");
 
 	if (PQsetnonblocking(this->conn, 1))
 		return this->end_check(HC_PANIC, "cannot non-block db connection");
@@ -124,20 +133,20 @@ void Healthcheck_postgres::start_conn() {
  *
  * This is the part of libpq documentation we are implementing:
  *
- * If PQconnectStart succeeds, the next stage is to poll libpq so that
- * it can proceed with the connection sequence.  Use PQsocket(conn) to
- * obtain the descriptor of the socket underlying the database
- * connection.  Loop thus: If PQconnectPoll(conn) last returned
- * PGRES_POLLING_READING, wait until the socket is ready to read (as
- * indicated by select(), poll(), or similar system function).  Then
- * call PQconnectPoll(conn) again. Conversely, if PQconnectPoll(conn)
- * last returned PGRES_POLLING_WRITING, wait until the socket is ready
- * to write, then call PQconnectPoll(conn) again.  If you have yet to
- * call PQconnectPoll, i.e., just after the call to PQconnectStart,
- * behave as if it last returned PGRES_POLLING_WRITING.  Continue this
- * loop until PQconnectPoll(conn) returns PGRES_POLLING_FAILED,
- * indicating the connection procedure has failed, or PGRES_POLLING_OK,
- * indicating the connection has been successfully made.
+ * > If PQconnectStart succeeds, the next stage is to poll libpq so that
+ * > it can proceed with the connection sequence.  Use PQsocket(conn) to
+ * > obtain the descriptor of the socket underlying the database
+ * > connection.  Loop thus: If PQconnectPoll(conn) last returned
+ * > PGRES_POLLING_READING, wait until the socket is ready to read (as
+ * > indicated by select(), poll(), or similar system function).  Then
+ * > call PQconnectPoll(conn) again. Conversely, if PQconnectPoll(conn)
+ * > last returned PGRES_POLLING_WRITING, wait until the socket is ready
+ * > to write, then call PQconnectPoll(conn) again.  If you have yet to
+ * > call PQconnectPoll, i.e., just after the call to PQconnectStart,
+ * > behave as if it last returned PGRES_POLLING_WRITING.  Continue this
+ * > loop until PQconnectPoll(conn) returns PGRES_POLLING_FAILED,
+ * > indicating the connection procedure has failed, or PGRES_POLLING_OK,
+ * > indicating the connection has been successfully made.
  */
 void Healthcheck_postgres::poll_conn() {
 	assert(PQstatus(this->conn) != CONNECTION_OK);
@@ -171,10 +180,8 @@ void Healthcheck_postgres::poll_conn() {
 /*
  * Prepare the database query
  *
- * Currently, we only know how to call a function.
- *
- * We could prepare the function in server-side, but it doesn't worth
- * the error.
+ * Currently, we only know how to call a function.  We could prepare
+ * the function in server-side, but it doesn't worth the effort.
  */
 void Healthcheck_postgres::prepare_query() {
 	snprintf(this->query, sizeof(this->query), "SELECT %s()",
@@ -208,16 +215,16 @@ void Healthcheck_postgres::send_query() {
  *
  * This is the part of libpq documentation we are implementing:
  *
- * After sending any command or data on a nonblocking connection, call
- * PQflush.  If it returns 1, wait for the socket to become read- or
- * write-ready. If it becomes write-ready, call PQflush again.  If it
- * becomes read-ready, call PQconsumeInput, then call PQflush again.
- * Repeat until PQflush returns 0.  (It is necessary to check for
- * read-ready and drain the input with PQconsumeInput, because
- * the server can block trying to send us data, e.g. NOTICE messages,
- * and won't read our data until we read its.)  Once PQflush returns 0,
- * wait for the socket to be read-ready and then read the response as
- * described above.
+ * > After sending any command or data on a nonblocking connection, call
+ * > PQflush.  If it returns 1, wait for the socket to become read- or
+ * > write-ready. If it becomes write-ready, call PQflush again.  If it
+ * > becomes read-ready, call PQconsumeInput, then call PQflush again.
+ * > Repeat until PQflush returns 0.  (It is necessary to check for
+ * > read-ready and drain the input with PQconsumeInput, because
+ * > the server can block trying to send us data, e.g. NOTICE messages,
+ * > and won't read our data until we read its.)  Once PQflush returns 0,
+ * > wait for the socket to be read-ready and then read the response as
+ * > described above.
  */
 void Healthcheck_postgres::flush_query() {
 	assert(PQstatus(this->conn) == CONNECTION_OK);
@@ -249,7 +256,7 @@ void Healthcheck_postgres::flush_query() {
  * Handle the query and continue
  *
  * This is the final step, before we call end_check() with successful
- * result type.  We are handling the query results, hopefully we got
+ * result type.  We are handling the query results we hopefully got
  * from the database.
  */
 void Healthcheck_postgres::handle_query() {
@@ -275,13 +282,13 @@ void Healthcheck_postgres::handle_query() {
 	this->query_result = PQgetResult(this->conn);
 
 	if (PQresultStatus(this->query_result) != PGRES_TUPLES_OK)
-		return this->end_check(HC_ERROR, "db result not ok");
+		return this->end_check(HC_FAIL, "db result not ok");
 
 	if (PQntuples(this->query_result) != 1)
-		return this->end_check(HC_ERROR, "db result not 1 row");
+		return this->end_check(HC_FAIL, "db result not 1 row");
 
 	if (PQnfields(this->query_result) != 1)
-		return this->end_check(HC_ERROR, "db result not 1 column");
+		return this->end_check(HC_FAIL, "db result not 1 column");
 
 	// 0 means the format is text which must always be the case.
 	assert(PQfformat(this->query_result, 0) == 0);
@@ -290,7 +297,7 @@ void Healthcheck_postgres::handle_query() {
 	val = PQgetvalue(this->query_result, 0, 0);
 
 	if (strlen(val) != 1) {
-		return this->end_check(HC_ERROR, "db result not 1 char");
+		return this->end_check(HC_FAIL, "db result not 1 char");
 	}
 
 	if (val[0] == 't')
@@ -303,14 +310,15 @@ void Healthcheck_postgres::handle_query() {
  * Override end_check() method to clean up things
  */
 void Healthcheck_postgres::end_check(HealthcheckResult result, string message) {
-	if (verbose >= 2 && result != HC_PASS && this->conn != NULL) {
+	if (result != HC_PASS && this->conn != NULL) {
 		char *error = PQerrorMessage(this->conn);
 
 		if (error != NULL && strlen(error) > 0)
-			log_txt(MSG_TYPE_DEBUG, "db error: %s", error);
+			log_txt(MSG_TYPE_CRITICAL, "db error: %s", error);
 
-		log_txt(MSG_TYPE_DEBUG, "Event counter: %d", this->event_counter);
-		log_txt(MSG_TYPE_DEBUG, "Last event: %d", this->event_flag);
+		if (verbose >= 2)
+			log_txt(MSG_TYPE_DEBUG, "Last event %d after %d events",
+				this->event_flag, this->event_counter);
 	}
 
 	if (this->io_event != NULL) {
@@ -353,7 +361,7 @@ void Healthcheck_postgres::register_io_event(short flag,
 	 * low enough to be hit before the timeout.
 	 */
 	if (this->event_counter++ > 100)
-		return this->end_check(HC_FATAL, "too many events");
+		return this->end_check(HC_PANIC, "too many events");
 
 	this->callback_method = method;
 	this->io_event = event_new(eventBase, PQsocket(this->conn), flag,
