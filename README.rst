@@ -135,3 +135,11 @@ Type-specific attributes:
 * `hc_user`: Username to connect the database server
 * `hc_dbname`: Database name to connect
 * `hc_query`: Query to execute on the database server
+
+License
+-------
+
+The project is released under the MIT License.  The MIT License is registered
+with and approved by the Open Source Initiative [1].
+
+[1] https://opensource.org/licenses/MIT
