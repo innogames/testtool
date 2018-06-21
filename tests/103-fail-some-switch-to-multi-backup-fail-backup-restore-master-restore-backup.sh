@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Testtool - Tests - More Backup Load Balancing Node Operations
+#
+# Copyright (c) 2018 InnoGames GmbH
+#
 
 if [ -f ./testlib.sh ]; then
 	. ./testlib.sh

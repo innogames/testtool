@@ -1,3 +1,9 @@
+/*
+ * Testtool - Logging Routines
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <string>
 #include <iostream>
 #include <syslog.h>

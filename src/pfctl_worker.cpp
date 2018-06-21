@@ -1,3 +1,9 @@
+/*
+ * Testtool - PF Control Worker
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <string.h>
 #include <sys/types.h>
 #include <signal.h>

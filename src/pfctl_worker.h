@@ -1,3 +1,9 @@
+/*
+ * Testtool - PF Control Worker
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _PFCTL_WORKER_H_
 #define _PFCTL_WORKER_H_
 
@@ -32,4 +38,3 @@ typedef struct {
 } pfctl_msg;
 
 #endif
-

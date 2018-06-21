@@ -1,3 +1,9 @@
+/*
+ * Testtool - Health Check Generals
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _HEALTHCHECK_H_
 #define _HEALTHCHECK_H_
 

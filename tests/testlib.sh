@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Testtool - Tests - Shell Scripting Helpers
+#
+# Copyright (c) 2018 InnoGames GmbH
+#
 
 CONFIG_FILE="/tmp/testtool.test.conf"
 DOWNTIMES_FILE="/tmp/testtool_downtimes"

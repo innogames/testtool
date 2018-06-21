@@ -1,3 +1,9 @@
+/*
+ * Testtool - Generals
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _TESTTOOL_H
 #define _TESTTOOL_H
 

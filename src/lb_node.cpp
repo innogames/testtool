@@ -1,3 +1,9 @@
+/*
+ * Testtool - Load Balancing Node
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <syslog.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>

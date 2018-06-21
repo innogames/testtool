@@ -1,3 +1,9 @@
+/*
+ * Testtool - Load Balancing Pool
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <string.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>

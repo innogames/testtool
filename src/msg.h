@@ -1,3 +1,9 @@
+/*
+ * Testtool - Logging Routines
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _MSG_H_
 #define _MSG_H_
 

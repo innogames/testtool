@@ -1,14 +1,15 @@
-
 /*
- * The DNS healthcheck
+ * Testtool - DNS Health Check
  *
  * It has the following limitations:
  *
- * - It does not support truncated messages.  Only the first answering
+ * * It does not support truncated messages.  Only the first answering
  *   datagram is parsed.
- * - It does not really check for what is in the answer.  It only
+ * * It does not really check for what is in the answer.  It only
  *   checks if the number of answer sections is bigger than 0 and
  *   the transaction number.
+ *
+ * Copyright (c) 2018 InnoGames GmbH
  */
 
 #include <iostream>
