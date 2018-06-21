@@ -1,3 +1,9 @@
+/*
+ * Testtool - PF Controls
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <iostream>
 #include <set>
 #include <string>

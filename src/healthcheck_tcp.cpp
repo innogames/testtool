@@ -1,3 +1,9 @@
+/*
+ * Testtool - Health check - TCP
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <iostream>
 #include <sstream>
 #include <vector>

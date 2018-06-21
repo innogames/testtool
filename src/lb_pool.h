@@ -1,3 +1,9 @@
+/*
+ * Testtool - Load Balancing Pool
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _LB_POOL_H_
 #define _LB_POOL_H_
 

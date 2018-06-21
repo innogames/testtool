@@ -1,3 +1,9 @@
+/*
+ * Testtool - Ping Health Check
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _CHECK_PING_H_
 #define _CHECK_PING_H_
 
@@ -77,4 +83,3 @@ class Healthcheck_ping: public Healthcheck {
 };
 
 #endif
-

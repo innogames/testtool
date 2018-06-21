@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Testtool - Tests - Ping Health Check
+#
+# Copyright (c) 2018 InnoGames GmbH
+#
 
 if [ -f ./testlib.sh ]; then
 	. ./testlib.sh
@@ -53,4 +58,3 @@ require_pf_table_waitfor_equal $TABLE1 $TABLE1_HOST1 $TABLE1_HOST2 $TABLE1_HOST3
 stage_end
 
 exit_ok
-

@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# Testtool - Tests - Runner
+#
+# Copyright (c) 2018 InnoGames GmbH
+#
 
 . ./testlib.sh
 
@@ -31,4 +36,3 @@ for i in tests/*sh; do
 done
 
 echo Final verdict: $OK_TESTS/$ALL_TESTS tests succeeded
-

@@ -1,3 +1,9 @@
+/*
+ * Testtool - HTTP Health Check
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _CHECK_HTTP_HPP_
 #define _CHECK_HTTP_HPP_
 
@@ -48,6 +54,4 @@ class Healthcheck_https: public Healthcheck_http {
 		int schedule_healthcheck(struct timespec *now );
 };
 
-
 #endif
-

@@ -1,3 +1,9 @@
+/*
+ * Testtool - Load Balancing Node
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _LB_NODE_H_
 #define _LB_NODE_H_
 
@@ -49,4 +55,3 @@ class LbNode {
 };
 
 #endif
-

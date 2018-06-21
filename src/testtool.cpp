@@ -1,3 +1,9 @@
+/*
+ * Testtool - Generals
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <iostream>
 #include <fstream>
 #include <list>

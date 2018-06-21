@@ -1,3 +1,9 @@
+/*
+ * Testtool - Configuration
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #include <iostream>
 #include <yaml-cpp/yaml.h>
 

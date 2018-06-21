@@ -1,3 +1,9 @@
+/*
+ * Testtool - DNS Health Check
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _CHECK_DNS_H_
 #define _CHECK_DNS_H_
 
@@ -79,4 +85,3 @@ class Healthcheck_dns: public Healthcheck {
 };
 
 #endif
-

@@ -1,3 +1,9 @@
+/*
+ * Testtool - Health check - TCP
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _CHECK_TCP_HPP_
 #define _CHECK_TCP_HPP_
 
@@ -32,4 +38,3 @@ class Healthcheck_tcp: public Healthcheck {
 
 
 #endif
-

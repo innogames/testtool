@@ -1,3 +1,9 @@
+/*
+ * Testtool - PF Controls
+ *
+ * Copyright (c) 2018 InnoGames GmbH
+ */
+
 #ifndef _PFCTL_H_
 #define _PFCTL_H_
 
@@ -18,4 +24,3 @@ bool pf_table_rebalance(string *table, set<string> *skip_addresses);
 bool pf_sync_table(string table, set<string> want_set);
 
 #endif
-

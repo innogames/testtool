@@ -1,10 +1,10 @@
 /*
- * Testtool PostgreSQL Health Check
+ * Testtool - Postgres Health Check
  *
  * Allow the PostgreSQL connections to be load-balanced by checking
  * the health of the database.
  *
- * Copyright (c) 2016, InnoGames GmbH
+ * Copyright (c) 2018 InnoGames GmbH
  */
 
 #include <iostream>
