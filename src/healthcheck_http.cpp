@@ -237,7 +237,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
  */
 void Healthcheck_http::end_check(HealthcheckResult result, string message) {
 	if (verbose >= 2 && result != HC_PASS && this->bev != NULL) {
-		char *error = evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR());
+		char *error = evutil_socket_error_to_string(evutil_socket_geterror());
 
 		if (error != NULL && strlen(error) > 0)
 			message += fmt::sprintf(", socket() error: %s", strerror(errno));
