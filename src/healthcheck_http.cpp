@@ -15,6 +15,7 @@
 #include <errno.h>
 
 #include <openssl/ssl.h>
+#include <openssl/err.h>
 
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
@@ -186,8 +187,29 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
 		return hc->end_check(HC_FAIL, message);
 	}
 
-	if (events & BEV_EVENT_ERROR)
-		return hc->end_check(HC_FAIL, "connection error");
+	if (events & BEV_EVENT_ERROR) {
+		if (hc->type == "https")
+			return hc->end_check(
+				HC_FAIL,
+				fmt::sprintf("bev error: %s openssl error: %s",
+					evutil_socket_error_to_string(
+						evutil_socket_geterror(bufferevent_getfd(bev))
+					),
+					ERR_reason_error_string(
+						bufferevent_get_openssl_error(bev)
+					)
+				)
+			);
+		else
+			return hc->end_check(
+				HC_FAIL,
+				fmt::sprintf("bev error: %s",
+					evutil_socket_error_to_string(
+						evutil_socket_geterror(bufferevent_getfd(bev))
+					)
+				)
+			);
+	}
 
 	// Get 1st line of reply
 	stringstream replystream(hc->reply);
@@ -221,7 +243,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events, voi
  */
 void Healthcheck_http::end_check(HealthcheckResult result, string message) {
 	if (verbose >= 2 && result != HC_PASS && this->bev != NULL) {
-		char *error = evutil_socket_error_to_string(EVUTIL_SOCKET_ERROR());
+		char *error = evutil_socket_error_to_string(evutil_socket_geterror());
 
 		if (error != NULL && strlen(error) > 0)
 			message += fmt::sprintf(", socket() error: %s", strerror(errno));
