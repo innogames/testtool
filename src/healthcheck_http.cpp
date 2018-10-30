@@ -11,6 +11,7 @@
 #include <fmt/printf.h>
 #include <yaml-cpp/yaml.h>
 #include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/replace.hpp>
 
 #include <errno.h>
 
@@ -102,6 +103,32 @@ Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_pa
 	 */
 }
 
+string Healthcheck_http::parse_query_template() {
+	string new_query = string(this->query);
+
+	boost::replace_all(new_query, "{POOL_NAME}", this->parent_lbnode->parent_lbpool->name);
+	boost::replace_all(new_query, "{POOL_ADDRESS}", this->parent_lbnode->parent_lbpool->ip_address);
+	boost::replace_all(new_query, "{NODE_NAME}", this->parent_lbnode->name);
+	boost::replace_all(new_query, "{NODE_ADDRESS}", this->parent_lbnode->address);
+
+	vector<std::string> up_nodes_names;
+	for (auto node: this->parent_lbnode->parent_lbpool->up_nodes) {
+		up_nodes_names.push_back(node->name);
+	}
+	string joined_up_nodes_names = boost::algorithm::join(up_nodes_names, ",");
+	boost::replace_all(new_query, "{ACTIVE_NODES_NAMES}", joined_up_nodes_names);
+
+	vector<std::string> up_nodes_addresses;
+	for (auto node: this->parent_lbnode->parent_lbpool->up_nodes) {
+		up_nodes_addresses.push_back(node->address);
+	}
+	string joined_up_nodes_addresses = boost::algorithm::join(up_nodes_addresses, ",");
+	boost::replace_all(new_query, "{ACTIVE_NODES_ADDRESSES}", joined_up_nodes_addresses);
+	
+	return new_query;
+}
+
+
 int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	// Peform general stuff for scheduled healthcheck
@@ -109,6 +136,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 		return false;
 
 	reply = "";
+	string new_query = this->parse_query_template();
 
 	bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
 	if (bev == NULL)
@@ -116,7 +144,7 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->query.c_str(), this->host.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", new_query.c_str(), this->host.c_str());
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -134,6 +162,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 		return false;
 
 	reply = "";
+	string new_query = this->parse_query_template();
 
 	ssl = SSL_new(sctx);
 	bev = bufferevent_openssl_socket_new(eventBase, -1, ssl, BUFFEREVENT_SSL_CONNECTING, 0 | BEV_OPT_CLOSE_ON_FREE);
@@ -142,7 +171,7 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
 	bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
 	bufferevent_enable(bev, EV_READ|EV_WRITE);
-	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", this->query.c_str(), this->host.c_str());
+	evbuffer_add_printf(bufferevent_get_output(bev), "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n", new_query.c_str(), this->host.c_str());
 
 	bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 

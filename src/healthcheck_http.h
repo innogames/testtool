@@ -31,6 +31,7 @@ class Healthcheck_http: public Healthcheck {
 		static void event_callback(struct bufferevent *bev, short events, void *arg);
 		static void read_callback(struct bufferevent *bev, void *arg);
 		void end_check(HealthcheckResult result, string message);
+		string parse_query_template();
 
 
 	/* Members */
