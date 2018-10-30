@@ -25,8 +25,12 @@ LD=c++
 .PATH: $(SRCDIR)
 
 DLIBS=	-levent -levent_core -levent_pthreads -levent_openssl \
-	-lpq -lyaml-cpp -lfmt \
-	-l boost_system
+	-lyaml-cpp
+
+SLIBS=	/usr/local/lib/libboost_system.a \
+	/usr/local/lib/libfmt.so \
+	/usr/local/lib/libpq.a \
+	/usr/local/lib/libintl.a
 
 UNAME_S := $(shell uname -s)
 UNAME_R := $(shell uname -r)
@@ -47,7 +51,7 @@ all: testtool
 
 testtool: $(OBJECTS)
 	@echo $(OS)
-	$(LD) $(LDFLAGS) $(OBJECTS) $(DLIBS) -o $@
+	$(LD) $(LDFLAGS) $(OBJECTS) $(DLIBS) $(SLIBS) -o $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	$(CXX) $(CPPFLAGS) -c $< -o $(OBJDIR)/$*.o
