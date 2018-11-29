@@ -69,8 +69,11 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 		this->ok_codes.push_back("200");
 	}
 	// If host was not given, use IP address
-	if (host == "")
-		host = parent_lbnode->address.c_str();
+	if (("" == host) && (AF_INET == parent_lbnode->address_family)) {
+		host = parent_lbnode->address;
+	} else if (("" == host) && (AF_INET6 == parent_lbnode->address_family)) {
+		host = "[" + parent_lbnode->address + "]";
+	}
 
 	/*
 	 * Copy address to addrinfo struct for connect
@@ -124,7 +127,7 @@ string Healthcheck_http::parse_query_template() {
 	}
 	string joined_up_nodes_addresses = boost::algorithm::join(up_nodes_addresses, ",");
 	boost::replace_all(new_query, "{ACTIVE_NODES_ADDRESSES}", joined_up_nodes_addresses);
-	
+
 	return new_query;
 }
 
