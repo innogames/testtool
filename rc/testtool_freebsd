@@ -1,0 +1,21 @@
+#! /bin/sh
+
+# PROVIDE: testtool
+# KEYWORD: nojail
+# REQUIRE: NETWORKING LOGIN bird bird6 iglb
+
+. /etc/rc.subr
+
+name="testtool"
+rcvar=${name}_enable
+reload_cmd="service testtool restart"
+extra_commands="reload"
+
+: ${testtool_enable:="NO"}
+
+pidfile="/var/run/${name}.pid"
+command=/usr/sbin/daemon
+command_args="-f -c -P ${pidfile} /usr/local/sbin/testtool"
+
+load_rc_config $name
+run_rc_command "$1"
