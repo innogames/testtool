@@ -6,14 +6,14 @@ CATEGORIES=	igports
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
 COMMENT=	Testtool checks health of loadbalanced services.
 
-USES=		gmake
+USES=		cmake
 
-LIB_DEPENDS=	libevent-2.1.so.6:devel/libevent \
-		libpq.so.5:databases/postgresql93-client \
-		libyaml-cpp.so:devel/yaml-cpp \
-		libboost_system.so:devel/boost-libs
+LIB_DEPENDS=	libfmt.so:devel/libfmt \
+		libyaml-cpp.so:devel/yaml-cpp
 
-BUILD_DEPENDS=	libfmt>=0:devel/libfmt
+BUILD_DEPENDS=	${NONEXISTENT}:devel/libevent \
+		${NONEXISTENT}:devel/boost-libs \
+		${NONEXISTENT}:databases/postgresql93-client
 
 PLIST_FILES=	/usr/local/sbin/testtool \
 		/usr/local/etc/rc.d/testtool
