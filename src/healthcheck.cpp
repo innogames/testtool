@@ -44,7 +44,7 @@ int timespec_diffms(struct timespec *a, struct timespec *b) {
  * constructor!  And it is called *before* that constructor does its
  * own work!
  */
-Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode) {
+Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address) {
 	/*
 	 * Pretend that the healthcheck was performed just a moment ago.
 	 * This is necessary to perform the check in proper time.
@@ -54,6 +54,34 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
 	/* Link with parent lbnode. */
 	parent_lbnode = _parent_lbnode;
 	parent_lbnode->healthchecks.push_back(this);
+	this->ip_address = ip_address;
+
+	/*
+	 * Determine type of IP address given to this health check.
+	 * Checks based on functions of libevent take IP address in string form
+	 * and perform their own magic. Custom checks like tcp or ping operate
+	 * on old style structures and have different code for each address
+	 * family so we can as well help them.
+	 */
+	struct addrinfo hint, *res = NULL;
+	int ret;
+	memset(&hint, 0, sizeof hint);
+	hint.ai_family = PF_UNSPEC;
+	hint.ai_flags = AI_NUMERICHOST;
+	ret = getaddrinfo(this->ip_address->c_str(), NULL, &hint, &res);
+	if (ret)
+	{
+		// We should throw an exception.
+	}
+	else
+	{
+		this->address_family = res->ai_family;
+		if (this->address_family == AF_INET)
+			this->af_string = "IPv4";
+		if (this->address_family == AF_INET6)
+			this->af_string = "IPv6";
+		freeaddrinfo(res);
+	}
 
 	/* Set defaults, same as with old testtool. */
 	this->check_interval = parse_int(config["hc_interval"], 2);
@@ -92,24 +120,24 @@ Healthcheck::Healthcheck(const YAML::Node& config, class LbNode *_parent_lbnode)
  * - create an object of the required type, pass the config to it
  * - return it
 */
-Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode) {
+Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address) {
 
 	Healthcheck * new_healthcheck = NULL;
 
 	std::string type = parse_string(config["hc_type"], "");
 
 	if (type == "http")
-		new_healthcheck = new Healthcheck_http(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_http(config, _parent_lbnode, ip_address);
 	else if (type == "https")
-		new_healthcheck = new Healthcheck_https(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_https(config, _parent_lbnode, ip_address);
 	else if (type == "tcp")
-		new_healthcheck = new Healthcheck_tcp(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_tcp(config, _parent_lbnode, ip_address);
 	else if (type == "ping")
-		new_healthcheck = new Healthcheck_ping(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_ping(config, _parent_lbnode, ip_address);
 	else if (type == "postgres")
-		new_healthcheck = new Healthcheck_postgres(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_postgres(config, _parent_lbnode, ip_address);
 	else if (type == "dns")
-		new_healthcheck = new Healthcheck_dns(config, _parent_lbnode);
+		new_healthcheck = new Healthcheck_dns(config, _parent_lbnode, ip_address);
 	else
 		return NULL;
 
@@ -223,7 +251,7 @@ void Healthcheck::handle_result(string message) {
 	}
 
 	if (changed || verbose) {
-		log(log_level, this, fmt::sprintf("%s %s", message, fail_message));
+		log(log_level, this, fmt::sprintf("protocol: %s %s %s", af_string, message, fail_message));
 	}
 
 	// Mark the check as not running, so it can be scheduled again.

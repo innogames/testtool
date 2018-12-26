@@ -172,7 +172,10 @@ void Healthcheck_ping::destroy() {
 /*
    Constructor for ping healthcheck. Parses ping-specific parameters.
 */
-Healthcheck_ping::Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+Healthcheck_ping::Healthcheck_ping(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck(config, _parent_lbnode, ip_address) {
 	/* Oh wait, there are none for this healthcheck! */
 	type = "ping";
 }
@@ -323,7 +326,7 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 	ping_my_seq = ping_global_seq;
 	seq_map[ping_my_seq] = this;
 
-	if (parent_lbnode->address_family == AF_INET) {
+	if (address_family == AF_INET) {
 		struct sockaddr_in	 to_addr;
 		struct icmp4_echo	 echo_request;
 
@@ -348,7 +351,7 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 		/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
 		memset(&to_addr, 0, sizeof(sockaddr_in));
 		to_addr.sin_family = AF_INET;
-		to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
+		to_addr.sin_addr.s_addr = inet_addr(ip_address->c_str());
 		to_addr.sin_port = htons(0);
 
 		/* Send the echo request. */
@@ -357,7 +360,7 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 			return false;
 		}
 
-	} else if (parent_lbnode->address_family == AF_INET6) {
+	} else if (address_family == AF_INET6) {
 		struct sockaddr_in6	 to_addr;
 		struct icmp6_echo	 echo_request;
 
@@ -382,7 +385,7 @@ int Healthcheck_ping::schedule_healthcheck(struct timespec *now) {
 		/* Set the to_addr, a real sockaddr_in is needed instead of strings. */
 		memset(&to_addr, 0, sizeof(sockaddr_in6));
 		to_addr.sin6_family = AF_INET6;
-		inet_pton(AF_INET6, parent_lbnode->address.c_str(), &to_addr.sin6_addr);
+		inet_pton(AF_INET6, ip_address->c_str(), &to_addr.sin6_addr);
 		to_addr.sin6_port = htons(0);
 
 		/* Send the echo request. */

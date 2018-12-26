@@ -25,7 +25,7 @@ class LbNode {
 
 	/* Methods */
 	public:
-		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
+		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool);
 		void schedule_healthchecks(struct timespec *now);
 		void finalize_healthchecks();
 		void node_logic();
@@ -39,8 +39,9 @@ class LbNode {
 	/* Members */
 	public:
 		string			 name;
-		string			 address; /* libevent wants the address passed as char[] so keep to some string-like. */
-		int			 address_family;
+		 /* libevent wants the address passed as char[] so keep to some string-like. */
+		string			 ipv4_address;
+		string			 ipv6_address;
 		class LbPool		*parent_lbpool;
 		State			 state;
 		vector<class Healthcheck*> healthchecks;

@@ -79,9 +79,9 @@ class Healthcheck {
 	/* Methods */
 	public:
 		/* The check factory, which returns proper check object based its name. */
-		static Healthcheck *healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode);
+		static Healthcheck *healthcheck_factory(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address);
 		virtual int schedule_healthcheck(struct timespec *now);
-		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode);
+		Healthcheck(const YAML::Node&, class LbNode *_parent_lbnode, string *ip_address);
 		virtual void finalize();
 
 	protected:
@@ -104,12 +104,17 @@ class Healthcheck {
 		struct timespec		 last_checked;     // The last time this host was checked.
 		struct timeval		 timeout;
 		bool			 is_running;
+		string*			 ip_address;        // IP address for this check of given address family.
+		int			 address_family;
 
 	private:
 		int			 check_interval;    // Perform a check every n seconds (s).
 		unsigned short		 extra_delay;       // Additional delay to spread checks uniformly (ms).
 		int			 max_failed_checks; // Take action only after this number of contiguous checks fail.
 		unsigned short		 failure_counter;   // This many checks have failed until now.
+		string			 af_string;         // Address family for printing log messages
+
+
 
 };
 

@@ -50,7 +50,7 @@ class Healthcheck_ping: public Healthcheck {
 
 	/* Methods */
 	public:
-		Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode);
+		Healthcheck_ping(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address);
 		int schedule_healthcheck(struct timespec *now);
 		static int initialize();
 		static void destroy();

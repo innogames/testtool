@@ -23,7 +23,7 @@ using namespace boost::interprocess;
  * take way longer, for example when HWLB is under a DDoS.
  */
 #define QUEUE_LEN 10
-#define MAX_NODES 20 // I hope 20 addresses is reasonable enough
+#define MAX_NODES 20 // I hope 20 LB Nodes is reasonable enough
 #define ADDR_LEN sizeof("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:255.255.255.255") + 1
 
 message_queue* start_pfctl_worker();
@@ -34,7 +34,7 @@ typedef struct {
 	// This struct is sent over a queue, complex datatypes won't work here.
 	char pool_name[NAME_LEN];
 	char table_name[NAME_LEN];
-	char wanted_addresses[MAX_NODES][ADDR_LEN];
+	char wanted_addresses[MAX_NODES*2][ADDR_LEN];
 } pfctl_msg;
 
 #endif

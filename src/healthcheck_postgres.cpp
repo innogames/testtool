@@ -45,14 +45,16 @@ extern int			 verbose;
  * We are initialising the variables, only.  Nothing should be able
  * to fail in there.
  */
-Healthcheck_postgres::Healthcheck_postgres(const YAML::Node& config,
-		class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+Healthcheck_postgres::Healthcheck_postgres(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck(config, _parent_lbnode, ip_address) {
 
 	this->type = "postgres";
 
 	// Set defaults
 	this->port = parse_int(config["hc_port"], 5432);
-	this->host = parse_string(config["hc_host"], parent_lbnode->address);
+	this->host = parse_string(config["hc_host"], *ip_address);
 	this->dbname = parse_string(config["hc_dbname"], "");
 	this->user = parse_string(config["hc_user"], "");
 	this->query = parse_string(config["hc_query"], "");

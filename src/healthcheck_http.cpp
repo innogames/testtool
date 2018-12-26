@@ -42,7 +42,10 @@ extern int			 verbose;
  *
  * Parses http(s)-specific parameters.
  */
-Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+Healthcheck_http::Healthcheck_http(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck(config, _parent_lbnode, ip_address) {
 	// This is not done automatically.
 	bev = NULL;
 
@@ -69,10 +72,10 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 		this->ok_codes.push_back("200");
 	}
 	// If host was not given, use IP address
-	if (("" == host) && (AF_INET == parent_lbnode->address_family)) {
-		host = parent_lbnode->address;
-	} else if (("" == host) && (AF_INET6 == parent_lbnode->address_family)) {
-		host = "[" + parent_lbnode->address + "]";
+	if (("" == host) && (AF_INET == address_family)) {
+		host = *ip_address;
+	} else if (("" == host) && (AF_INET6 == address_family)) {
+		host = "[" + *ip_address + "]";
 	}
 
 	/*
@@ -84,7 +87,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
 	char port_str[256];
 	memset(port_str, 0, sizeof(port_str));
 	snprintf(port_str, sizeof(port_str), "%d", port);
-	getaddrinfo(parent_lbnode->address.c_str(), port_str, NULL, &addrinfo);
+	getaddrinfo(ip_address->c_str(), port_str, NULL, &addrinfo);
 
 	this->log_prefix = fmt::sprintf(
 		"query: '%s' port: %d ok_codes: %s",
@@ -99,7 +102,10 @@ Healthcheck_http::Healthcheck_http(const YAML::Node& config, class LbNode *_pare
  *
  * It only calls HTTP constructor.  Now that's what I call inheritance!
  */
-Healthcheck_https::Healthcheck_https(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck_http(config, _parent_lbnode) {
+Healthcheck_https::Healthcheck_https(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck_http(config, _parent_lbnode, ip_address) {
 	/*
 	 * Nothing to do. Due to constructor calling order default port
 	 * must be specified in parent class.
@@ -110,9 +116,12 @@ string Healthcheck_http::parse_query_template() {
 	string new_query = string(this->query);
 
 	boost::replace_all(new_query, "{POOL_NAME}", this->parent_lbnode->parent_lbpool->name);
-	boost::replace_all(new_query, "{POOL_ADDRESS}", this->parent_lbnode->parent_lbpool->ip_address);
+	if (this->address_family == AF_INET)
+		boost::replace_all(new_query, "{POOL_ADDRESS}", this->parent_lbnode->parent_lbpool->ipv4_address);
+	else
+		boost::replace_all(new_query, "{POOL_ADDRESS}", this->parent_lbnode->parent_lbpool->ipv6_address);
 	boost::replace_all(new_query, "{NODE_NAME}", this->parent_lbnode->name);
-	boost::replace_all(new_query, "{NODE_ADDRESS}", this->parent_lbnode->address);
+	boost::replace_all(new_query, "{NODE_ADDRESS}", *this->ip_address);
 
 	vector<std::string> up_nodes_names;
 	for (auto node: this->parent_lbnode->parent_lbpool->up_nodes) {
@@ -123,7 +132,10 @@ string Healthcheck_http::parse_query_template() {
 
 	vector<std::string> up_nodes_addresses;
 	for (auto node: this->parent_lbnode->parent_lbpool->up_nodes) {
-		up_nodes_addresses.push_back(node->address);
+		if (!node->ipv4_address.empty())
+			up_nodes_addresses.push_back(node->ipv4_address);
+		if (!node->ipv6_address.empty())
+			up_nodes_addresses.push_back(node->ipv6_address);
 	}
 	string joined_up_nodes_addresses = boost::algorithm::join(up_nodes_addresses, ",");
 	boost::replace_all(new_query, "{ACTIVE_NODES_ADDRESSES}", joined_up_nodes_addresses);

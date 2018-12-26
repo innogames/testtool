@@ -81,7 +81,7 @@ bool pfctl_worker_loop(message_queue* mq) {
 		string table_name(msg.table_name);
 		set<string> wanted_addresses;
 
-		for (int i = 0; i < MAX_NODES; i++) {
+		for (int i = 0; i < MAX_NODES*2; i++) {
 			string wanted_address(msg.wanted_addresses[i]);
 			if (wanted_address.length())
 				wanted_addresses.insert(wanted_address);
@@ -170,8 +170,14 @@ bool send_message(message_queue* mq, string pool_name, string table_name, set<Lb
 	int node_index = 0;
 	assert(lb_nodes.size() < MAX_NODES);
 	for (auto node: lb_nodes) {
-		strncpy(msg.wanted_addresses[node_index], node->address.c_str(), ADDR_LEN);
-		node_index++;
+		if (!node->ipv4_address.empty()) {
+			strncpy(msg.wanted_addresses[node_index], node->ipv4_address.c_str(), ADDR_LEN);
+			node_index++;
+		}
+		if (!node->ipv4_address.empty()) {
+			strncpy(msg.wanted_addresses[node_index], node->ipv6_address.c_str(), ADDR_LEN);
+			node_index++;
+		}
 	}
 	return mq->try_send(&msg, sizeof(pfctl_msg), 0);
 }

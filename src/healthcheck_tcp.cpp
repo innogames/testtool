@@ -35,7 +35,10 @@ extern int			 verbose;
 /*
    Constructor for TCP healthcheck.
 */
-Healthcheck_tcp::Healthcheck_tcp(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+Healthcheck_tcp::Healthcheck_tcp(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck(config, _parent_lbnode, ip_address) {
 	this->port = parse_int(config["hc_port"], 80);
 	type = "tcp";
 
@@ -89,7 +92,7 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 		return false;
 
 	/* Create a socket. */
-	socket_fd = socket(parent_lbnode->address_family, SOCK_STREAM, 0);
+	socket_fd = socket(address_family, SOCK_STREAM, 0);
 	if (socket_fd == -1) {
 		this->end_check(HC_FAIL, fmt::sprintf("socket() error %s", strerror(errno)));
 		return false;
@@ -99,18 +102,18 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
 	evutil_make_socket_nonblocking(socket_fd);
 
 	int pton_res;
-	if (parent_lbnode->address_family == AF_INET) {
+	if (address_family == AF_INET) {
 		struct sockaddr_in to_addr4;
 		memset(&to_addr4, 0, sizeof(to_addr4));
 		to_addr4.sin_family = AF_INET;
-		pton_res = inet_pton(AF_INET, parent_lbnode->address.c_str(), &to_addr4.sin_addr);
+		pton_res = inet_pton(AF_INET, ip_address->c_str(), &to_addr4.sin_addr);
 		to_addr4.sin_port = htons(port);
 		result = connect(socket_fd, (struct sockaddr*)&to_addr4, sizeof(to_addr4));
-	} else if (parent_lbnode->address_family == AF_INET6) {
+	} else if (address_family == AF_INET6) {
 		struct sockaddr_in6 to_addr6;
 		memset(&to_addr6, 0, sizeof(to_addr6));
 		to_addr6.sin6_family = AF_INET6;
-		pton_res = inet_pton(AF_INET6, parent_lbnode->address.c_str(), &to_addr6.sin6_addr);
+		pton_res = inet_pton(AF_INET6, ip_address->c_str(), &to_addr6.sin6_addr);
 		to_addr6.sin6_port = htons(port);
 		result = connect(socket_fd, (struct sockaddr*)&to_addr6, sizeof(to_addr6));
 

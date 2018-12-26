@@ -26,16 +26,25 @@ extern int	 	 verbose;
 /*
    Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
-LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
+LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool) {
 	this->name = name;
-	this->address = config["ip" + proto].as<std::string>();
+
+	this->ipv4_address = config["ip4"].as<std::string>();
+	this->ipv6_address = config["ip6"].as<std::string>();
 
 	this->parent_lbpool = parent_lbpool;
 
 	this->admin_state = STATE_UP;
 	/* Read initial state of host from pf. */
 	bool pf_state = false;
-	pf_is_in_table(&this->parent_lbpool->pf_name, &this->address, &pf_state);
+	/*
+	 * Both protocols IP addresses should be always present or absent
+	 * for each LB Node so we trust first IPv4 and then IPv6.
+	 */
+	if (!this->ipv4_address.empty())
+		pf_is_in_table(&this->parent_lbpool->pf_name, &this->ipv4_address, &pf_state);
+	else
+		pf_is_in_table(&this->parent_lbpool->pf_name, &this->ipv6_address, &pf_state);
 	if (pf_state)
 		this->state = STATE_UP;
 	else
@@ -46,29 +55,8 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	if (config["downtime"]) {
+	if (config["downtime"].as<bool>()) {
 		this->admin_state = STATE_DOWN;
-	}
-
-	/*
-	 * Determine type of IP address given to this node.
-	 * Checks based on functions of libevent take IP address in string form
-	 * and perform their own magic. Custom checks like tcp or ping operate
-	 * on old style structures and have different code for each address
-	 * family so we can as well help them.
-	 */
-	struct addrinfo hint, *res = NULL;
-	int ret;
-
-	memset(&hint, 0, sizeof hint);
-	hint.ai_family = PF_UNSPEC;
-	hint.ai_flags = AI_NUMERICHOST;
-	ret = getaddrinfo(this->address.c_str(), NULL, &hint, &res);
-	if (ret) {
-		// We should throw an exception.
-	} else {
-		this->address_family = res->ai_family;
-		freeaddrinfo(res);
 	}
 
 	log(MSG_INFO, this, fmt::sprintf("state: created initial_state: %s", this->get_state_text()));

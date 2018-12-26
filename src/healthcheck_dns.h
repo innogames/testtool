@@ -62,7 +62,7 @@ class Healthcheck_dns: public Healthcheck {
 
 	/* Methods */
 	public:
-		Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode);
+		Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address);
 
 	protected:
 		static void callback(evutil_socket_t fd, short what, void *arg);

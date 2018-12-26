@@ -33,7 +33,7 @@ class Healthcheck_postgres: public Healthcheck {
 	 * Interface methods
 	 */
 	public:
-		Healthcheck_postgres(const YAML::Node& config, class LbNode *_parent_lbnode);
+		Healthcheck_postgres(const YAML::Node& config, class LbNode *_parent_lbnode, string *ip_address);
 		int schedule_healthcheck(struct timespec *now);
 
 	/*

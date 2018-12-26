@@ -60,7 +60,10 @@ static unsigned int build_dns_question(string &dns_query, char *question_buffer)
  *
  * It parses DNS-specific parameters.
  */
-Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent_lbnode): Healthcheck(config, _parent_lbnode) {
+Healthcheck_dns::Healthcheck_dns(
+	const YAML::Node& config, class LbNode *_parent_lbnode,
+	string *ip_address
+): Healthcheck(config, _parent_lbnode, ip_address) {
 
 	// Set defaults
 	this->type = "dns";
@@ -78,9 +81,10 @@ Healthcheck_dns::Healthcheck_dns(const YAML::Node& config, class LbNode *_parent
 
 int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	char			raw_packet[DNS_BUFFER_SIZE]; // This should be enough for our purposes.
-	struct sockaddr_in	to_addr;
 	unsigned int		question_length;
 	unsigned int		total_length;
+	struct sockaddr_in	to_addr4;
+	struct sockaddr_in6	to_addr6;
 
 	// Peform general stuff for scheduled healthcheck
 	if (Healthcheck::schedule_healthcheck(now) == false)
@@ -110,19 +114,28 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	question_length = build_dns_question(dns_query, dns_question);
 	total_length = sizeof(struct dns_header) + question_length;
 
-	// Set the to_addr, a real sockaddr_in is needed instead of strings
-	memset(&to_addr, 0, sizeof(sockaddr_in));
-	to_addr.sin_family = AF_INET;
-	to_addr.sin_addr.s_addr = inet_addr(parent_lbnode->address.c_str());
-	to_addr.sin_port = htons(port);
+	int pton_res;
+	if (address_family == AF_INET) {
+		memset(&to_addr4, 0, sizeof(to_addr4));
+		to_addr4.sin_family = AF_INET;
+		pton_res = inet_pton(AF_INET, ip_address->c_str(), &to_addr4.sin_addr);
+		to_addr4.sin_port = htons(port);
+		socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	} else if (address_family == AF_INET6) {
+		memset(&to_addr6, 0, sizeof(to_addr6));
+		to_addr6.sin6_family = AF_INET6;
+		pton_res = inet_pton(AF_INET6, ip_address->c_str(), &to_addr6.sin6_addr);
+		to_addr6.sin6_port = htons(port);
+		socket_fd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+	} else {
+		return false;
+	}
 
-	// Create a socket
-	socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if (socket_fd == -1) {
 		log(MSG_CRIT, this, fmt::sprintf("socket(): error %s",  strerror(errno)));
 		return false;
 	}
-	/* In fact I'm not really sure if it needs to be nonblocking. */
+
 	evutil_make_socket_nonblocking(socket_fd);
 
 	/*
@@ -130,7 +143,11 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
 	 * our target in this socket.  "connect" makes the socket
 	 * receive only traffic from that host.
 	 */
-	connect(socket_fd, (struct sockaddr *) &to_addr, sizeof(sockaddr_in));
+	if (address_family == AF_INET) {
+		connect(socket_fd, (struct sockaddr*)&to_addr4, sizeof(to_addr4));
+	} else if (address_family == AF_INET6) {
+		connect(socket_fd, (struct sockaddr*)&to_addr6, sizeof(to_addr6));
+	}
 
 	// Create an event and make it pending
 	this->ev = event_new(eventBase, socket_fd, EV_READ, Healthcheck_dns::callback, this);

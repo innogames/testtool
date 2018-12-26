@@ -82,18 +82,19 @@ void TestTool::load_downtimes() {
 
 	YAML::Node downtimes;
 	downtimes = YAML::LoadFile(config_file_name);
-	log(MSG_INFO, fmt::sprintf("Downtimes: %s", downtimes));
 
 	/*
 	 * Compare new config against the old one, start downtimes if necessary.
 	 */
 	for (auto lb_pool : lb_pools) {
 		for (auto lb_node : lb_pool.second->nodes) {
-			log(MSG_INFO, fmt::sprintf("Comparing %s %s", lb_pool.first, lb_node->name));
-			log(MSG_INFO, fmt::sprintf("Dupa %s", downtimes[lb_pool.first]));
+			/*
+			 * Check the whole path, elements might be missing
+			 * if somebody changed things in Serveradmin.
+			 */
 			if (downtimes[lb_pool.first] &&
 			    downtimes[lb_pool.first]["nodes"][lb_node->name] &&
-			    downtimes[lb_pool.first]["nodes"][lb_node->name]["downtime"]) {
+			    downtimes[lb_pool.first]["nodes"][lb_node->name]["downtime"].as<bool>()) {
 				lb_node->start_downtime();
 			} else {
 				lb_node->end_downtime();
@@ -112,29 +113,16 @@ void TestTool::load_config() {
 
 	config = YAML::LoadFile(config_file_name);
 
-	for (
-		YAML::const_iterator pool_it = config.begin();
-		pool_it != config.end();
-		pool_it++
-	) {
-		// Duplicate LB Pool into IPv4 and IPv6 versions.
-		std::vector<string> protos = {"4", "6"};
-		for (auto proto : protos ) {
-			string name = pool_it->first.as<std::string>() + "_" + proto;
-			/*
-			 * Ignore LBPools which have no IP address in given address
-			 * family or have no ports forwarded - they might be SNAT rules.
-			 * Serveradmin gives us evertythng he has seen.
-			 */
-			try {
-				LbPool *new_lbpool = NULL;
-				new_lbpool = new LbPool(name, pool_it->second, proto, &lb_pools);
-				lb_pools[new_lbpool->name] = new_lbpool;
-			}
-			catch (NotLbPoolException ex) {
-				/* Nothing to do, just ignore it */
-				log(MSG_INFO, fmt::sprintf("lbpool: %s state: not created message: %s", name, ex.what()));
-			}
+	for (auto lb_pool: config) {
+		string name = lb_pool.first.as<std::string>();
+		try {
+			LbPool *new_lbpool = NULL;
+			new_lbpool = new LbPool(name, lb_pool.second, &lb_pools);
+			lb_pools[new_lbpool->name] = new_lbpool;
+		}
+		catch (NotLbPoolException ex) {
+			/* Nothing to do, just ignore it */
+			log(MSG_INFO, fmt::sprintf("lbpool: %s state: not created message: %s", name, ex.what()));
 		}
 	}
 }
@@ -278,12 +266,12 @@ void TestTool::configure_bgp() {
 
 	for (auto& lb_pool : lb_pools) {
 		if (lb_pool.second->state == LbPool::STATE_UP) {
-			if (lb_pool.second->proto == "4") {
-				bird_ips_alive_tmp[0].insert(&lb_pool.second->ip_address);
+			if (!lb_pool.second->ipv4_address.empty()) {
+				bird_ips_alive_tmp[0].insert(&lb_pool.second->ipv4_address);
 			}
 
-			if (lb_pool.second->proto == "6") {
-				bird_ips_alive_tmp[1].insert(&lb_pool.second->ip_address);
+			if (!lb_pool.second->ipv6_address.empty()) {
+				bird_ips_alive_tmp[1].insert(&lb_pool.second->ipv6_address);
 			}
 		}
 	}

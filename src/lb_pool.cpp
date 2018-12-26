@@ -42,14 +42,10 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, const YAML::Node& config, string proto, map<std::string, LbPool*> *all_lb_pools) {
-	this->proto = proto;
+LbPool::LbPool(string name, const YAML::Node& config, map<std::string, LbPool*> *all_lb_pools) {
 	this->all_lb_pools = all_lb_pools;
 
 	/* Perform some checks to verify if this is really an LB Pool */
-	if  (!node_defined(config["ip"+proto])) {
-		throw(NotLbPoolException(fmt::sprintf("No IPv%s configured!", proto)));
-	}
 	if  (!node_defined(config["protocol_port"])) {
 		throw(NotLbPoolException("No protocol_port configured!"));
 	}
@@ -57,15 +53,16 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, map<std::str
 		throw(NotLbPoolException("No pf_name configured!"));
 	}
 	this->name = name;
-	this->ip_address = config["ip" + proto].as<std::string>();
-	this->pf_name = config["pf_name"].as<std::string>() + "_" + proto;
+	this->ipv4_address = config["ip4"].as<std::string>();
+	this->ipv6_address = config["ip6"].as<std::string>();
+	this->pf_name = config["pf_name"].as<std::string>();
 	this->min_nodes = parse_int(config["min_nodes"], 0);
 	this->max_nodes = parse_int(config["max_nodes"], 0);
 	this->fault_policy = LbPool::fault_policy_by_name(parse_string(config["min_nodes_action"], "force_down"));
 	this->backup_pool_name = parse_string(config["backup_pool"], "");
 	if (this->backup_pool_name != "") {
 		this->fault_policy = BACKUP_POOL;
-		this->backup_pool_name = this->backup_pool_name + "_" + proto;
+		this->backup_pool_name = this->backup_pool_name;
 	}
 
 	this->state = STATE_DOWN;
@@ -106,16 +103,21 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, map<std::str
 		 * TODO: inform Serveradmin and fail pushing.
 		 */
 		if (node_index < MAX_NODES) {
-			if ( ! lbnode_it.second["ip" + proto].IsNull()) {
-				new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto);
-				node_index++;
-			}
+			new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this);
+			node_index++;
 		}
 	}
 
+	/*
+	 * Healthchecks are defined per LB Pool but in fact must be attached
+	 * to each LB Node. Hence they are created here, in LB Pool constructor.
+	 */
 	for (auto hc_it: config["health_checks"]) {
 		for (auto node: this->nodes) {
-			Healthcheck::healthcheck_factory(hc_it, node);
+			if (!node->ipv4_address.empty())
+				Healthcheck::healthcheck_factory(hc_it, node, &node->ipv4_address);
+			if (!node->ipv6_address.empty())
+				Healthcheck::healthcheck_factory(hc_it, node, &node->ipv6_address);
 		}
 	}
 
@@ -213,6 +215,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 					* If there is not enough nodes, bring the whole pool down.
 					*/
 					wanted_nodes.clear();
+					log(MSG_INFO, this, fmt::sprintf("Not enough nodes, forcing pool down"));
 					break;
 				case FORCE_UP:
 					/*
