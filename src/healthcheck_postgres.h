@@ -17,7 +17,7 @@
 #include <event2/event_struct.h>
 #include <openssl/ssl.h>
 
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(__APPLE__)
 #include <libpq-fe.h>
 #else
 #include <postgresql/libpq-fe.h>
