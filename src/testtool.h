@@ -15,7 +15,8 @@ class LbPool;
 
 class TestTool {
 public:
-    void load_config(string config_file);
+    TestTool(string config_file_name);
+    void load_config();
     void load_downtimes();
 
     void setup_events();
@@ -27,6 +28,7 @@ public:
     boost::interprocess::message_queue* pfctl_mq;
 
 private:
+    string config_file_name;
     set<string> downtimes;
     std::map<std::string, LbPool*> lb_pools;
     std::set<string*> bird_ips_alive[2];

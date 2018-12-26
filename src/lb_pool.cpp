@@ -42,7 +42,7 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
  * The constructor has not much work to do, init some variables
  * and display the LbPool name if verbose.
  */
-LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools) {
+LbPool::LbPool(string name, const YAML::Node& config, string proto, map<std::string, LbPool*> *all_lb_pools) {
 	this->proto = proto;
 	this->all_lb_pools = all_lb_pools;
 
@@ -107,7 +107,7 @@ LbPool::LbPool(string name, const YAML::Node& config, string proto, set<string> 
 		 */
 		if (node_index < MAX_NODES) {
 			if ( ! lbnode_it.second["ip" + proto].IsNull()) {
-				new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto, downtimes);
+				new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this, proto);
 				node_index++;
 			}
 		}

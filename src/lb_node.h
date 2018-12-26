@@ -25,7 +25,7 @@ class LbNode {
 
 	/* Methods */
 	public:
-		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto, set<string> *downtimes);
+		LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto);
 		void schedule_healthchecks(struct timespec *now);
 		void finalize_healthchecks();
 		void node_logic();

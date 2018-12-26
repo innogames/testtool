@@ -49,7 +49,7 @@ class LbPool {
 
 	/* Methods */ 
 	public:
-		LbPool(string name, const YAML::Node& config, string proto, set<string> *downtimes, map<std::string, LbPool*> *all_lb_pools);
+		LbPool(string name, const YAML::Node& config, string proto, map<std::string, LbPool*> *all_lb_pools);
 		void schedule_healthchecks(struct timespec *now);
 		void pool_logic(LbNode *last_node);
 		void finalize_healthchecks();

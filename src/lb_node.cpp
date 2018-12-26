@@ -26,7 +26,7 @@ extern int	 	 verbose;
 /*
    Link the node and its parent pool, initialize some variables, print diagnostic information if necessary.
 */
-LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto, set<string> *downtimes) {
+LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpool, std::string proto) {
 	this->name = name;
 	this->address = config["ip" + proto].as<std::string>();
 
@@ -46,7 +46,7 @@ LbNode::LbNode(string name, const YAML::Node& config, class LbPool *parent_lbpoo
 
 	this->parent_lbpool->nodes.push_back(this);
 
-	if (downtimes->count(parent_lbpool->pf_name + " " + this->address)) {
+	if (config["downtime"]) {
 		this->admin_state = STATE_DOWN;
 	}
 

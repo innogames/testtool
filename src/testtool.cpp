@@ -80,31 +80,23 @@ void signal_handler(int signum) {
 void TestTool::load_downtimes() {
 	log(MSG_INFO, "Reloading downtime list.");
 
-	string line;
+	YAML::Node downtimes;
+	downtimes = YAML::LoadFile(config_file_name);
+	log(MSG_INFO, fmt::sprintf("Downtimes: %s", downtimes));
 
-	downtimes.clear();
-
-	/* Read all the lbpool-node pairs and store them. */
-	ifstream downtime_file("/etc/iglb/testtool_downtimes.conf");
-	if (downtime_file) {
-		while (getline(downtime_file, line)) {
-			downtimes.insert(line);
-		}
-		downtime_file.close();
-	} else {
-		log(MSG_INFO, "Could not load downtime list file.");
-	}
-
-	/* Iterate over all lbpools and nodes, start downtime for the loaded
-	 * ones, end for the ones not in the set. On testtool startup the list
-	 * of pools is empty, this loop should just ignore them.
+	/*
+	 * Compare new config against the old one, start downtimes if necessary.
 	 */
-	for (auto& lbpool : lb_pools) {
-		for (auto node : lbpool.second->nodes) {
-			if ( downtimes.count(lbpool.second->pf_name + " " + node->address) ) {
-				node->start_downtime();
+	for (auto lb_pool : lb_pools) {
+		for (auto lb_node : lb_pool.second->nodes) {
+			log(MSG_INFO, fmt::sprintf("Comparing %s %s", lb_pool.first, lb_node->name));
+			log(MSG_INFO, fmt::sprintf("Dupa %s", downtimes[lb_pool.first]));
+			if (downtimes[lb_pool.first] &&
+			    downtimes[lb_pool.first]["nodes"][lb_node->name] &&
+			    downtimes[lb_pool.first]["nodes"][lb_node->name]["downtime"]) {
+				lb_node->start_downtime();
 			} else {
-				node->end_downtime();
+				lb_node->end_downtime();
 			}
 		}
 	}
@@ -114,17 +106,11 @@ void TestTool::load_downtimes() {
 /*
    Load pools from given configuration file.
 */
-void TestTool::load_config(string config_file) {
+void TestTool::load_config() {
 	YAML::Node config;
-	log(MSG_INFO, "Loading configration file  " + config_file);
+	log(MSG_INFO, "Loading configration file  " + config_file_name);
 
-        config = YAML::LoadFile(config_file)["lbpools"];
-
-	/*
-	 * Load downtimes before loading pools and nodes so that they can
-	 * start their operation in desired state.
-	 */
-	load_downtimes();
+	config = YAML::LoadFile(config_file_name);
 
 	for (
 		YAML::const_iterator pool_it = config.begin();
@@ -142,7 +128,7 @@ void TestTool::load_config(string config_file) {
 			 */
 			try {
 				LbPool *new_lbpool = NULL;
-				new_lbpool = new LbPool(name, pool_it->second, proto, &downtimes, &lb_pools);
+				new_lbpool = new LbPool(name, pool_it->second, proto, &lb_pools);
 				lb_pools[new_lbpool->name] = new_lbpool;
 			}
 			catch (NotLbPoolException ex) {
@@ -241,6 +227,11 @@ void dump_status_callback(evutil_socket_t fd, short what, void *arg) {
 	(void)(what);
 
 	((TestTool*)arg)->dump_status();
+}
+
+
+TestTool::TestTool(string config_file_name) {
+	this->config_file_name = config_file_name;
 }
 
 void TestTool::dump_status() {
@@ -439,8 +430,7 @@ int main (int argc, char *argv[]) {
 
 	srand(time(NULL));;
 
-
-	string config_file_name = "/etc/iglb/iglb.json";
+	string config_file_name = "/etc/iglb/lbpools.json";
 
 	int opt;
 	while ((opt = getopt(argc, argv, "hnpvf:")) != -1) {
@@ -487,8 +477,8 @@ int main (int argc, char *argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	auto tool = new TestTool();
-	tool->load_config(config_file_name);
+	auto tool = new TestTool(config_file_name);
+	tool->load_config();
 
 	tool->setup_events();
 	log(MSG_INFO, "Entering the main loop...");
