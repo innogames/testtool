@@ -1,8 +1,8 @@
-/*
- * Testtool - Configuration
- *
- * Copyright (c) 2018 InnoGames GmbH
- */
+//
+// Testtool - Configuration
+//
+// Copyright (c) 2018 InnoGames GmbH
+//
 
 #ifndef _CONFIG_H
 #define _CONFIG_H
