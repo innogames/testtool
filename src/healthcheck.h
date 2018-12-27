@@ -9,8 +9,8 @@
 #include <event2/event.h>
 #include <iostream>
 #include <netinet/in.h>
+#include <nlohmann/json.hpp>
 #include <sstream>
-#include <yaml-cpp/yaml.h>
 
 #include "lb_node.h"
 
@@ -61,11 +61,11 @@ class Healthcheck {
   // Methods
 public:
   // The check factory, which returns proper check object based its name.
-  static Healthcheck *healthcheck_factory(const YAML::Node &config,
+  static Healthcheck *healthcheck_factory(const nlohmann::json &config,
                                           class LbNode *_parent_lbnode,
                                           string *ip_address);
   virtual int schedule_healthcheck(struct timespec *now);
-  Healthcheck(const YAML::Node &, class LbNode *_parent_lbnode,
+  Healthcheck(const nlohmann::json &config, class LbNode *_parent_lbnode,
               string *ip_address);
   virtual void finalize();
 

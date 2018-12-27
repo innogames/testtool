@@ -11,10 +11,10 @@
 //#define NDEBUG
 
 #include <event2/event_struct.h>
+#include <nlohmann/json.hpp>
 #include <openssl/ssl.h>
 #include <sstream>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #if defined(__FreeBSD__) || defined(__APPLE__)
 #include <libpq-fe.h>
@@ -28,8 +28,8 @@ class Healthcheck_postgres : public Healthcheck {
 
   // Methods
 public:
-  Healthcheck_postgres(const YAML::Node &config, class LbNode *_parent_lbnode,
-                       string *ip_address);
+  Healthcheck_postgres(const nlohmann::json &config,
+                       class LbNode *_parent_lbnode, string *ip_address);
   int schedule_healthcheck(struct timespec *now);
 
 protected:

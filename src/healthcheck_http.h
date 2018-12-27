@@ -9,10 +9,10 @@
 
 #include <event2/http.h>
 #include <event2/http_struct.h>
+#include <nlohmann/json.hpp>
 #include <openssl/ssl.h>
 #include <sstream>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "healthcheck.h"
 
@@ -20,7 +20,7 @@ class Healthcheck_http : public Healthcheck {
 
   // Methods
 public:
-  Healthcheck_http(const YAML::Node &config, class LbNode *_parent_lbnode,
+  Healthcheck_http(const nlohmann::json &config, class LbNode *_parent_lbnode,
                    string *ip_address);
   static void check_http_callback(struct evhttp_request *req, void *arg);
   int schedule_healthcheck(struct timespec *now);
@@ -46,7 +46,7 @@ class Healthcheck_https : public Healthcheck_http {
 
   // Methods
 public:
-  Healthcheck_https(const YAML::Node &config, class LbNode *_parent_lbnode,
+  Healthcheck_https(const nlohmann::json &config, class LbNode *_parent_lbnode,
                     string *ip_address);
   int schedule_healthcheck(struct timespec *now);
 };

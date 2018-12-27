@@ -7,10 +7,10 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <stdlib.h>
 #include <typeinfo>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "healthcheck.h"
@@ -42,8 +42,8 @@ int timespec_diffms(struct timespec *a, struct timespec *b) {
 //// constructor is called from each healthcheck's type-specific
 /// constructor!  And it is called *before* that constructor does its
 /// own work!
-Healthcheck::Healthcheck(const YAML::Node &config, class LbNode *_parent_lbnode,
-                         string *ip_address) {
+Healthcheck::Healthcheck(const nlohmann::json &config,
+                         class LbNode *_parent_lbnode, string *ip_address) {
   // Pretend that the healthcheck was performed just a moment ago.
   // This is necessary to perform the check in proper time.
   clock_gettime(CLOCK_MONOTONIC, &last_checked);
@@ -76,9 +76,9 @@ Healthcheck::Healthcheck(const YAML::Node &config, class LbNode *_parent_lbnode,
   }
 
   // Set defaults, same as with old testtool.
-  this->check_interval = parse_int(config["hc_interval"], 2);
-  this->max_failed_checks = parse_int(config["hc_max_failed"], 3);
-  int tmp_timeout = parse_int(config["hc_timeout"], 1500);
+  this->check_interval = safe_get<int>(config, "hc_interval", 2);
+  this->max_failed_checks = safe_get<int>(config, "hc_max_failed", 3);
+  int tmp_timeout = safe_get<int>(config, "hc_timeout", 1500);
   // Timeout was read in ms, convert it to s and ns.
   this->timeout.tv_sec = tmp_timeout / 1000;
   this->timeout.tv_usec = (tmp_timeout % 1000) * 1000;
@@ -107,13 +107,13 @@ Healthcheck::Healthcheck(const YAML::Node &config, class LbNode *_parent_lbnode,
 /// - reads type of healthcheck
 /// - creates an object of the required type, pass the config to it
 /// - returns it
-Healthcheck *Healthcheck::healthcheck_factory(const YAML::Node &config,
+Healthcheck *Healthcheck::healthcheck_factory(const nlohmann::json &config,
                                               class LbNode *_parent_lbnode,
                                               string *ip_address) {
 
   Healthcheck *new_healthcheck = NULL;
 
-  std::string type = parse_string(config["hc_type"], "");
+  std::string type = safe_get<string>(config, "hc_type", "");
 
   if (type == "http")
     new_healthcheck = new Healthcheck_http(config, _parent_lbnode, ip_address);

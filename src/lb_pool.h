@@ -11,9 +11,10 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <nlohmann/json.hpp>
+#include <set>
 #include <string>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "lb_node.h"
 
@@ -45,7 +46,7 @@ public:
 
   // Methods
 public:
-  LbPool(string name, const YAML::Node &config,
+  LbPool(string name, nlohmann::json &config,
          map<std::string, LbPool *> *all_lb_pools);
   void schedule_healthchecks(struct timespec *now);
   void pool_logic(LbNode *last_node);

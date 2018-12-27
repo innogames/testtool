@@ -8,6 +8,7 @@
 #include <fmt/printf.h>
 #include <syslog.h>
 
+#include "config.h"
 #include "healthcheck.h"
 #include "lb_node.h"
 #include "lb_pool.h"
@@ -24,12 +25,12 @@ extern int verbose;
 ///
 /// Link the node and its parent pool, initialize some variables, print
 /// diagnostic information if necessary.
-LbNode::LbNode(string name, const YAML::Node &config,
+LbNode::LbNode(string name, const nlohmann::json &config,
                class LbPool *parent_lbpool) {
   this->name = name;
 
-  this->ipv4_address = config["ip4"].as<std::string>();
-  this->ipv6_address = config["ip6"].as<std::string>();
+  this->ipv4_address = safe_get<string>(config, "ip4", "");
+  this->ipv6_address = safe_get<string>(config, "ip6", "");
 
   this->parent_lbpool = parent_lbpool;
 
@@ -56,7 +57,7 @@ LbNode::LbNode(string name, const YAML::Node &config,
 
   this->parent_lbpool->nodes.push_back(this);
 
-  if (config["downtime"].as<bool>()) {
+  if (safe_get(config, "downtime", false)) {
     this->admin_state = STATE_DOWN;
   }
 

@@ -11,11 +11,11 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string.h>
 #include <sys/socket.h>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "healthcheck.h"
@@ -30,11 +30,11 @@ extern struct event_base *eventBase;
 extern int verbose;
 
 /// Constructor for TCP healthcheck.
-Healthcheck_tcp::Healthcheck_tcp(const YAML::Node &config,
+Healthcheck_tcp::Healthcheck_tcp(const nlohmann::json &config,
                                  class LbNode *_parent_lbnode,
                                  string *ip_address)
     : Healthcheck(config, _parent_lbnode, ip_address) {
-  this->port = parse_int(config["hc_port"], 80);
+  this->port = safe_get<int>(config, "hc_port", 80);
   type = "tcp";
 
   this->log_prefix = fmt::sprintf("port: %d", this->port);

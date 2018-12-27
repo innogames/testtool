@@ -7,8 +7,8 @@
 #define _LB_NODE_H_
 
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "healthcheck.h"
 
@@ -23,7 +23,8 @@ public:
 
   // Methods
 public:
-  LbNode(string name, const YAML::Node &config, class LbPool *parent_lbpool);
+  LbNode(string name, const nlohmann::json &config,
+         class LbPool *parent_lbpool);
   void schedule_healthchecks(struct timespec *now);
   void finalize_healthchecks();
   void node_logic();

@@ -1,14 +1,15 @@
 //
-// Testtool - Configuration
+// Testtool - helpers for reading json configuration
 //
 // Copyright (c) 2018 InnoGames GmbH
 //
 
-#ifndef _CONFIG_H
-#define _CONFIG_H
+#ifndef _CONFIG_H_
+#define _CONFIG_H_
 
-int parse_int(YAML::Node node, int def_val);
-bool node_defined(YAML::Node node);
-std::string parse_string(YAML::Node node, std::string def_val);
+#include <nlohmann/json.hpp>
+
+bool key_present(const nlohmann::json &j, const std::string &key);
+template <class T> T safe_get(const nlohmann::json &j, const char *key, T val);
 
 #endif

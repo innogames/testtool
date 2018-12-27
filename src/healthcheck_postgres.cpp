@@ -12,9 +12,9 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #if defined(__FreeBSD__) || defined(__APPLE__)
 #include <libpq-fe.h>
@@ -39,7 +39,7 @@ extern int verbose;
 ///
 /// We are initialising the variables, only.  Nothing should be able
 /// to fail in there.
-Healthcheck_postgres::Healthcheck_postgres(const YAML::Node &config,
+Healthcheck_postgres::Healthcheck_postgres(const nlohmann::json &config,
                                            class LbNode *_parent_lbnode,
                                            string *ip_address)
     : Healthcheck(config, _parent_lbnode, ip_address) {
@@ -47,11 +47,11 @@ Healthcheck_postgres::Healthcheck_postgres(const YAML::Node &config,
   this->type = "postgres";
 
   // Set defaults
-  this->port = parse_int(config["hc_port"], 5432);
-  this->host = parse_string(config["hc_host"], *ip_address);
-  this->dbname = parse_string(config["hc_dbname"], "");
-  this->user = parse_string(config["hc_user"], "");
-  this->query = parse_string(config["hc_query"], "");
+  this->port = safe_get<int>(config, "hc_port", 5432);
+  this->host = safe_get(config, "hc_host", *ip_address);
+  this->dbname = safe_get<string>(config, "hc_dbname", "");
+  this->user = safe_get<string>(config, "hc_user", "");
+  this->query = safe_get<string>(config, "hc_query", "");
 
   this->log_prefix =
       fmt::sprintf("query: '%s' port: %d", this->query, this->port);

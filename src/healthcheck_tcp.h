@@ -20,7 +20,7 @@ class Healthcheck_tcp : public Healthcheck {
 
   // Methods
 public:
-  Healthcheck_tcp(const YAML::Node &config, class LbNode *_parent_lbnode,
+  Healthcheck_tcp(const nlohmann::json &config, class LbNode *_parent_lbnode,
                   string *ip_address);
   static void check_tcp_callback(struct evtcp_request *req, void *arg);
   int schedule_healthcheck(struct timespec *now);

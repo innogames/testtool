@@ -10,10 +10,10 @@
 #include <event2/event.h>
 #include <event2/event_struct.h>
 #include <event2/util.h>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <unistd.h>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "healthcheck.h"
 
@@ -59,7 +59,7 @@ class Healthcheck_dns : public Healthcheck {
 
   // Methods
 public:
-  Healthcheck_dns(const YAML::Node &config, class LbNode *_parent_lbnode,
+  Healthcheck_dns(const nlohmann::json &config, class LbNode *_parent_lbnode,
                   string *ip_address);
 
 protected:

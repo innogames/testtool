@@ -13,11 +13,11 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <sstream>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "healthcheck.h"
@@ -35,7 +35,7 @@ extern int verbose;
 /// Constructor for HTTP healthcheck.
 ///
 /// Parses http(s)-specific parameters.
-Healthcheck_http::Healthcheck_http(const YAML::Node &config,
+Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
                                    class LbNode *_parent_lbnode,
                                    string *ip_address)
     : Healthcheck(config, _parent_lbnode, ip_address) {
@@ -43,20 +43,19 @@ Healthcheck_http::Healthcheck_http(const YAML::Node &config,
   bev = NULL;
 
   // Set defaults
-  this->type = parse_string(config["hc_type"], "http");
+  this->type = safe_get<string>(config, "hc_type", "http");
   if (this->type == "https") {
-    this->port = parse_int(config["hc_port"], 443);
+    this->port = safe_get<int>(config, "hc_port", 443);
   } else {
-    this->port = parse_int(config["hc_port"], 80);
+    this->port = safe_get<int>(config, "hc_port", 80);
   }
-  this->query = parse_string(config["hc_query"], "HEAD /");
-  this->host = parse_string(config["hc_host"], "");
+  this->query = safe_get<string>(config, "hc_query", "HEAD /");
+  this->host = safe_get<string>(config, "hc_host", "");
 
-  for (YAML::Node ok_code_node : config["hc_ok_codes"]) {
+  for (const int &ok_code : config["hc_ok_codes"]) {
     // OK Codes are stored as integers in Serveradmin but HTTP
     // protocol returns strings. Convert them now and compare
     // strings later.
-    int ok_code = parse_int(ok_code_node, 200);
     this->ok_codes.push_back(fmt::sprintf("%d", ok_code));
   }
   if (this->ok_codes.size() == 0) {
@@ -86,7 +85,7 @@ Healthcheck_http::Healthcheck_http(const YAML::Node &config,
 /// Constructor for HTTPS healthcheck
 ///
 /// It only calls HTTP constructor.  Now that's what I call inheritance!
-Healthcheck_https::Healthcheck_https(const YAML::Node &config,
+Healthcheck_https::Healthcheck_https(const nlohmann::json &config,
                                      class LbNode *_parent_lbnode,
                                      string *ip_address)
     : Healthcheck_http(config, _parent_lbnode, ip_address) {

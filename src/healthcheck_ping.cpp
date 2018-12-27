@@ -11,6 +11,7 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
-#include "config.h"
 #include "healthcheck.h"
 #include "healthcheck_ping.h"
 #include "lb_node.h"
@@ -167,7 +166,7 @@ void Healthcheck_ping::destroy() {
 /// Constructor for ping healthcheck.
 ///
 /// Parses ping-specific parameters.
-Healthcheck_ping::Healthcheck_ping(const YAML::Node &config,
+Healthcheck_ping::Healthcheck_ping(const nlohmann::json &config,
                                    class LbNode *_parent_lbnode,
                                    string *ip_address)
     : Healthcheck(config, _parent_lbnode, ip_address) {

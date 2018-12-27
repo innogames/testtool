@@ -6,8 +6,8 @@
 
 #include <fmt/format.h>
 #include <fmt/printf.h>
+#include <nlohmann/json.hpp>
 #include <string.h>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "lb_node.h"
@@ -42,36 +42,45 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
 ///
 /// The constructor has not much work to do, init some variables
 /// and display the LbPool name if verbose.
-LbPool::LbPool(string name, const YAML::Node &config,
+LbPool::LbPool(string name, nlohmann::json &config,
                map<std::string, LbPool *> *all_lb_pools) {
-  this->all_lb_pools = all_lb_pools;
 
-  // Perform some checks to verify if this is really an LB Pool
-  if (!node_defined(config["protocol_port"])) {
-    throw(NotLbPoolException("No protocol_port configured!"));
-  }
-  if (!node_defined(config["pf_name"])) {
-    throw(NotLbPoolException("No pf_name configured!"));
-  }
+  this->all_lb_pools = all_lb_pools;
   this->name = name;
-  this->ipv4_address = config["ip4"].as<std::string>();
-  this->ipv6_address = config["ip6"].as<std::string>();
-  this->pf_name = config["pf_name"].as<std::string>();
-  this->min_nodes = parse_int(config["min_nodes"], 0);
-  this->max_nodes = parse_int(config["max_nodes"], 0);
+
+  // Read parameters from json, read them safe and then verify if they make
+  // sense.
+  this->ipv4_address = safe_get<string>(config, "ip4", "");
+  this->ipv6_address = safe_get<string>(config, "ip6", "");
+  this->pf_name = safe_get<string>(config, "pf_name", "");
+  this->min_nodes = safe_get<int>(config, "min_nodes", 0);
+  this->max_nodes = safe_get<int>(config, "max_nodes", 0);
   this->fault_policy = LbPool::fault_policy_by_name(
-      parse_string(config["min_nodes_action"], "force_down"));
-  this->backup_pool_name = parse_string(config["backup_pool"], "");
+      safe_get<string>(config, "min_nodes_action", "force_down"));
+  this->backup_pool_name = safe_get<string>(config, "backup_pool", "");
   if (this->backup_pool_name != "") {
     this->fault_policy = BACKUP_POOL;
     this->backup_pool_name = this->backup_pool_name;
   }
 
+  // Perform some checks to verify if this is really an LB Pool and not
+  // something else like a SNAT rule.
+  if (this->ipv4_address.empty() && this->ipv6_address.empty())
+    throw(NotLbPoolException("No pf_name configured!"));
+
+  if (this->pf_name.empty())
+    throw(NotLbPoolException("No pf_name configured!"));
+
+  auto protocol_port = config.find("protocol_port");
+  if (protocol_port == config.end() || protocol_port->empty())
+    throw(NotLbPoolException("No protocol_port configured!"));
+
   this->state = STATE_DOWN;
 
   // If this Pool has no healthchecks then force nodes to be always up.
   // This is required to have testool manage all LB Pools.
-  if (!node_defined(config["health_checks"])) {
+  auto health_checks = config.find("health_checks");
+  if (health_checks == config.end() || health_checks->empty()) {
     this->fault_policy = FORCE_UP;
     this->min_nodes = config["nodes"].size();
   }
@@ -93,14 +102,14 @@ LbPool::LbPool(string name, const YAML::Node &config,
   // Glue things together. Please note that children append themselves
   // to property of parent in their own code.
   int node_index = 0;
-  for (auto lbnode_it : config["nodes"]) {
+  for (const auto &lbnode_it : config["nodes"].items()) {
     // Silently drop node if there is more than MAX_NODES.
     // Only this many nodes can be sent to pfctl worker.
     // We have no way of notifying Serveradmin about push failure
     // so silently dropping is good enough for now.
     // TODO: inform Serveradmin and fail pushing.
     if (node_index < MAX_NODES) {
-      new LbNode(lbnode_it.first.as<std::string>(), lbnode_it.second, this);
+      new LbNode(lbnode_it.key(), lbnode_it.value(), this);
       node_index++;
     }
   }

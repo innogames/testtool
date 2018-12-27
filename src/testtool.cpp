@@ -12,6 +12,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <set>
@@ -21,7 +22,6 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "healthcheck.h"
@@ -34,6 +34,7 @@
 
 using namespace std;
 using namespace boost::interprocess;
+using json = nlohmann::json;
 
 // Global variables, some are exported to other modules.
 struct event_base *eventBase = NULL;
@@ -74,19 +75,26 @@ void signal_handler(int signum) {
 void TestTool::load_downtimes() {
   log(MSG_INFO, "Reloading downtime list.");
 
-  YAML::Node downtimes;
-  downtimes = YAML::LoadFile(config_file_name);
+  json config;
+  std::ifstream config_file(config_file_name);
+  config_file >> config;
+  config_file.close();
 
   // Compare new config against the old one, start downtimes if necessary.
-  for (auto lb_pool : lb_pools) {
-    for (auto lb_node : lb_pool.second->nodes) {
+  for (const auto &lb_pool : lb_pools) {
+    for (const auto &lb_node : lb_pool.second->nodes) {
 
-      // Check the whole path, elements might be missing
-      // if somebody changed things in Serveradmin.
-      if (downtimes[lb_pool.first] &&
-          downtimes[lb_pool.first]["nodes"][lb_node->name] &&
-          downtimes[lb_pool.first]["nodes"][lb_node->name]["downtime"]
-              .as<bool>()) {
+      // Check the whole path, elements might be missing if somebody changed
+      // things in Serveradmin. Don't crash if keys are missing.
+      nlohmann::json &temp = config;
+
+      for (string key : vector<string>{lb_pool.first, "nodes", lb_node->name}) {
+        if (key_present(temp, key))
+          temp = temp.find(key).value();
+        else
+          break;
+      }
+      if (safe_get<bool>(config, "downtime", false)) {
         lb_node->start_downtime();
       } else {
         lb_node->end_downtime();
@@ -97,16 +105,18 @@ void TestTool::load_downtimes() {
 
 /// Loads pools from given configuration file.
 void TestTool::load_config() {
-  YAML::Node config;
   log(MSG_INFO, "Loading configration file  " + config_file_name);
 
-  config = YAML::LoadFile(config_file_name);
+  json config;
+  std::ifstream config_file(config_file_name);
+  config_file >> config;
+  config_file.close();
 
-  for (auto lb_pool : config) {
-    string name = lb_pool.first.as<std::string>();
+  for (const auto &lb_pool : config.items()) {
+    string name = lb_pool.key();
     try {
       LbPool *new_lbpool = NULL;
-      new_lbpool = new LbPool(name, lb_pool.second, &lb_pools);
+      new_lbpool = new LbPool(name, lb_pool.value(), &lb_pools);
       lb_pools[new_lbpool->name] = new_lbpool;
     } catch (NotLbPoolException ex) {
       // Nothing to do, just ignore it

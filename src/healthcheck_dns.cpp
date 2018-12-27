@@ -22,13 +22,13 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <vector>
-#include <yaml-cpp/yaml.h>
 
 #include "config.h"
 #include "healthcheck.h"
@@ -52,15 +52,16 @@ static unsigned int build_dns_question(string &dns_query,
 /// Constructor for DNS healthcheck.
 ///
 /// It parses DNS-specific parameters.
-Healthcheck_dns::Healthcheck_dns(const YAML::Node &config,
+Healthcheck_dns::Healthcheck_dns(const nlohmann::json &config,
                                  class LbNode *_parent_lbnode,
                                  string *ip_address)
     : Healthcheck(config, _parent_lbnode, ip_address) {
 
   // Set defaults
   this->type = "dns";
-  this->port = parse_int(config["hc_port"], 53);
-  this->dns_query = parse_string(config["hc_query"], "af-control.ig.local.");
+  this->port = safe_get<int>(config, "hc_port", 53);
+  this->dns_query =
+      safe_get<string>(config, "hc_query", "af-control.admin.ig.local.");
   if (this->dns_query.at(this->dns_query.length() - 1) != '.')
     this->dns_query += '.';
 
