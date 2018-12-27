@@ -23,7 +23,6 @@ public:
 
   void setup_events();
   void dump_status();
-  void configure_bgp();
 
   void schedule_healthchecks();
   void finalize_healthchecks();

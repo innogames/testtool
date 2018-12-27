@@ -232,78 +232,6 @@ void TestTool::dump_status() {
   }
 }
 
-void configure_bgp_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
-  (void)(fd);
-  (void)(what);
-
-  ((TestTool *)arg)->configure_bgp();
-}
-
-void TestTool::configure_bgp() {
-
-  std::set<string *> bird_ips_alive_tmp[2];
-
-  for (auto &lb_pool : lb_pools) {
-    if (lb_pool.second->state == LbPool::STATE_UP) {
-      if (!lb_pool.second->ipv4_address.empty()) {
-        bird_ips_alive_tmp[0].insert(&lb_pool.second->ipv4_address);
-      }
-
-      if (!lb_pool.second->ipv6_address.empty()) {
-        bird_ips_alive_tmp[1].insert(&lb_pool.second->ipv6_address);
-      }
-    }
-  }
-
-  for (int i = 0; i <= 1; i++) {
-    string bird_suffix = "";
-    string bird_mask = "/32";
-    string bird_empty_net = "0.0.0.0/32";
-
-    if (i == 1) {
-      bird_suffix = "6";
-      bird_mask = "/128";
-      bird_empty_net = "::/128";
-    }
-
-    string conf_file =
-        "/usr/local/etc/bird" + bird_suffix + "_testtool_nets.conf";
-    string temp_file = conf_file + ".new";
-
-    if (bird_ips_alive_tmp[i] != bird_ips_alive[i]) {
-      ofstream conf_stream(temp_file, ios_base::out | ios_base::trunc);
-      conf_stream << "testtool_pools = [ " << bird_empty_net;
-      for (auto ip_alive : bird_ips_alive_tmp[i]) {
-        conf_stream << ", ";
-        conf_stream << *ip_alive << bird_mask;
-      }
-      conf_stream << " ];" << endl;
-      conf_stream.close();
-
-      if (conf_stream.good()) {
-        // Create real file in "atomic" way, in case BIRD reloads it in the
-        // meantime.
-        std::rename(temp_file.c_str(), conf_file.c_str());
-        bird_ips_alive[i] = bird_ips_alive_tmp[i];
-        if (system(
-                fmt::sprintf("/usr/local/sbin/birdcl%s configure", bird_suffix)
-                    .c_str()) != 0) {
-          log(MSG_CRIT, fmt::sprintf("Reloading Bird%s failed!", bird_suffix));
-        } else {
-          log(MSG_INFO,
-              fmt::sprintf("Reloading Bird%s succeeded", bird_suffix));
-        }
-      } else {
-        log(MSG_CRIT,
-            fmt::sprintf(
-                "Could not write Bird%s filters, will retry next time!",
-                bird_suffix));
-      }
-    }
-  }
-}
-
 void TestTool::setup_events() {
   // Sleep time for the main loop
   //   1 000 μs =   1ms = 1000/s
@@ -343,14 +271,6 @@ void TestTool::setup_events() {
   struct event *dump_status_event =
       event_new(eventBase, -1, EV_PERSIST, dump_status_callback, this);
   event_add(dump_status_event, &dump_status_interval);
-
-  // Configure BGP every 10 seconds
-  struct timeval configure_bgp_interval;
-  configure_bgp_interval.tv_sec = 10;
-  configure_bgp_interval.tv_usec = 0;
-  struct event *configure_bgp_event =
-      event_new(eventBase, -1, EV_PERSIST, configure_bgp_callback, this);
-  event_add(configure_bgp_event, &configure_bgp_interval);
 }
 
 void init_libevent() {
