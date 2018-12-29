@@ -52,6 +52,7 @@ public:
   void pool_logic(LbNode *last_node);
   void finalize_healthchecks();
   void update_pfctl();
+  string get_state_text();
   size_t count_up_nodes();
   string get_backup_pool_state();
 

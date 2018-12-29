@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <list>
 #include <map>
@@ -214,28 +215,41 @@ void TestTool::dump_status() {
   struct timeval tv;
   struct tm *tm;
 
-  ofstream status_file("/var/log/testtool.status.new",
+  ofstream status_file("/var/run/iglb/testtool-status.new",
                        ios_base::out | ios_base::trunc);
 
   gettimeofday(&tv, NULL);
   tm = localtime(&tv.tv_sec);
   strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S\0", tm);
 
-  status_file << "Testtool's log, stardate " << buf
-              << ". Our mission is lbpools' high availability." << endl;
+  nlohmann::json lb_pools_status;
 
   // Iterate over all VIPs and write status of each one to the file.
   // NOTE: Syntax uses old data model due to Nagios parsing.
-  for (auto &lb_pool : lb_pools) {
-    status_file << "lbpool: " << lb_pool.second->pf_name;
-    status_file << " nodes_alive: " << lb_pool.second->count_up_nodes();
-    status_file << " backup_pool: " << lb_pool.second->get_backup_pool_state();
-    status_file << endl;
+  for (const auto &lb_pool : lb_pools) {
+    nlohmann::json lb_nodes_status;
+
+    for (const auto &lb_node : lb_pool.second->nodes) {
+      lb_nodes_status[lb_node->name] = {
+          {"state", lb_node->get_state_text()},
+      };
+    }
+
+    lb_pools_status[lb_pool.first] = {
+        {"nodes_alive", lb_pool.second->count_up_nodes()},
+        {"nodes", lb_nodes_status},
+        {"state", lb_pool.second->get_state_text()},
+        {"ipv4_address", lb_pool.second->ipv4_address},
+        {"ipv6_address", lb_pool.second->ipv6_address},
+    };
   }
 
-  status_file.close();
+  // Make the file marginally readable for humans.
+  status_file << setw(4) << lb_pools_status << std::endl;
+
   if (status_file.good()) {
-    rename("/var/log/testtool.status.new", "/var/log/testtool.status");
+    rename("/var/run/iglb/testtool-status.new",
+           "/var/run/iglb/testtool-status.json");
   } else {
     log(MSG_CRIT,
         fmt::sprintf("Could not write status file, will retry next time."));
@@ -274,9 +288,11 @@ void TestTool::setup_events() {
       event_new(eventBase, -1, EV_PERSIST, worker_check_callback, this);
   event_add(worker_check_event, &worker_check_interval);
 
-  // Dump the status to a file every 5 seconds
+  // Dump the status to a file every 1 seconds.
+  // We could also do it every time something changes via LbPool::pool_logic
+  // but that could be way too often if a lot of things change.
   struct timeval dump_status_interval;
-  dump_status_interval.tv_sec = 5;
+  dump_status_interval.tv_sec = 1;
   dump_status_interval.tv_usec = 0;
   struct event *dump_status_event =
       event_new(eventBase, -1, EV_PERSIST, dump_status_callback, this);

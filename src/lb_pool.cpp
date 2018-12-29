@@ -280,3 +280,9 @@ void LbPool::update_pfctl(void) {
     }
   }
 }
+
+string LbPool::get_state_text() {
+  if (state == STATE_UP)
+    return "UP";
+  return "DOWN";
+}
