@@ -10,6 +10,7 @@ name="testtool"
 rcvar=${name}_enable
 reload_cmd="service testtool restart"
 extra_commands="reload"
+start_postcmd="start_postcmd"
 
 : ${testtool_enable:="NO"}
 
@@ -18,4 +19,10 @@ command=/usr/sbin/daemon
 command_args="-f -c -P ${pidfile} /usr/local/sbin/testtool"
 
 load_rc_config $name
+
+start_postcmd() {
+	chown root:iglb $pidfile
+	chmod 640 $pidfile
+}
+
 run_rc_command "$1"
