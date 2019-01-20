@@ -29,6 +29,8 @@ LbNode::LbNode(string name, const nlohmann::json &config,
                class LbPool *parent_lbpool) {
   this->name = name;
 
+  this->route_network = safe_get<string>(config, "route_network", "");
+
   this->ipv4_address = safe_get<string>(config, "ip4", "");
   this->ipv6_address = safe_get<string>(config, "ip6", "");
 

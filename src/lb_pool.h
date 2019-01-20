@@ -59,6 +59,7 @@ public:
   // Members
 public:
   string name;
+  string route_network;
   string ipv4_address;
   string ipv6_address;
   string pf_name;

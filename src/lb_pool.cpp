@@ -53,6 +53,7 @@ LbPool::LbPool(string name, nlohmann::json &config,
   this->ipv4_address = safe_get<string>(config, "ip4", "");
   this->ipv6_address = safe_get<string>(config, "ip6", "");
   this->pf_name = safe_get<string>(config, "pf_name", "");
+  this->route_network = safe_get<string>(config, "route_network", "");
   this->min_nodes = safe_get<int>(config, "min_nodes", 0);
   this->max_nodes = safe_get<int>(config, "max_nodes", 0);
   this->fault_policy = LbPool::fault_policy_by_name(

@@ -38,6 +38,7 @@ public:
   // Members
 public:
   string name;
+  string route_network;
   // libevent wants the address passed as char[] so stick to some string-like.
   string ipv4_address;
   string ipv6_address;

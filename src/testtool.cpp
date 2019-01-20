@@ -215,7 +215,7 @@ void TestTool::dump_status() {
   struct timeval tv;
   struct tm *tm;
 
-  ofstream status_file("/var/run/iglb/testtool-status.new",
+  ofstream status_file("/var/run/iglb/lbpools_state.json.new",
                        ios_base::out | ios_base::trunc);
 
   gettimeofday(&tv, NULL);
@@ -232,10 +232,14 @@ void TestTool::dump_status() {
     for (const auto &lb_node : lb_pool.second->nodes) {
       lb_nodes_status[lb_node->name] = {
           {"state", lb_node->get_state_text()},
+          {"route_network", lb_node->route_network},
+          {"ipv4_address", lb_node->ipv4_address},
+          {"ipv6_address", lb_node->ipv6_address},
       };
     }
 
     lb_pools_status[lb_pool.first] = {
+        {"route_network", lb_pool.second->route_network},
         {"nodes_alive", lb_pool.second->count_up_nodes()},
         {"nodes", lb_nodes_status},
         {"state", lb_pool.second->get_state_text()},
@@ -248,8 +252,8 @@ void TestTool::dump_status() {
   status_file << setw(4) << lb_pools_status << std::endl;
 
   if (status_file.good()) {
-    rename("/var/run/iglb/testtool-status.new",
-           "/var/run/iglb/testtool-status.json");
+    rename("/var/run/iglb/lbpools_state.json.new",
+           "/var/run/iglb/lbpools_state.json");
   } else {
     log(MSG_CRIT,
         fmt::sprintf("Could not write status file, will retry next time."));
