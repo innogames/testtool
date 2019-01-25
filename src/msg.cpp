@@ -1,9 +1,18 @@
 //
 // Testtool - Logging Routines
 //
-// Copyright (c) 2018 InnoGames GmbH
+// Copyright (c) 2019 InnoGames GmbH
 //
 
+#include <boost/log/core.hpp>
+#include <boost/log/expressions.hpp>
+#include <boost/log/sinks/sync_frontend.hpp>
+#include <boost/log/sinks/text_file_backend.hpp>
+#include <boost/log/sinks/text_ostream_backend.hpp>
+#include <boost/log/sources/severity_feature.hpp>
+#include <boost/log/sources/severity_logger.hpp>
+#include <boost/log/trivial.hpp>
+#include <boost/shared_ptr.hpp>
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
@@ -14,43 +23,58 @@
 #include "msg.h"
 
 using namespace std;
+using namespace boost;
 
-void start_logging() { openlog("testtool", LOG_PID, LOG_LOCAL3); }
+namespace logging = boost::log;
+namespace src = boost::log::sources;
+namespace sinks = boost::log::sinks;
+namespace keywords = boost::log::keywords;
+namespace expr = boost::log::expressions;
 
-void log(int loglevel, string msg) {
-  cout << msg << endl;
-  int sysloglevel;
-  switch (loglevel) {
-  case MSG_INFO:
-    sysloglevel = LOG_INFO;
-    break;
-  case MSG_CRIT:
-    sysloglevel = LOG_CRIT;
-    break;
-  case MSG_DEBUG:
-    sysloglevel = LOG_DEBUG;
-    break;
-  case MSG_STATE_UP:
-    sysloglevel = LOG_INFO;
-    break;
-  case MSG_STATE_DOWN:
-    sysloglevel = LOG_INFO;
-    break;
-  }
-  syslog(sysloglevel | LOG_LOCAL3, "%s", msg.c_str());
+src::severity_logger<msgType> slg;
+typedef sinks::synchronous_sink<sinks::text_file_backend> file_sink;
+
+void init_file_collecting(boost::shared_ptr<file_sink> sink) {
+  sink->locked_backend()->set_file_collector(sinks::file::make_collector(
+      keywords::target = "/var/log/iglb/", keywords::max_files = 10));
 }
 
-void log(int loglevel, LbPool *lbpool, string msg) {
+void init_logging() {
+  boost::shared_ptr<file_sink> sink(
+      new file_sink(keywords::file_name = "testtool-%Y%m%d_%H%M%S.log",
+                    keywords::rotation_size = 10 * 1024 * 1024));
+
+  init_file_collecting(sink);
+  sink->locked_backend()->scan_for_files();
+
+  /*
+    sink->set_formatter(expr::format("%1% %2% %3%") %
+                            expr::attr<boost::posix_time::ptime>("TimeStamp") %
+                            logging::trivial::severity &
+                        expr::xml_decor[expr::stream << expr::smessage]);
+                        */
+
+  boost::shared_ptr<logging::core> core = logging::core::get();
+
+  logging::core::get()->add_sink(sink);
+}
+
+void log(msgType loglevel, string msg) {
+  cout << msg << endl;
+  BOOST_LOG_SEV(slg, loglevel) << msg;
+}
+
+void log(msgType loglevel, LbPool *lbpool, string msg) {
   string out = "lbpool: " + lbpool->name + " " + msg;
   log(loglevel, out);
 }
 
-void log(int loglevel, LbNode *lbnode, string msg) {
+void log(msgType loglevel, LbNode *lbnode, string msg) {
   string out = "lbnode: " + lbnode->name + " " + msg;
   log(loglevel, lbnode->parent_lbpool, out);
 }
 
-void log(int loglevel, Healthcheck *hc, string msg) {
+void log(msgType loglevel, Healthcheck *hc, string msg) {
   string out = "healthcheck: " + hc->type + " " + hc->log_prefix + " " + msg;
   log(loglevel, hc->parent_lbnode, out);
 }

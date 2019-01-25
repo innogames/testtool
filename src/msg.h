@@ -21,11 +21,11 @@ typedef enum msgType {
   MSG_STATE_DOWN,
 } msgType;
 
-void start_logging();
+void init_logging();
 
-void log(int loglevel, string msg);
-void log(int loglevel, LbPool *lbpool, string msg);
-void log(int loglevel, LbNode *lbnode, string msg);
-void log(int loglevel, Healthcheck *hc, string msg);
+void log(msgType loglevel, LbPool *lbpool, string msg);
+void log(msgType loglevel, LbNode *lbnode, string msg);
+void log(msgType loglevel, Healthcheck *hc, string msg);
+void log(msgType loglevel, string msg);
 
 #endif

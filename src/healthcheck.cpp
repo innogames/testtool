@@ -210,7 +210,7 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 void Healthcheck::handle_result(string message) {
   string fail_message;
   bool changed = false;
-  int log_level = MSG_INFO;
+  msgType log_level = MSG_INFO;
 
   // If a healtcheck has passed, zero the failure counter.
   if (last_state == STATE_UP)

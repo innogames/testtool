@@ -349,10 +349,9 @@ void usage() {
 }
 
 int main(int argc, char *argv[]) {
-  start_logging();
+  init_logging();
 
   srand(time(NULL));
-  ;
 
   string config_file_name = "/etc/iglb/lbpools.json";
 
