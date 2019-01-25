@@ -23,9 +23,9 @@ typedef enum msgType {
 
 void init_logging();
 
-void log(msgType loglevel, LbPool *lbpool, string msg);
-void log(msgType loglevel, LbNode *lbnode, string msg);
-void log(msgType loglevel, Healthcheck *hc, string msg);
-void log(msgType loglevel, string msg);
+void do_log(msgType loglevel, LbPool *lbpool, string msg);
+void do_log(msgType loglevel, LbNode *lbnode, string msg);
+void do_log(msgType loglevel, Healthcheck *hc, string msg);
+void do_log(msgType loglevel, string msg);
 
 #endif

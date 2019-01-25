@@ -41,14 +41,14 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
     return true;
 
   if (verbose_pfctl) {
-    log(MSG_INFO, cmd);
+    do_log(MSG_INFO, cmd);
   }
 
   high_resolution_clock::time_point t1 = high_resolution_clock::now();
   fp = popen(cmd.c_str(), "r");
   if (!fp) {
-    log(MSG_CRIT,
-        fmt::sprintf("pfctl: '%s' message: can't spawn process", cmd));
+    do_log(MSG_CRIT,
+           fmt::sprintf("pfctl: '%s' message: can't spawn process", cmd));
     return false;
   }
 
@@ -65,8 +65,8 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
   ret = WEXITSTATUS(pclose(fp));
   high_resolution_clock::time_point t2 = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(t2 - t1).count();
-  log(MSG_DEBUG,
-      fmt::sprintf("pfctl: '%s' exit_code: %d time: %dms", cmd, ret, duration));
+  do_log(MSG_DEBUG, fmt::sprintf("pfctl: '%s' exit_code: %d time: %dms", cmd,
+                                 ret, duration));
 
   if (ret != 0)
     return false;
@@ -167,16 +167,16 @@ bool pf_get_table(string *table, set<string> *result) {
   }
   boost::system::error_code ec;
   if (verbose_pfctl) {
-    log(MSG_INFO, "pfctl: IP addresses in table");
+    do_log(MSG_INFO, "pfctl: IP addresses in table");
   }
   for (auto line : out) {
     boost::trim(line);
     boost::asio::ip::address::from_string(line, ec);
     if (ec)
-      log(MSG_CRIT, fmt::sprintf("pfctl: Not an IP Address '%s'", line));
+      do_log(MSG_CRIT, fmt::sprintf("pfctl: Not an IP Address '%s'", line));
     else {
       if (verbose_pfctl) {
-        log(MSG_INFO, line);
+        do_log(MSG_INFO, line);
       }
       result->insert(line);
     }

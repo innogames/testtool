@@ -39,7 +39,7 @@ bool pfctl_worker_loop(message_queue *mq) {
   unsigned int priority;
   bool mq_success;
 
-  log(MSG_INFO, "pfctl_worker: entering worker loop");
+  do_log(MSG_INFO, "pfctl_worker: entering worker loop");
 
   running = true;
   while (running) {
@@ -55,7 +55,8 @@ bool pfctl_worker_loop(message_queue *mq) {
       mq_success = mq->timed_receive(&msg, sizeof(pfctl_msg), recvd_size,
                                      priority, delay);
     } catch (const exception &ex) {
-      log(MSG_CRIT,
+      do_log(
+          MSG_CRIT,
           fmt::sprintf("pfctl_worker: exception while receiving from queue %s",
                        ex.what()));
       return false;
@@ -63,7 +64,7 @@ bool pfctl_worker_loop(message_queue *mq) {
 
     // Check if master process is still alive.
     if (getppid() != parent_pid) {
-      log(MSG_CRIT, fmt::sprintf("pfctl_worker: parent died"));
+      do_log(MSG_CRIT, fmt::sprintf("pfctl_worker: parent died"));
       return false;
     }
 
@@ -74,8 +75,8 @@ bool pfctl_worker_loop(message_queue *mq) {
 
     assert(recvd_size == sizeof(pfctl_msg));
 
-    log(MSG_INFO, fmt::sprintf("lbpool: %s sync: start pf_table: %s",
-                               msg.pool_name, msg.table_name));
+    do_log(MSG_INFO, fmt::sprintf("lbpool: %s sync: start pf_table: %s",
+                                  msg.pool_name, msg.table_name));
 
     // Decode the message
     string table_name(msg.table_name);
@@ -96,9 +97,9 @@ bool pfctl_worker_loop(message_queue *mq) {
         chrono::high_resolution_clock::now();
     auto duration =
         chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
-    log(MSG_INFO,
-        fmt::sprintf("lbpool: %s sync: finish pf_table: %s time: %dms",
-                     msg.pool_name, msg.table_name, duration));
+    do_log(MSG_INFO,
+           fmt::sprintf("lbpool: %s sync: finish pf_table: %s time: %dms",
+                        msg.pool_name, msg.table_name, duration));
   }
   return true;
 }
@@ -111,12 +112,12 @@ message_queue *new_pfctl_queue() {
     rmq = &mq;
   } catch (const runtime_error &ex) {
     // speciffic handling for runtime_error
-    log(MSG_INFO,
-        fmt::sprintf("testtool: unable to create queue %s", ex.what()));
+    do_log(MSG_INFO,
+           fmt::sprintf("testtool: unable to create queue %s", ex.what()));
   } catch (const exception &ex) {
     // std::runtime_error which is handled explicitly
-    log(MSG_INFO,
-        fmt::sprintf("testtool: unable to create queue %s", ex.what()));
+    do_log(MSG_INFO,
+           fmt::sprintf("testtool: unable to create queue %s", ex.what()));
   }
   return rmq;
 }
@@ -133,20 +134,21 @@ message_queue *attach_pfctl_queue() {
         usleep(100000);
         continue;
       } else {
-        log(MSG_INFO, fmt::sprintf("pfctl_worker: Interprocess Exception while "
-                                   "waiting for queue %d",
-                                   ex.get_error_code()));
+        do_log(MSG_INFO,
+               fmt::sprintf("pfctl_worker: Interprocess Exception while "
+                            "waiting for queue %d",
+                            ex.get_error_code()));
       }
     } catch (const runtime_error &ex) {
       // speciffic handling for runtime_error
-      log(MSG_INFO,
-          fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
-                       ex.what()));
+      do_log(MSG_INFO,
+             fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
+                          ex.what()));
     } catch (const exception &ex) {
       // std::runtime_error which is handled explicitly
-      log(MSG_INFO,
-          fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
-                       ex.what()));
+      do_log(MSG_INFO,
+             fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
+                          ex.what()));
     }
     break;
   }
@@ -191,11 +193,11 @@ message_queue *start_pfctl_worker() {
     setproctitle("%s", "pfctl worker");
     message_queue *mq = attach_pfctl_queue();
     if (mq == NULL) {
-      log(MSG_CRIT, "pfctl_worker: unable to attach to message queue");
+      do_log(MSG_CRIT, "pfctl_worker: unable to attach to message queue");
       exit(EXIT_FAILURE);
     }
     if (pfctl_worker_loop(mq)) {
-      log(MSG_INFO, fmt::sprintf("pfctl_worker: worker loop finished"));
+      do_log(MSG_INFO, fmt::sprintf("pfctl_worker: worker loop finished"));
       message_queue::remove("pfctl");
       exit(EXIT_SUCCESS);
     } else {
@@ -204,14 +206,14 @@ message_queue *start_pfctl_worker() {
       exit(EXIT_FAILURE);
     }
   } else if (pid == -1) {
-    log(MSG_CRIT, "testtool: unable to fork, terminating!");
+    do_log(MSG_CRIT, "testtool: unable to fork, terminating!");
     exit(EXIT_FAILURE);
   } else {
     // Parent process
     worker_pid = pid;
     message_queue *mq = new_pfctl_queue();
     if (mq == NULL) {
-      log(MSG_CRIT, "testtool: unable to create message queue");
+      do_log(MSG_CRIT, "testtool: unable to create message queue");
       return NULL;
     }
     return mq;
@@ -219,7 +221,7 @@ message_queue *start_pfctl_worker() {
 }
 
 void stop_pfctl_worker() {
-  log(MSG_INFO, "testtool: stopping pfctl worker");
+  do_log(MSG_INFO, "testtool: stopping pfctl worker");
   kill(worker_pid, 15);
   message_queue::remove("pfctl");
 }

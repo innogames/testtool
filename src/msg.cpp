@@ -36,7 +36,7 @@ typedef sinks::synchronous_sink<sinks::text_file_backend> file_sink;
 
 void init_file_collecting(boost::shared_ptr<file_sink> sink) {
   sink->locked_backend()->set_file_collector(sinks::file::make_collector(
-      keywords::target = "/var/log/iglb/", keywords::max_files = 10));
+      keywords::target = "/var/do_log/iglb/", keywords::max_files = 10));
 }
 
 void init_logging() {
@@ -59,22 +59,22 @@ void init_logging() {
   logging::core::get()->add_sink(sink);
 }
 
-void log(msgType loglevel, string msg) {
+void do_log(msgType loglevel, string msg) {
   cout << msg << endl;
   BOOST_LOG_SEV(slg, loglevel) << msg;
 }
 
-void log(msgType loglevel, LbPool *lbpool, string msg) {
+void do_log(msgType loglevel, LbPool *lbpool, string msg) {
   string out = "lbpool: " + lbpool->name + " " + msg;
-  log(loglevel, out);
+  do_log(loglevel, out);
 }
 
-void log(msgType loglevel, LbNode *lbnode, string msg) {
+void do_log(msgType loglevel, LbNode *lbnode, string msg) {
   string out = "lbnode: " + lbnode->name + " " + msg;
-  log(loglevel, lbnode->parent_lbpool, out);
+  do_log(loglevel, lbnode->parent_lbpool, out);
 }
 
-void log(msgType loglevel, Healthcheck *hc, string msg) {
+void do_log(msgType loglevel, Healthcheck *hc, string msg) {
   string out = "healthcheck: " + hc->type + " " + hc->log_prefix + " " + msg;
-  log(loglevel, hc->parent_lbnode, out);
+  do_log(loglevel, hc->parent_lbnode, out);
 }

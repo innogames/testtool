@@ -63,7 +63,8 @@ LbNode::LbNode(string name, const nlohmann::json &config,
     this->admin_state = STATE_DOWN;
   }
 
-  log(MSG_INFO, this,
+  do_log(
+      MSG_INFO, this,
       fmt::sprintf("state: created initial_state: %s", this->get_state_text()));
 }
 
@@ -136,15 +137,15 @@ void LbNode::node_logic() {
     state_changed = true;
     max_nodes_kept = false;
     state = STATE_DOWN;
-    log(MSG_STATE_DOWN, this,
-        fmt::sprintf("message: %d of %d checks failed",
-                     num_healthchecks - ok_healthchecks, num_healthchecks));
+    do_log(MSG_STATE_DOWN, this,
+           fmt::sprintf("message: %d of %d checks failed",
+                        num_healthchecks - ok_healthchecks, num_healthchecks));
   } else if (state == STATE_DOWN && new_state == STATE_UP) {
     state_changed = true;
     min_nodes_kept = false;
     state = STATE_UP;
-    log(MSG_STATE_DOWN, this,
-        fmt::sprintf("message: all of %d checks passed", num_healthchecks));
+    do_log(MSG_STATE_DOWN, this,
+           fmt::sprintf("message: all of %d checks passed", num_healthchecks));
   }
 
   // Notify parent pool. Do it always, no matter if there was change or not.
@@ -158,7 +159,7 @@ void LbNode::start_downtime() {
   if (admin_state == STATE_DOWN)
     return;
 
-  log(MSG_STATE_DOWN, this, "downtime: starting");
+  do_log(MSG_STATE_DOWN, this, "downtime: starting");
 
   admin_state = STATE_DOWN;
   this->state_changed = true;
@@ -173,7 +174,7 @@ void LbNode::end_downtime() {
   if (admin_state == STATE_UP)
     return;
 
-  log(MSG_STATE_UP, this, "downtime: ending");
+  do_log(MSG_STATE_UP, this, "downtime: ending");
 
   admin_state = STATE_UP;
   this->state_changed = true;

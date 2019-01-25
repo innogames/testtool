@@ -131,7 +131,7 @@ Healthcheck *Healthcheck::healthcheck_factory(const nlohmann::json &config,
   else
     return NULL;
 
-  log(MSG_INFO, new_healthcheck, "state: created");
+  do_log(MSG_INFO, new_healthcheck, "state: created");
 
   return new_healthcheck;
 }
@@ -156,7 +156,7 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
   is_running = true;
 
   if (verbose > 1)
-    log(MSG_INFO, this, "scheduling");
+    do_log(MSG_INFO, this, "scheduling");
 
   return true;
 }
@@ -195,7 +195,7 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
   case HC_PANIC:
     log_type = MSG_CRIT;
     statemsg = fmt::sprintf("state: failure message: %s", message);
-    log(log_type, this, statemsg);
+    do_log(log_type, this, statemsg);
     exit(2);
     break;
   }
@@ -240,7 +240,8 @@ void Healthcheck::handle_result(string message) {
   }
 
   if (changed || verbose) {
-    log(log_level, this,
+    do_log(
+        log_level, this,
         fmt::sprintf("protocol: %s %s %s", af_string, message, fail_message));
   }
 

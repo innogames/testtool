@@ -33,8 +33,8 @@ LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
       return it.first;
     }
   }
-  log(MSG_CRIT,
-      "Unknown min_nodes_action " + name + ", falling back to force_down!");
+  do_log(MSG_CRIT,
+         "Unknown min_nodes_action " + name + ", falling back to force_down!");
   return FORCE_DOWN;
 }
 
@@ -96,9 +96,9 @@ LbPool::LbPool(string name, nlohmann::json &config,
   string fault_policy_name =
       (it == fault_policy_names.end()) ? string("") : it->second;
 
-  log(MSG_INFO, this,
-      fmt::sprintf("min_nodes: %d max_nodes: %d policy: %s state: created",
-                   min_nodes, max_nodes, fault_policy_name));
+  do_log(MSG_INFO, this,
+         fmt::sprintf("min_nodes: %d max_nodes: %d policy: %s state: created",
+                      min_nodes, max_nodes, fault_policy_name));
 
   // Glue things together. Please note that children append themselves
   // to property of parent in their own code.
@@ -204,8 +204,8 @@ void LbPool::pool_logic(LbNode *last_node) {
       case FORCE_DOWN:
         // If there is not enough nodes, bring the whole pool down.
         wanted_nodes.clear();
-        log(MSG_INFO, this,
-            fmt::sprintf("Not enough nodes, forcing pool down"));
+        do_log(MSG_INFO, this,
+               fmt::sprintf("Not enough nodes, forcing pool down"));
         break;
       case FORCE_UP:
         // Still not enough nodes to satisfy min_nodes? Add
@@ -220,8 +220,8 @@ void LbPool::pool_logic(LbNode *last_node) {
               node->admin_state == LbNode::STATE_UP &&
               wanted_nodes.size() < min_nodes &&
               (node->min_nodes_kept || node->healthchecks.size() == 0)) {
-            log(MSG_INFO, this,
-                fmt::sprintf("Force keeping node %s", node->name));
+            do_log(MSG_INFO, this,
+                   fmt::sprintf("Force keeping node %s", node->name));
             wanted_nodes.insert(node);
           }
         }
@@ -244,7 +244,7 @@ void LbPool::pool_logic(LbNode *last_node) {
         up_nodes_str += node->name;
       }
 
-      log(MSG_INFO, this, fmt::sprintf("up_lbnodes: %s", up_nodes_str));
+      do_log(MSG_INFO, this, fmt::sprintf("up_lbnodes: %s", up_nodes_str));
 
       // Pool state will be used for configuring BGP
       if (up_nodes.empty()) {
@@ -268,9 +268,9 @@ void LbPool::update_pfctl(void) {
     pf_synced =
         send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
     if (!pf_synced)
-      log(MSG_INFO, this, fmt::sprintf("sync: delayed"));
+      do_log(MSG_INFO, this, fmt::sprintf("sync: delayed"));
     else
-      log(MSG_INFO, this, fmt::sprintf("sync: immediate"));
+      do_log(MSG_INFO, this, fmt::sprintf("sync: immediate"));
   }
 
   // Update any other LB Pools which use this one as Backup Pool

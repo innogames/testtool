@@ -99,7 +99,7 @@ int Healthcheck_ping::initialize() {
   // Create sockets for both protocols.
   socket4_fd = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
   if (socket4_fd == -1) {
-    log(MSG_CRIT, fmt::sprintf("socket4() error: %s", strerror(errno)));
+    do_log(MSG_CRIT, fmt::sprintf("socket4() error: %s", strerror(errno)));
     return false;
   }
 
@@ -110,30 +110,30 @@ int Healthcheck_ping::initialize() {
   ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &filterv6);
   socket6_fd = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
   if (socket6_fd == -1) {
-    log(MSG_CRIT, fmt::sprintf("socket6() error: %s", strerror(errno)));
+    do_log(MSG_CRIT, fmt::sprintf("socket6() error: %s", strerror(errno)));
     return false;
   }
   sockopt = setsockopt(socket6_fd, IPPROTO_ICMPV6, ICMP6_FILTER, &filterv6,
                        sizeof(filterv6));
   if (sockopt < 0) {
-    log(MSG_CRIT,
-        fmt::sprintf("sockopt IPv6 filter error: %s", strerror(errno)));
+    do_log(MSG_CRIT,
+           fmt::sprintf("sockopt IPv6 filter error: %s", strerror(errno)));
     return false;
   }
-  log(MSG_DEBUG, fmt::sprintf("protocols initialized"));
+  do_log(MSG_DEBUG, fmt::sprintf("protocols initialized"));
 
   // The default 9kB buffer loses some packets.
   int newbuf = 262144;
   sockopt = setsockopt(socket4_fd, SOL_SOCKET, SO_RCVBUF, &newbuf, sizeof(int));
   if (sockopt < 0) {
-    log(MSG_CRIT,
-        fmt::sprintf("sockopt IPv4 buffer error: %s", strerror(errno)));
+    do_log(MSG_CRIT,
+           fmt::sprintf("sockopt IPv4 buffer error: %s", strerror(errno)));
     return false;
   }
   sockopt = setsockopt(socket6_fd, SOL_SOCKET, SO_RCVBUF, &newbuf, sizeof(int));
   if (sockopt < 0) {
-    log(MSG_CRIT,
-        fmt::sprintf("sockopt IPv6 buffer error: %s", strerror(errno)));
+    do_log(MSG_CRIT,
+           fmt::sprintf("sockopt IPv6 buffer error: %s", strerror(errno)));
     return false;
   }
 
@@ -210,7 +210,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what,
   received_bytes =
       recvfrom(socket_fd, raw_packet, sizeof(raw_packet), 0, NULL, NULL);
   if (received_bytes <= 0) {
-    log(MSG_CRIT, fmt::sprintf("recvfrom() error: %s", strerror(errno)));
+    do_log(MSG_CRIT, fmt::sprintf("recvfrom() error: %s", strerror(errno)));
   }
 
   // Calculate offset to ICMP in IP

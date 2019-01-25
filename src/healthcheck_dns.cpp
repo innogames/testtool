@@ -123,7 +123,7 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
   }
 
   if (socket_fd == -1) {
-    log(MSG_CRIT, this, fmt::sprintf("socket(): error %s", strerror(errno)));
+    do_log(MSG_CRIT, this, fmt::sprintf("socket(): error %s", strerror(errno)));
     return false;
   }
 
