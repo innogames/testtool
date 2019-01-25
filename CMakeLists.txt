@@ -12,7 +12,7 @@ link_directories(/usr/local/lib)
 
 set(Boost_USE_STATIC_LIBS ON)
 find_package(OpenSSL REQUIRED)
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED COMPONENTS system logging)
 find_package(PostgreSQL REQUIRED)
 find_package(nlohmann_json 3.3.0 REQUIRED)
 
