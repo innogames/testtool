@@ -46,15 +46,14 @@ Healthcheck_postgres::Healthcheck_postgres(const nlohmann::json &config,
 
   this->type = "postgres";
 
-  // Set defaults
   this->port = safe_get<int>(config, "hc_port", 5432);
-  this->host = safe_get(config, "hc_host", *ip_address);
+  this->host = *ip_address;
   this->dbname = safe_get<string>(config, "hc_dbname", "");
   this->user = safe_get<string>(config, "hc_user", "");
   this->query = safe_get<string>(config, "hc_query", "");
 
-  this->log_prefix =
-      fmt::sprintf("query: '%s' port: %d", this->query, this->port);
+  this->log_prefix = fmt::sprintf("query: '%s' port: %d host: %s", this->query,
+                                  this->port, this->host);
 }
 
 /// The entrypoint of the class
