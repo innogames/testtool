@@ -10,6 +10,7 @@
 #include <nlohmann/json.hpp>
 
 bool key_present(const nlohmann::json &j, const std::string &key);
-template <class T> T safe_get(const nlohmann::json &j, const char *key, T val);
+template <class T>
+T safe_get(const nlohmann::json &j, const char *key, T defval);
 
 #endif

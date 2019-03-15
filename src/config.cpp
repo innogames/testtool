@@ -9,19 +9,20 @@ bool key_present(const nlohmann::json &j, const std::string &key) {
   return j.find(key) != j.end();
 }
 
-template <class T> T safe_get(const nlohmann::json &j, const char *key, T val) {
+template <class T>
+T safe_get(const nlohmann::json &j, const char *key, T defval) {
   auto test = j.find(key);
 
   if (test == j.end() || test->is_null()) {
-    val = T{};
+    return defval;
   } else {
     try {
-      val = j.value(key, T{});
+      return j.value(key, T{});
     } catch (nlohmann::detail::type_error) {
-      return val;
+      return defval;
     }
   }
-  return val;
+  return defval;
 }
 
 template bool safe_get(const nlohmann::json &, const char *, bool);
