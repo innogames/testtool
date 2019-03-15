@@ -200,7 +200,7 @@ void Healthcheck_http::read_callback(struct bufferevent *bev, void *arg) {
   }
 }
 
-/// /// Libecent callback for HTTP healthcheck.
+/// Libevent callback for HTTP healthcheck.
 ///
 /// It's a static method that requires the Healthcheck object to be passed to
 /// it.

@@ -87,7 +87,7 @@ int Healthcheck_postgres::schedule_healthcheck(struct timespec *now) {
 /// This is the part of libpq documentation we are implementing:
 ///
 /// > To begin a nonblocking connection request, call
-//// > conn = PQconnectStart("connection_info_string").  If conn is null,
+/// > conn = PQconnectStart("connection_info_string").  If conn is null,
 /// > then libpq has been unable to allocate a new PGconn structure.
 /// > Otherwise, a valid PGconn pointer is returned (though not yet
 /// > representing a valid connection to the database).  On return from

@@ -39,7 +39,7 @@ int timespec_diffms(struct timespec *a, struct timespec *b) {
 ///
 /// Link the healthcheck and its parent node, initialize some variables,
 /// print diagnostic information if necessary.  Remember that this
-//// constructor is called from each healthcheck's type-specific
+/// constructor is called from each healthcheck's type-specific
 /// constructor!  And it is called *before* that constructor does its
 /// own work!
 Healthcheck::Healthcheck(const nlohmann::json &config,
