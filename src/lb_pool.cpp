@@ -208,20 +208,27 @@ void LbPool::pool_logic(LbNode *last_node) {
             fmt::sprintf("Not enough nodes, forcing pool down"));
         break;
       case FORCE_UP:
-        // Still not enough nodes to satisfy min_nodes? Add
-        // those which changed state recently or which have no
-        // healthchecks.
+        // Force some nodes up to satisfy min_nodes requirement. Only
+        // non-downtimed nodes can be added.
         if (last_node) {
           last_node->min_nodes_kept = true;
         }
+        // First add those which changed state recently.
         for (auto node : nodes) {
-          if (
-              // A down node can be added but not a downtimed node.
-              node->admin_state == LbNode::STATE_UP &&
-              wanted_nodes.size() < min_nodes &&
-              (node->min_nodes_kept || node->healthchecks.size() == 0)) {
+          if (node->admin_state == LbNode::STATE_UP &&
+              wanted_nodes.size() < min_nodes && node->min_nodes_kept) {
             log(MSG_INFO, this,
-                fmt::sprintf("Force keeping node %s", node->name));
+                fmt::sprintf("Force keeping recently changed node %s",
+                             node->name));
+            wanted_nodes.insert(node);
+          }
+        }
+        // Still not enough nodes? Add any not-downtimed node.
+        for (auto node : nodes) {
+          if (node->admin_state == LbNode::STATE_UP &&
+              wanted_nodes.size() < min_nodes) {
+            log(MSG_INFO, this,
+                fmt::sprintf("Force keeping any node %s", node->name));
             wanted_nodes.insert(node);
           }
         }
