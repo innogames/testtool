@@ -59,7 +59,7 @@ LbNode::LbNode(string name, const nlohmann::json &config,
 
   this->parent_lbpool->nodes.push_back(this);
 
-  if (safe_get(config, "downtime", false)) {
+  if (safe_get<bool>(config, "downtime", false)) {
     this->admin_state = STATE_DOWN;
   }
 

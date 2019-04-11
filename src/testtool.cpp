@@ -82,24 +82,28 @@ void TestTool::load_downtimes() {
   config_file.close();
 
   // Compare new config against the old one, start downtimes if necessary.
+  // Check the whole path, elements might be missing if somebody changed
+  // things in Serveradmin. Don't crash if keys are missing.
   for (const auto &lb_pool : lb_pools) {
-    for (const auto &lb_node : lb_pool.second->nodes) {
-
-      // Check the whole path, elements might be missing if somebody changed
-      // things in Serveradmin. Don't crash if keys are missing.
-      nlohmann::json &temp = config;
-
-      for (string key : vector<string>{lb_pool.first, "nodes", lb_node->name}) {
-        if (key_present(temp, key))
-          temp = temp.find(key).value();
-        else
-          break;
+    auto pool_config = config.value(lb_pool.first, nlohmann::json{});
+    if (!pool_config.empty()) {
+      for (const auto &lb_node : lb_pool.second->nodes) {
+        auto pool_nodes = pool_config.value("nodes", nlohmann::json{});
+        auto node_config = pool_nodes.value(lb_node->name, nlohmann::json{});
+        if (!node_config.empty()) {
+          if (safe_get<bool>(node_config, "downtime", false)) {
+            lb_node->start_downtime();
+          } else {
+            lb_node->end_downtime();
+          }
+        } else {
+          log(MSG_INFO, fmt::sprintf("Can't find LB Node '%s' in new config",
+                                     lb_node->name));
+        }
       }
-      if (safe_get<bool>(config, "downtime", false)) {
-        lb_node->start_downtime();
-      } else {
-        lb_node->end_downtime();
-      }
+    } else {
+      log(MSG_INFO,
+          fmt::sprintf("Can't find LB Pool '%s' in new config", lb_pool.first));
     }
   }
 }
