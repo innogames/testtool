@@ -161,18 +161,18 @@ bool send_message(message_queue *mq, string pool_name, string table_name,
   memset(&msg, 0, sizeof(msg));
   strncpy(msg.pool_name, pool_name.c_str(), sizeof(msg.pool_name));
   strncpy(msg.table_name, table_name.c_str(), sizeof(msg.table_name));
-  int node_index = 0;
+  int address_index = 0;
   assert(lb_nodes.size() < MAX_NODES);
   for (auto node : lb_nodes) {
     if (!node->ipv4_address.empty()) {
-      strncpy(msg.wanted_addresses[node_index], node->ipv4_address.c_str(),
+      strncpy(msg.wanted_addresses[address_index], node->ipv4_address.c_str(),
               ADDR_LEN);
-      node_index++;
+      address_index++;
     }
-    if (!node->ipv4_address.empty()) {
-      strncpy(msg.wanted_addresses[node_index], node->ipv6_address.c_str(),
+    if (!node->ipv6_address.empty()) {
+      strncpy(msg.wanted_addresses[address_index], node->ipv6_address.c_str(),
               ADDR_LEN);
-      node_index++;
+      address_index++;
     }
   }
   return mq->try_send(&msg, sizeof(pfctl_msg), 0);
