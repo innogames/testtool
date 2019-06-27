@@ -60,8 +60,7 @@ Healthcheck_dns::Healthcheck_dns(const nlohmann::json &config,
   // Set defaults
   this->type = "dns";
   this->port = safe_get<int>(config, "hc_port", 53);
-  this->dns_query =
-      safe_get<string>(config, "hc_query", "af-control.admin.ig.local.");
+  this->dns_query = safe_get<string>(config, "hc_query", ".");
   if (this->dns_query.at(this->dns_query.length() - 1) != '.')
     this->dns_query += '.';
 
