@@ -65,7 +65,9 @@ Healthcheck::Healthcheck(const nlohmann::json &config,
   hint.ai_flags = AI_NUMERICHOST;
   ret = getaddrinfo(this->ip_address->c_str(), NULL, &hint, &res);
   if (ret) {
-    // XXX: We should throw an exception.
+    freeaddrinfo(res);
+    throw(NotLbPoolException(fmt::sprintf("Unable to parse IP address '%s'",
+                                          this->ip_address->c_str())));
   } else {
     this->address_family = res->ai_family;
     if (this->address_family == AF_INET)

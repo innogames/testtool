@@ -67,7 +67,7 @@ LbPool::LbPool(string name, nlohmann::json &config,
   // Perform some checks to verify if this is really an LB Pool and not
   // something else like a SNAT rule.
   if (this->ipv4_address.empty() && this->ipv6_address.empty())
-    throw(NotLbPoolException("No pf_name configured!"));
+    throw(NotLbPoolException("No IP address of any family specified!"));
 
   if (this->pf_name.empty())
     throw(NotLbPoolException("No pf_name configured!"));
