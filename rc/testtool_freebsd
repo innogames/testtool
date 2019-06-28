@@ -9,13 +9,32 @@
 name="testtool"
 rcvar=${name}_enable
 reload_cmd="service testtool restart"
-extra_commands="reload"
+downtimes_cmd="downtimes_cmd"
+extra_commands="reload downtimes"
+start_postcmd="start_postcmd"
 
 : ${testtool_enable:="NO"}
 
 pidfile="/var/run/${name}.pid"
-command=/usr/sbin/daemon
-command_args="-f -c -P ${pidfile} /usr/local/sbin/testtool"
+command="/usr/local/sbin/testtool"
+start_cmd="/usr/sbin/daemon -t ${command} -p ${pidfile} -f -c ${command}"
 
 load_rc_config $name
+
+start_postcmd() {
+	chown root:iglb $pidfile
+	chmod 640 $pidfile
+}
+
+downtimes_cmd() {
+	pid=$(check_pidfile $pidfile $command)
+	if [ -z "$pid" ]; then
+		echo "$command is not running!"
+		exit 1
+	else
+		echo "Reloading downtimes"
+		kill -USR1 $pid
+	fi
+}
+
 run_rc_command "$1"

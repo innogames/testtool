@@ -1,44 +1,33 @@
-/*
- * Testtool - Configuration
- *
- * Copyright (c) 2018 InnoGames GmbH
- */
+//
+// Testtool - helpers for reading json configuration
+//
+// Copyright (c) 2018 InnoGames GmbH
+//
+#include <nlohmann/json.hpp>
 
-#include <iostream>
-#include <yaml-cpp/yaml.h>
-
-#include "config.h"
-
-using namespace std;
-
-int parse_int(YAML::Node node, int def_val) {
-	try {
-		return node.as<int>();
-	} catch (YAML::BadConversion) {
-		return def_val;
-	} catch (YAML::InvalidNode) {
-		return def_val;
-	}
-	return def_val;
+bool key_present(const nlohmann::json &j, const std::string &key) {
+  return j.find(key) != j.end();
 }
 
-bool node_defined(YAML::Node node) {
-	if (!node || node.Type() == YAML::NodeType::Null ) {
-		return false;
-	}
-	if (node.Type() == YAML::NodeType::Sequence && node.size() == 0 ) {
-		return false;
-	}
-	return true;
+template <class T>
+T safe_get(const nlohmann::json &j, const char *key, T defval) {
+  auto test = j.find(key);
+
+  if (test == j.end() || test->is_null()) {
+    return defval;
+  } else {
+    try {
+      return j.value(key, T{});
+    } catch (nlohmann::detail::type_error) {
+      return defval;
+    }
+  }
+  return defval;
 }
 
-std::string parse_string(YAML::Node node, std::string def_val) {
-	try {
-		return node.as<std::string>();
-	} catch (YAML::BadConversion) {
-		return def_val;
-	} catch (YAML::InvalidNode) {
-		return def_val;
-	}
-	return def_val;
-}
+template bool safe_get(const nlohmann::json &, const char *, bool);
+template int safe_get(const nlohmann::json &, const char *, int);
+template std::string safe_get(const nlohmann::json &, const char *,
+                              std::string);
+template std::vector<std::string> safe_get(const nlohmann::json &, const char *,
+                                           std::vector<std::string>);

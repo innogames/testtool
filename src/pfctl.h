@@ -1,8 +1,8 @@
-/*
- * Testtool - PF Controls
- *
- * Copyright (c) 2018 InnoGames GmbH
- */
+//
+// Testtool - PF Controls
+//
+// Copyright (c) 2018 InnoGames GmbH
+//
 
 #ifndef _PFCTL_H_
 #define _PFCTL_H_

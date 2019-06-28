@@ -2,7 +2,7 @@ Testtool
 ========
 
 Testtool is the load balancing service of InnoGames.  It performs health
-checks and manages PF and BGP accordingly.
+checks and manages PF accordingly.
 
 Downtimes
 ---------

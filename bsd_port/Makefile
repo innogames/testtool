@@ -13,7 +13,8 @@ LIB_DEPENDS=	libfmt.so:devel/libfmt \
 
 BUILD_DEPENDS=	${NONEXISTENT}:devel/libevent \
 		${NONEXISTENT}:devel/boost-libs \
-		${NONEXISTENT}:databases/postgresql93-client
+		${NONEXISTENT}:databases/postgresql94-client \
+		${NONEXISTENT}:devel/nlohmann-json
 
 PLIST_FILES=	/usr/local/sbin/testtool \
 		/usr/local/etc/rc.d/testtool
