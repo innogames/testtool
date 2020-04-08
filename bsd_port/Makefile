@@ -1,6 +1,6 @@
 VALID_CATEGORIES+= igports
 PORTNAME=	testtool
-PORTVERSION=	_PV_
+DISTVERSION=	_DV_
 CATEGORIES=	igports
 
 MAINTAINER=	kajetan.staszkiewicz@innogames.de
