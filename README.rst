@@ -31,9 +31,10 @@ HTTP and HTTPS
 
 The check sends the following HTTP request::
 
-	$hc_query HTTP/1.1
-	Host: $ip_addr
-	Connection: close
+  $hc_query HTTP/1.1
+  Host: $ip_addr
+  User-agent: testtool
+  Connection: close
 
 The request is sent to the specified port, or port 80 for `http` or port
 443 for `https`.  Health check port number has nothing to do with forwarded

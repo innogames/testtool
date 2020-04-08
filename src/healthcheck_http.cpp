@@ -143,9 +143,10 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
-  evbuffer_add_printf(bufferevent_get_output(bev),
-                      "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                      new_query.c_str(), this->host.c_str());
+  evbuffer_add_printf(
+      bufferevent_get_output(bev),
+      "%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nConnection: close\r\n\r\n",
+      new_query.c_str(), this->host.c_str(), HC_UA);
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -175,9 +176,10 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
-  evbuffer_add_printf(bufferevent_get_output(bev),
-                      "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                      new_query.c_str(), this->host.c_str());
+  evbuffer_add_printf(
+      bufferevent_get_output(bev),
+      "%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nConnection: close\r\n\r\n",
+      new_query.c_str(), this->host.c_str(), HC_UA);
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 

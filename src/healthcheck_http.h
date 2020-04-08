@@ -16,6 +16,8 @@
 
 #include "healthcheck.h"
 
+#define HC_UA "testtool"
+
 class Healthcheck_http : public Healthcheck {
 
   // Methods
