@@ -122,8 +122,8 @@ void LbNode::node_logic() {
       ok_healthchecks++;
   }
 
-  // Do not check all healthchecks and don't notify pool until all check report
-  // at least once
+  // Do not check all healthchecks and don't notify pool until all check
+  // report at least once
   if (!checked)
     return;
 
