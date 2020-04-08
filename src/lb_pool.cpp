@@ -61,7 +61,6 @@ LbPool::LbPool(string name, nlohmann::json &config,
   this->backup_pool_name = safe_get<string>(config, "backup_pool", "");
   if (this->backup_pool_name != "") {
     this->fault_policy = BACKUP_POOL;
-    this->backup_pool_name = this->backup_pool_name;
   }
 
   // Perform some checks to verify if this is really an LB Pool and not
