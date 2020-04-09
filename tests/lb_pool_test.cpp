@@ -295,7 +295,7 @@ TEST_F(LbPoolTest, Downtime) {
   SetUp(true);
 
   // Downtime a LB Node.
-  GetLbNode(test_lb_pool, "lbnode1")->start_downtime();
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("maintenance");
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 
   // Finished HC changes nothing.
@@ -303,7 +303,7 @@ TEST_F(LbPoolTest, Downtime) {
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 
   // End downtime, LB Node will go up only once it passes a HC.
-  GetLbNode(test_lb_pool, "lbnode1")->end_downtime();
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("online");
   EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS);
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }

@@ -180,7 +180,7 @@ void LbPool::pool_logic(LbNode *last_node) {
     // which were added on previous change in order to avoid rebalancing.
     for (auto node : nodes) {
       if (node->max_nodes_kept) {
-        if (node->get_state() == LbNodeState::STATE_UP &&
+        if (node->is_up() &&
             (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
           wanted_nodes.insert(node);
         }
@@ -189,7 +189,7 @@ void LbPool::pool_logic(LbNode *last_node) {
     // Then add other active nodes if still possible within max_nodes limit.
     for (auto node : nodes) {
       if (!node->max_nodes_kept) {
-        if (node->get_state() == LbNodeState::STATE_UP &&
+        if (node->is_up() &&
             (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
           wanted_nodes.insert(node);
           node->max_nodes_kept = true;
@@ -213,7 +213,7 @@ void LbPool::pool_logic(LbNode *last_node) {
         }
         // First add those which changed state recently.
         for (auto node : nodes) {
-          if (node->admin_state == LbNodeState::STATE_UP &&
+          if (node->state >= LbNodeState::STATE_DOWN &&
               wanted_nodes.size() < min_nodes && node->min_nodes_kept) {
             log(MessageType::MSG_INFO, this,
                 fmt::sprintf("Force keeping recently changed node %s",
@@ -223,7 +223,7 @@ void LbPool::pool_logic(LbNode *last_node) {
         }
         // Still not enough nodes? Add any not-downtimed node.
         for (auto node : nodes) {
-          if (node->admin_state == LbNodeState::STATE_UP &&
+          if (node->state >= LbNodeState::STATE_DOWN &&
               wanted_nodes.size() < min_nodes) {
             log(MessageType::MSG_INFO, this,
                 fmt::sprintf("Force keeping any node %s", node->name));

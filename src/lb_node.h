@@ -14,7 +14,10 @@
 
 using namespace std;
 
-enum class LbNodeState { STATE_DOWN, STATE_UP };
+enum class LbNodeState { STATE_DOWNTIME, STATE_DOWN, STATE_UP };
+static const char *LbNodeStateNames[] = {"downtimed", "down", "up"};
+
+LbNodeState state_from_config(string s);
 
 class LbNode {
   // Methods
@@ -25,10 +28,9 @@ public:
   void finalize_healthchecks();
   void node_logic();
 
-  void start_downtime();
-  void end_downtime();
+  void change_downtime(string s);
 
-  LbNodeState get_state(); // getter for private member
+  bool is_up();
   string state_to_string();
 
   // Members
@@ -40,7 +42,6 @@ public:
   string ipv6_address;
   class LbPool *parent_lbpool;
   LbNodeState state;
-  LbNodeState admin_state; // Keeps information about downtimes.
   vector<class Healthcheck *> healthchecks;
   bool min_nodes_kept; // Node was kept to meet min_nodes requirement.
   bool max_nodes_kept; // Node was kept because it met max_nodes requirement.

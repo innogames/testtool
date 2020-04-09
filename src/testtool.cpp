@@ -91,11 +91,8 @@ void TestTool::load_downtimes() {
         auto pool_nodes = pool_config.value("nodes", nlohmann::json{});
         auto node_config = pool_nodes.value(lb_node->name, nlohmann::json{});
         if (!node_config.empty()) {
-          if (safe_get<bool>(node_config, "downtime", false)) {
-            lb_node->start_downtime();
-          } else {
-            lb_node->end_downtime();
-          }
+          lb_node->change_downtime(
+              safe_get<string>(node_config, "state", "online"));
         } else {
           log(MessageType::MSG_INFO,
               fmt::sprintf("Can't find LB Node '%s' in new config",

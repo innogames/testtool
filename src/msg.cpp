@@ -31,8 +31,6 @@ void log(MessageType loglevel, string msg) {
     sysloglevel = LOG_DEBUG;
     break;
   case MessageType::MSG_STATE_UP:
-    sysloglevel = LOG_INFO;
-    break;
   case MessageType::MSG_STATE_DOWN:
     sysloglevel = LOG_INFO;
     break;

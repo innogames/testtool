@@ -94,7 +94,7 @@ Healthcheck::Healthcheck(const nlohmann::json &config,
   // Initialize healthchecks state basing on state of parent node.
   // Proper initial state for the healthcheck quarantees no
   // unnecessary messages.
-  if (parent_lbnode->get_state() == LbNodeState::STATE_UP) {
+  if (parent_lbnode->is_up()) {
     hard_state = HealthcheckState::STATE_UP;
     last_state = HealthcheckState::STATE_UP;
     failure_counter = 0;
