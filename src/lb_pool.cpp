@@ -21,21 +21,18 @@ using namespace std;
 // Linked from testtool.cpp
 extern message_queue *pfctl_mq;
 
-const map<LbPool::FaultPolicy, string> LbPool::fault_policy_names = {
-    {FORCE_DOWN, "force_down"},
-    {FORCE_UP, "force_up"},
-    {BACKUP_POOL, "backup_pool"},
-};
+FaultPolicy fault_policy_from_string(string s) {
+  if (s == "force_down")
+    return FaultPolicy::FORCE_DOWN;
+  if (s == "force_up")
+    return FaultPolicy::FORCE_UP;
+  if (s == "backup_pool")
+    return FaultPolicy::BACKUP_POOL;
 
-LbPool::FaultPolicy LbPool::fault_policy_by_name(string name) {
-  for (auto &it : fault_policy_names) {
-    if (it.second == name) {
-      return it.first;
-    }
-  }
-  log(MSG_CRIT,
-      "Unknown min_nodes_action " + name + ", falling back to force_down!");
-  return FORCE_DOWN;
+  log(MessageType::MSG_CRIT,
+      "Unknown min_nodes_action " + s + ", falling back to force_down!");
+
+  return FaultPolicy::FORCE_DOWN;
 }
 
 /// Constructor of LB Pool class
@@ -56,11 +53,11 @@ LbPool::LbPool(string name, nlohmann::json &config,
   this->route_network = safe_get<string>(config, "route_network", "");
   this->min_nodes = safe_get<int>(config, "min_nodes", 0);
   this->max_nodes = safe_get<int>(config, "max_nodes", 0);
-  this->fault_policy = LbPool::fault_policy_by_name(
+  this->fault_policy = fault_policy_from_string(
       safe_get<string>(config, "min_nodes_action", "force_down"));
   this->backup_pool_name = safe_get<string>(config, "backup_pool", "");
   if (this->backup_pool_name != "") {
-    this->fault_policy = BACKUP_POOL;
+    this->fault_policy = FaultPolicy::BACKUP_POOL;
   }
 
   // Perform some checks to verify if this is really an LB Pool and not
@@ -75,13 +72,13 @@ LbPool::LbPool(string name, nlohmann::json &config,
   if (protocol_port == config.end() || protocol_port->empty())
     throw(NotLbPoolException("No protocol_port configured!"));
 
-  this->state = STATE_DOWN;
+  this->state = LbPoolState::STATE_DOWN;
 
   // If this Pool has no healthchecks then force nodes to be always up.
   // This is required to have testool manage all LB Pools.
   auto health_checks = config.find("health_checks");
   if (health_checks == config.end() || health_checks->empty()) {
-    this->fault_policy = FORCE_UP;
+    this->fault_policy = FaultPolicy::FORCE_UP;
     this->min_nodes = config["nodes"].size();
   }
 
@@ -91,11 +88,9 @@ LbPool::LbPool(string name, nlohmann::json &config,
     max_nodes = min_nodes;
   }
 
-  auto it = fault_policy_names.find(fault_policy);
-  string fault_policy_name =
-      (it == fault_policy_names.end()) ? string("") : it->second;
+  string fault_policy_name = this->fault_policy_to_string();
 
-  log(MSG_INFO, this,
+  log(MessageType::MSG_INFO, this,
       fmt::sprintf("min_nodes: %d max_nodes: %d policy: %s state: created",
                    min_nodes, max_nodes, fault_policy_name));
 
@@ -130,6 +125,10 @@ LbPool::LbPool(string name, nlohmann::json &config,
   // assigned?
   pf_synced = false;
   pool_logic(NULL);
+}
+
+string LbPool::fault_policy_to_string() {
+  return FaultPolicyNames[static_cast<int>(this->fault_policy)];
 }
 
 /// Gos over all healthchecks and schedules them to run.
@@ -181,7 +180,7 @@ void LbPool::pool_logic(LbNode *last_node) {
     // which were added on previous change in order to avoid rebalancing.
     for (auto node : nodes) {
       if (node->max_nodes_kept) {
-        if (node->get_state() == node->STATE_UP &&
+        if (node->get_state() == LbNodeState::STATE_UP &&
             (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
           wanted_nodes.insert(node);
         }
@@ -190,7 +189,7 @@ void LbPool::pool_logic(LbNode *last_node) {
     // Then add other active nodes if still possible within max_nodes limit.
     for (auto node : nodes) {
       if (!node->max_nodes_kept) {
-        if (node->get_state() == node->STATE_UP &&
+        if (node->get_state() == LbNodeState::STATE_UP &&
             (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
           wanted_nodes.insert(node);
           node->max_nodes_kept = true;
@@ -200,13 +199,13 @@ void LbPool::pool_logic(LbNode *last_node) {
     // Now satisfy minNodes depending on its configuration
     if (min_nodes > 0 && wanted_nodes.size() < min_nodes) {
       switch (fault_policy) {
-      case FORCE_DOWN:
+      case FaultPolicy::FORCE_DOWN:
         // If there is not enough nodes, bring the whole pool down.
         wanted_nodes.clear();
-        log(MSG_INFO, this,
+        log(MessageType::MSG_INFO, this,
             fmt::sprintf("Not enough nodes, forcing pool down"));
         break;
-      case FORCE_UP:
+      case FaultPolicy::FORCE_UP:
         // Force some nodes up to satisfy min_nodes requirement. Only
         // non-downtimed nodes can be added.
         if (last_node) {
@@ -214,9 +213,9 @@ void LbPool::pool_logic(LbNode *last_node) {
         }
         // First add those which changed state recently.
         for (auto node : nodes) {
-          if (node->admin_state == LbNode::STATE_UP &&
+          if (node->admin_state == LbNodeState::STATE_UP &&
               wanted_nodes.size() < min_nodes && node->min_nodes_kept) {
-            log(MSG_INFO, this,
+            log(MessageType::MSG_INFO, this,
                 fmt::sprintf("Force keeping recently changed node %s",
                              node->name));
             wanted_nodes.insert(node);
@@ -224,15 +223,15 @@ void LbPool::pool_logic(LbNode *last_node) {
         }
         // Still not enough nodes? Add any not-downtimed node.
         for (auto node : nodes) {
-          if (node->admin_state == LbNode::STATE_UP &&
+          if (node->admin_state == LbNodeState::STATE_UP &&
               wanted_nodes.size() < min_nodes) {
-            log(MSG_INFO, this,
+            log(MessageType::MSG_INFO, this,
                 fmt::sprintf("Force keeping any node %s", node->name));
             wanted_nodes.insert(node);
           }
         }
         break;
-      case BACKUP_POOL:
+      case FaultPolicy::BACKUP_POOL:
         if (all_lb_pools->find(backup_pool_name) != all_lb_pools->end()) {
           wanted_nodes = all_lb_pools->find(backup_pool_name)->second->up_nodes;
           backup_pool_active = true;
@@ -250,13 +249,14 @@ void LbPool::pool_logic(LbNode *last_node) {
         up_nodes_str += node->name + ", ";
       }
 
-      log(MSG_INFO, this, fmt::sprintf("up_lbnodes: %s", up_nodes_str));
+      log(MessageType::MSG_INFO, this,
+          fmt::sprintf("up_lbnodes: %s", up_nodes_str));
 
       // Pool state will be used for configuring BGP
       if (up_nodes.empty()) {
-        state = STATE_DOWN;
+        state = LbPoolState::STATE_DOWN;
       } else {
-        state = STATE_UP;
+        state = LbPoolState::STATE_UP;
       }
 
       pf_synced = false;
@@ -274,9 +274,9 @@ void LbPool::update_pfctl(void) {
     pf_synced =
         send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
     if (!pf_synced)
-      log(MSG_INFO, this, fmt::sprintf("sync: delayed"));
+      log(MessageType::MSG_INFO, this, fmt::sprintf("sync: delayed"));
     else
-      log(MSG_INFO, this, fmt::sprintf("sync: immediate"));
+      log(MessageType::MSG_INFO, this, fmt::sprintf("sync: immediate"));
   }
 
   // Update any other LB Pools which use this one as Backup Pool
@@ -289,7 +289,7 @@ void LbPool::update_pfctl(void) {
 }
 
 string LbPool::get_state_text() {
-  if (state == STATE_UP)
+  if (state == LbPoolState::STATE_UP)
     return "UP";
   return "DOWN";
 }

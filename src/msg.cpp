@@ -17,40 +17,40 @@ using namespace std;
 
 void start_logging() { openlog("testtool", LOG_PID, LOG_LOCAL3); }
 
-void log(int loglevel, string msg) {
+void log(MessageType loglevel, string msg) {
   cout << msg << endl;
   int sysloglevel;
   switch (loglevel) {
-  case MSG_INFO:
+  case MessageType::MSG_INFO:
     sysloglevel = LOG_INFO;
     break;
-  case MSG_CRIT:
+  case MessageType::MSG_CRIT:
     sysloglevel = LOG_CRIT;
     break;
-  case MSG_DEBUG:
+  case MessageType::MSG_DEBUG:
     sysloglevel = LOG_DEBUG;
     break;
-  case MSG_STATE_UP:
+  case MessageType::MSG_STATE_UP:
     sysloglevel = LOG_INFO;
     break;
-  case MSG_STATE_DOWN:
+  case MessageType::MSG_STATE_DOWN:
     sysloglevel = LOG_INFO;
     break;
   }
   syslog(sysloglevel | LOG_LOCAL3, "%s", msg.c_str());
 }
 
-void log(int loglevel, LbPool *lbpool, string msg) {
+void log(MessageType loglevel, LbPool *lbpool, string msg) {
   string out = "lbpool: " + lbpool->name + " " + msg;
   log(loglevel, out);
 }
 
-void log(int loglevel, LbNode *lbnode, string msg) {
+void log(MessageType loglevel, LbNode *lbnode, string msg) {
   string out = "lbnode: " + lbnode->name + " " + msg;
   log(loglevel, lbnode->parent_lbpool, out);
 }
 
-void log(int loglevel, Healthcheck *hc, string msg) {
+void log(MessageType loglevel, Healthcheck *hc, string msg) {
   string out = "healthcheck: " + hc->type + " " + hc->log_prefix + " " + msg;
   log(loglevel, hc->parent_lbnode, out);
 }
