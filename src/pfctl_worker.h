@@ -28,13 +28,20 @@ using namespace boost::interprocess;
 message_queue *start_pfctl_worker();
 void stop_pfctl_worker();
 bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> lb_nodes);
+                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes);
+
+typedef struct {
+  LbNodeState state;            // To add or remove LB Node from table.
+  LbNodeAdminState admin_state; // How to remove LB Node from table.
+  // IPv4 and IPv6 addresses.
+  char ip_address[2][ADDR_LEN];
+} SyncedLbNode;
 
 typedef struct {
   // This struct is sent over a queue, complex datatypes won't work here.
   char pool_name[NAME_LEN];
   char table_name[NAME_LEN];
-  char wanted_addresses[MAX_NODES * 2][ADDR_LEN];
+  SyncedLbNode synced_lb_nodes[MAX_NODES];
 } pfctl_msg;
 
 #endif

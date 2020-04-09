@@ -22,7 +22,7 @@ bool pf_is_in_table(string *table, string *address, bool *answer) {
 }
 
 bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> lb_nodes) {
+                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
   return true;
 }
 
