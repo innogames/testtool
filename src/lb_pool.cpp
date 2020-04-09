@@ -167,6 +167,7 @@ void LbPool::pool_logic(LbNode *last_node) {
   // - To fill in a pool without healthchecks.
   // - To restore pool after switch from backup_pool.
   set<LbNode *> wanted_nodes;
+  set<LbNode *> force_up_candidates;
 
   // The algorithm for calculating wanted nodes is quite big.
   // Don't run it unless we are called from a node with changed state
@@ -176,26 +177,36 @@ void LbPool::pool_logic(LbNode *last_node) {
     // nodes are found.
     backup_pool_active = false;
 
-    // Add nodes while satisfying max_nodes if it is set. First add nodes
-    // which were added on previous change in order to avoid rebalancing.
-    for (auto node : nodes) {
-      if (node->max_nodes_kept) {
-        if (node->get_state() == LbNodeState::STATE_UP &&
-            (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
-          wanted_nodes.insert(node);
-        }
-      }
+    // Add nodes while satisfying max_nodes if it is set.
+
+    // First add nodes which were added on previous change in order to avoid
+    // rebalancing.
+    for (LbNode *node : nodes) {
+      if (!(max_nodes == 0 || wanted_nodes.size() < max_nodes))
+        break; // Above max_nodes limit.
+      if (!node->is_up())
+        continue; // Don't add down nodes.
+      if (!node->max_nodes_kept)
+        continue; // Nodes which did not violate max_nodes before.
+      log(MessageType::MSG_INFO, this,
+          fmt::sprintf("Adding previously wanted up LB Node %s", node->name));
+      wanted_nodes.insert(node);
     }
-    // Then add other active nodes if still possible within max_nodes limit.
-    for (auto node : nodes) {
-      if (!node->max_nodes_kept) {
-        if (node->get_state() == LbNodeState::STATE_UP &&
-            (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
-          wanted_nodes.insert(node);
-          node->max_nodes_kept = true;
-        }
-      }
+
+    // Then add other active nodes
+    for (LbNode *node : nodes) {
+      if (!(max_nodes == 0 || wanted_nodes.size() < max_nodes))
+        break; // Above max_nodes limit.
+      if (!node->is_up())
+        continue; // Don't add down nodes.
+      if (node->max_nodes_kept)
+        continue; // Nodes which did violate max_nodes before.
+      log(MessageType::MSG_INFO, this,
+          fmt::sprintf("Adding any up LB Node %s", node->name));
+      wanted_nodes.insert(node);
+      node->max_nodes_kept = true;
     }
+
     // Now satisfy minNodes depending on its configuration
     if (min_nodes > 0 && wanted_nodes.size() < min_nodes) {
       switch (fault_policy) {
@@ -205,32 +216,55 @@ void LbPool::pool_logic(LbNode *last_node) {
         log(MessageType::MSG_INFO, this,
             fmt::sprintf("Not enough nodes, forcing pool down"));
         break;
+
       case FaultPolicy::FORCE_UP:
         // Force some nodes up to satisfy min_nodes requirement. Only
         // non-downtimed nodes can be added.
-        if (last_node) {
+
+        // First add the one which changed state recently.
+        // If it was up, it is already added.
+        if (last_node && last_node->state == LbNodeState::STATE_DOWN &&
+            wanted_nodes.size() < min_nodes) {
+          wanted_nodes.insert(last_node);
           last_node->min_nodes_kept = true;
+          log(MessageType::MSG_INFO, this,
+              fmt::sprintf("Force keeping recently changed LB Node %s",
+                           last_node->name));
         }
-        // First add those which changed state recently.
-        for (auto node : nodes) {
-          if (node->admin_state == LbNodeState::STATE_UP &&
-              wanted_nodes.size() < min_nodes && node->min_nodes_kept) {
-            log(MessageType::MSG_INFO, this,
-                fmt::sprintf("Force keeping recently changed node %s",
-                             node->name));
-            wanted_nodes.insert(node);
-          }
+
+        // Prepare a set of candidates to force up.
+        for (LbNode *node : nodes) {
+          if (last_node && node == last_node)
+            continue; // Don't add recently changed LB Node.
+          if (node->state < LbNodeState::STATE_DOWN)
+            continue; // Don't add downtimed LB Nodes.
+          force_up_candidates.insert(node);
         }
+
+        // Not enough nodes? Add those which wer force-kept previously.
+        for (LbNode *fuc : force_up_candidates) {
+          if (wanted_nodes.size() >= min_nodes)
+            break; // Enough nodes already wanted.
+          if (!fuc->min_nodes_kept)
+            continue; // Don't add nodes which were
+          log(MessageType::MSG_INFO, this,
+              fmt::sprintf("Force keeping previously force-kept LB Node %s",
+                           fuc->name));
+          fuc->min_nodes_kept = true;
+          wanted_nodes.insert(fuc);
+        }
+
         // Still not enough nodes? Add any not-downtimed node.
-        for (auto node : nodes) {
-          if (node->admin_state == LbNodeState::STATE_UP &&
-              wanted_nodes.size() < min_nodes) {
-            log(MessageType::MSG_INFO, this,
-                fmt::sprintf("Force keeping any node %s", node->name));
-            wanted_nodes.insert(node);
-          }
+        for (LbNode *fuc : force_up_candidates) {
+          if (wanted_nodes.size() >= min_nodes)
+            break; // Enough nodes already wanted.
+          log(MessageType::MSG_INFO, this,
+              fmt::sprintf("Force keeping any LB Node %s", fuc->name));
+          fuc->min_nodes_kept = true;
+          wanted_nodes.insert(fuc);
         }
         break;
+
       case FaultPolicy::BACKUP_POOL:
         if (all_lb_pools->find(backup_pool_name) != all_lb_pools->end()) {
           wanted_nodes = all_lb_pools->find(backup_pool_name)->second->up_nodes;
@@ -271,8 +305,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 void LbPool::update_pfctl(void) {
   // Update primary LB Pool
   if (!pf_synced) {
-    pf_synced =
-        send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
+    pf_synced = send_message(pfctl_mq, name, pf_name, nodes, up_nodes);
     if (!pf_synced)
       log(MessageType::MSG_INFO, this, fmt::sprintf("sync: delayed"));
     else

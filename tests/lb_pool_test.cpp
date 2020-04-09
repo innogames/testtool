@@ -104,6 +104,9 @@ protected:
     case HealthcheckResult::HC_FAIL:
       message = "dummy_fail";
       break;
+    case HealthcheckResult::HC_DRAIN:
+      message = "dummy_drain";
+      break;
     case HealthcheckResult::HC_PANIC:
       message = "dummy_panic";
       break;
@@ -289,13 +292,13 @@ TEST_F(LbPoolTest, MinNodes1MaxNodes1) {
 // Test downtime functionality, it will override max_hc_failed and fail the
 // LB Node immediately.
 //
-TEST_F(LbPoolTest, Downtime) {
+TEST_F(LbPoolTest, DowntimeFromAdminState) {
 
   base_config["lbpool.example.com"]["health_checks"][0]["hc_max_failed"] = 3;
   SetUp(true);
 
   // Downtime a LB Node.
-  GetLbNode(test_lb_pool, "lbnode1")->start_downtime();
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("maintenance");
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 
   // Finished HC changes nothing.
@@ -303,7 +306,49 @@ TEST_F(LbPoolTest, Downtime) {
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 
   // End downtime, LB Node will go up only once it passes a HC.
-  GetLbNode(test_lb_pool, "lbnode1")->end_downtime();
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("online");
+  // Pretend the next the check passes, as it would in testtool.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
+}
+
+// Test downtime from HC functionality. it will override max_hc_failed and fail
+// the LB Node immediately.
+//
+TEST_F(LbPoolTest, DowntimeFromHealthcheckDrain) {
+
+  base_config["lbpool.example.com"]["health_checks"][0]["hc_max_failed"] = 3;
+  SetUp(true);
+
+  // Downtime a LB Node from its Healthcheck.
+  EndDummyHC(test_lb_pool, "lbnode2", HealthcheckResult::HC_DRAIN);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode3"}));
+
+  EndDummyHC(test_lb_pool, "lbnode2", HealthcheckResult::HC_PASS);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
+}
+
+// Test that admin_state downtime overrides HC downtime.
+//
+TEST_F(LbPoolTest, DowntimeFromHealthcheckAndAdminState) {
+  base_config["lbpool.example.com"]["health_checks"][0]["hc_max_failed"] = 3;
+  SetUp(true);
+
+  // Downtime a LB Node from its Healthcheck.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_DRAIN);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+
+  // Downtime it again from admin_state.
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("maintenance");
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+
+  // Pass a HC.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+
+  // Remove admin_state downtime.
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("online");
+  // Pretend the next the check passes, as it would in testtool.
   EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS);
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }

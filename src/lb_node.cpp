@@ -21,6 +21,20 @@ using namespace std;
 extern bool pf_action;
 extern int verbose;
 
+LbNodeAdminState admin_state_from_config(string s) {
+  if (s == "online")
+    return LbNodeAdminState::STATE_ENABLED;
+  if (s == "deploy_online")
+    return LbNodeAdminState::STATE_ENABLED;
+  if (s == "deploy_offline")
+    return LbNodeAdminState::STATE_DRAIN;
+  if (s == "maintenance")
+    return LbNodeAdminState::STATE_DOWNTIME;
+  if (s == "retired")
+    return LbNodeAdminState::STATE_DOWNTIME;
+  return LbNodeAdminState::STATE_ENABLED;
+}
+
 /// LbNode class constructor.
 ///
 /// Link the node and its parent pool, initialize some variables, print
@@ -36,7 +50,8 @@ LbNode::LbNode(string name, const nlohmann::json &config,
 
   this->parent_lbpool = parent_lbpool;
 
-  this->admin_state = LbNodeState::STATE_UP;
+  this->admin_state =
+      admin_state_from_config(safe_get<string>(config, "state", "online"));
 
   // Read initial state of host from pf.
   bool pf_state = false;
@@ -49,19 +64,17 @@ LbNode::LbNode(string name, const nlohmann::json &config,
   else
     pf_is_in_table(&this->parent_lbpool->pf_name, &this->ipv6_address,
                    &pf_state);
+
   if (pf_state)
     this->state = LbNodeState::STATE_UP;
   else
     this->state = LbNodeState::STATE_DOWN;
+
   this->checked = false;
   this->min_nodes_kept = false;
   this->max_nodes_kept = false;
 
   this->parent_lbpool->nodes.insert(this);
-
-  if (safe_get<bool>(config, "downtime", false)) {
-    this->admin_state = LbNodeState::STATE_DOWN;
-  }
 
   log(MessageType::MSG_INFO, this,
       fmt::sprintf("state: created initial_state: %s",
@@ -69,19 +82,13 @@ LbNode::LbNode(string name, const nlohmann::json &config,
 }
 
 string LbNode::state_to_string() {
-  if (this->admin_state == LbNodeState::STATE_DOWN)
-    return "DOWNTIME";
-  if (this->state == LbNodeState::STATE_UP)
-    return "UP";
-  return "DOWN";
+  return LbNodeStateNames[static_cast<int>(this->state)];
 }
 
-LbNodeState LbNode::get_state() {
-  if (admin_state == LbNodeState::STATE_DOWN) {
-    return LbNodeState::STATE_DOWN;
-  } else {
-    return state;
-  }
+bool LbNode::is_up() {
+  if (this->admin_state < LbNodeAdminState::STATE_ENABLED)
+    return false;
+  return (this->state == LbNodeState::STATE_UP);
 }
 
 /// Schedules all LB Node's Healthchecks to run
@@ -113,6 +120,7 @@ void LbNode::finalize_healthchecks() {
 void LbNode::node_logic() {
   unsigned int num_healthchecks = healthchecks.size();
   unsigned int ok_healthchecks = 0;
+  unsigned int drain_healthchecks = 0;
 
   // Go over all healthchecks for this node and count hard STATE_UP
   // healthchecks.
@@ -121,6 +129,8 @@ void LbNode::node_logic() {
       checked = true;
     if (hc->hard_state == HealthcheckState::STATE_UP)
       ok_healthchecks++;
+    if (hc->hard_state == HealthcheckState::STATE_DRAIN)
+      drain_healthchecks++;
   }
 
   // Do not check all healthchecks and don't notify pool until all check
@@ -132,9 +142,11 @@ void LbNode::node_logic() {
   // Log and update pool if state changed. There is no need to check for
   // downtimes.
   state_changed = false;
+
   LbNodeState new_state = (ok_healthchecks < num_healthchecks)
                               ? LbNodeState::STATE_DOWN
                               : LbNodeState::STATE_UP;
+
   if (state == LbNodeState::STATE_UP && new_state == LbNodeState::STATE_DOWN) {
     state_changed = true;
     max_nodes_kept = false;
@@ -144,6 +156,7 @@ void LbNode::node_logic() {
                      num_healthchecks - ok_healthchecks, num_healthchecks));
   } else if (state == LbNodeState::STATE_DOWN &&
              new_state == LbNodeState::STATE_UP) {
+    // Change from any state to UP
     state_changed = true;
     min_nodes_kept = false;
     state = LbNodeState::STATE_UP;
@@ -156,30 +169,34 @@ void LbNode::node_logic() {
   parent_lbpool->pool_logic(this);
 }
 
-/// Starts a downtime.
-void LbNode::start_downtime() {
-  // Start downtime only once.
-  if (admin_state == LbNodeState::STATE_DOWN)
+/// Starts or ends a downtime.
+void LbNode::change_downtime(string s) {
+  LbNodeAdminState new_admin_state = admin_state_from_config(s);
+
+  // Do nothing if there is no change
+  if (new_admin_state == admin_state)
     return;
 
-  log(MessageType::MSG_STATE_DOWN, this, "downtime: starting");
+  if (new_admin_state < LbNodeAdminState::STATE_ENABLED) {
+    kill_states = !(new_admin_state == LbNodeAdminState::STATE_DRAIN);
+    log(MessageType::MSG_STATE_DOWN, this,
+        fmt::sprintf("downtime: starting, drain: %s",
+                     kill_states ? "no" : "yes"));
+    max_nodes_kept = false;
+    // Enable pool logic. It will consider a downtimed node down and remove it.
+    this->state_changed = true;
+  } else {
+    // Pretend the node is down. It will be re-enabled
+    // after the next healthcheck run.
+    state = LbNodeState::STATE_DOWN;
+    log(MessageType::MSG_STATE_UP, this, "downtime: ending");
+    // Enable pool logic. If min_nodes is to be fulfilled, we can't depend only
+    // on next check to finish.
+    this->state_changed = true;
+  }
 
-  admin_state = LbNodeState::STATE_DOWN;
-  this->state_changed = true;
-  max_nodes_kept = false;
-  // Call pool logic. It will detect a down node and remove it.
-  parent_lbpool->pool_logic(this);
-}
-
-/// Ends a downtime.
-void LbNode::end_downtime() {
-  // Remove downtime only once.
-  if (admin_state == LbNodeState::STATE_UP)
-    return;
-
-  log(MessageType::MSG_STATE_UP, this, "downtime: ending");
-
-  admin_state = LbNodeState::STATE_UP;
-  this->state_changed = true;
+  // Call pool logic only once so that changes of downtimes to multiple LB Nodes
+  // are processed as a single change.
+  admin_state = new_admin_state;
   parent_lbpool->pool_logic(this);
 }

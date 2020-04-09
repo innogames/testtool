@@ -94,7 +94,7 @@ Healthcheck::Healthcheck(const nlohmann::json &config,
   // Initialize healthchecks state basing on state of parent node.
   // Proper initial state for the healthcheck quarantees no
   // unnecessary messages.
-  if (parent_lbnode->get_state() == LbNodeState::STATE_UP) {
+  if (parent_lbnode->is_up()) {
     hard_state = HealthcheckState::STATE_UP;
     last_state = HealthcheckState::STATE_UP;
     failure_counter = 0;
@@ -197,6 +197,13 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
     this->handle_result(statemsg);
     break;
 
+  case HealthcheckResult::HC_DRAIN:
+    log_type = MessageType::MSG_STATE_DOWN;
+    this->last_state = HealthcheckState::STATE_DRAIN;
+    statemsg = fmt::sprintf("state: down with draining, message: %s", message);
+    this->handle_result(statemsg);
+    break;
+
   case HealthcheckResult::HC_PANIC:
     log_type = MessageType::MSG_CRIT;
     statemsg = fmt::sprintf("state: failure message: %s", message);
@@ -221,29 +228,38 @@ void Healthcheck::handle_result(string message) {
   if (last_state == HealthcheckState::STATE_UP)
     failure_counter = 0;
 
-  // Change from DOWN to UP. The healthcheck has passed again.
-  if (hard_state == HealthcheckState::STATE_DOWN &&
-      last_state == HealthcheckState::STATE_UP) {
+  if (hard_state == HealthcheckState::STATE_UP) {
+    switch (last_state) {
+    case HealthcheckState::STATE_UP:
+      // No change, make compiler happy.
+      break;
+    case HealthcheckState::STATE_DOWN:
+      // Change from UP to DOWN. The healthcheck has failed.
+      changed = true;
+      log_level = MessageType::MSG_STATE_DOWN;
+      failure_counter++;
+      fail_message =
+          fmt::sprintf("failure: %d of %d", failure_counter, max_failed_checks);
+      // Mark the hard DOWN state only after the number of failed checks is
+      // reached.
+      if (failure_counter >= max_failed_checks) {
+        hard_state = HealthcheckState::STATE_DOWN;
+      }
+      break;
+    case HealthcheckState::STATE_DRAIN:
+      // Change from UP to DRAIN. The healthcheck has failed with draining.
+      changed = true;
+      log_level = MessageType::MSG_STATE_DOWN;
+      // Make it fail immediately not waiting for max_failed.
+      hard_state = HealthcheckState::STATE_DRAIN;
+      break;
+    }
+  } else if (last_state == HealthcheckState::STATE_UP) {
+    // Change from any state to UP. The healthcheck has passed again.
     hard_state = HealthcheckState::STATE_UP;
     failure_counter = 0;
     changed = true;
     log_level = MessageType::MSG_STATE_UP;
-  }
-  // Change from UP to DOWN. The healthcheck has failed.
-  else if (hard_state == HealthcheckState::STATE_UP &&
-           last_state == HealthcheckState::STATE_DOWN) {
-    changed = true;
-    log_level = MessageType::MSG_STATE_DOWN;
-
-    failure_counter++;
-    fail_message =
-        fmt::sprintf("failure: %d of %d", failure_counter, max_failed_checks);
-
-    // Mark the hard DOWN state only after the number of failed checks is
-    // reached.
-    if (failure_counter >= max_failed_checks) {
-      hard_state = HealthcheckState::STATE_DOWN;
-    }
   }
 
   if (changed || verbose) {
