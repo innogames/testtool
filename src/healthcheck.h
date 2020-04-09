@@ -14,10 +14,10 @@
 
 #include "lb_node.h"
 
-enum HealthcheckState { STATE_DOWN = 0, STATE_UP = 1 };
+enum class HealthcheckState { STATE_DOWN, STATE_UP };
 
 // The results health-check implementations can select
-enum HealthcheckResult {
+enum class HealthcheckResult {
   // The excpected positive result
   //
   // This indicates that everything went fine with the check,
@@ -78,8 +78,8 @@ private:
   // Members
 public:
   class LbNode *parent_lbnode;
-  char last_state;
-  char hard_state;
+  HealthcheckState last_state;
+  HealthcheckState hard_state;
   string type;
   bool ran;          // This check was ran at least once.
   string log_prefix; // Common logging string

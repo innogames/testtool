@@ -30,20 +30,22 @@ private:
   string msg_;
 };
 
+enum class LbPoolState { STATE_DOWN, STATE_UP };
+
+// Fault policy infers the pool state from the set of node states.
+enum class FaultPolicy {
+  FORCE_DOWN,  // Pool fails if up_nodes < min_nodes.
+  FORCE_UP,    // Last min_nodes nodes will be treated as online, even if
+               // they seem down
+  BACKUP_POOL, // Switch to backup pool.
+};
+
+static const char *FaultPolicyNames[] = {"force_down", "force_up",
+                                         "backup_pool"};
+
+FaultPolicy fault_policy_from_string(string s);
+
 class LbPool {
-public:
-  enum State { STATE_DOWN = 0, STATE_UP = 1 };
-
-  // Fault policy infers the pool state from the set of node states.
-  enum FaultPolicy {
-    FORCE_DOWN = 0,  // Pool fails if up_nodes < min_nodes.
-    FORCE_UP = 1,    // Last min_nodes nodes will be treated as online, even if
-                     // they seem down
-    BACKUP_POOL = 2, // Switch to backup pool.
-  };
-  static const map<FaultPolicy, string> fault_policy_names;
-  static FaultPolicy fault_policy_by_name(string name);
-
   // Methods
 public:
   LbPool(string name, nlohmann::json &config,
@@ -55,6 +57,7 @@ public:
   string get_state_text();
   size_t count_up_nodes();
   string get_backup_pool_state();
+  string fault_policy_to_string();
 
   // Members
 public:
@@ -63,7 +66,7 @@ public:
   string ipv4_address;
   string ipv6_address;
   string pf_name;
-  State state;
+  LbPoolState state;
   vector<class LbNode *> nodes;
   set<class LbNode *> up_nodes;
 

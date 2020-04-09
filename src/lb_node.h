@@ -14,13 +14,9 @@
 
 using namespace std;
 
-class LbNode {
-public:
-  enum State {
-    STATE_DOWN = 0,
-    STATE_UP = 1,
-  };
+enum class LbNodeState { STATE_DOWN, STATE_UP };
 
+class LbNode {
   // Methods
 public:
   LbNode(string name, const nlohmann::json &config,
@@ -32,8 +28,8 @@ public:
   void start_downtime();
   void end_downtime();
 
-  State get_state();       // getter for private member
-  string get_state_text(); // same, but text representation
+  LbNodeState get_state(); // getter for private member
+  string state_to_string();
 
   // Members
 public:
@@ -43,13 +39,13 @@ public:
   string ipv4_address;
   string ipv6_address;
   class LbPool *parent_lbpool;
-  State state;
+  LbNodeState state;
+  LbNodeState admin_state; // Keeps information about downtimes.
   vector<class Healthcheck *> healthchecks;
   bool min_nodes_kept; // Node was kept to meet min_nodes requirement.
   bool max_nodes_kept; // Node was kept because it met max_nodes requirement.
   bool checked;        // This node has all of its checks ran at least once.
   bool state_changed;  // This node hs changed its state since last check.
-  State admin_state;   // Keeps information about downtimes.
 
 private:
   bool backup;

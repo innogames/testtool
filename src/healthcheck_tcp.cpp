@@ -48,25 +48,25 @@ void Healthcheck_tcp::callback(evutil_socket_t socket_fd, short what,
                                void *arg) {
   Healthcheck_tcp *hc = (Healthcheck_tcp *)arg;
   string message = fmt::sprintf("wrong event %d", what);
-  HealthcheckResult result = HC_PANIC;
+  HealthcheckResult result = HealthcheckResult::HC_PANIC;
 
   if (what & EV_TIMEOUT) {
-    result = HC_FAIL;
+    result = HealthcheckResult::HC_FAIL;
     message = fmt::sprintf("timeout after %d.%03ds", hc->timeout.tv_sec,
                            hc->timeout.tv_usec / 1000);
   }
 
-  if (what & EV_READ && result != HC_FAIL) {
+  if (what & EV_READ && result != HealthcheckResult::HC_FAIL) {
     // A rejected connection is reported with READ event to us.
     char buf[256];
     if (read(socket_fd, buf, 255) == -1) {
-      result = HC_FAIL;
+      result = HealthcheckResult::HC_FAIL;
       message = "connection refused";
     }
   }
 
-  if (what & EV_WRITE && result != HC_FAIL) {
-    result = HC_PASS;
+  if (what & EV_WRITE && result != HealthcheckResult::HC_FAIL) {
+    result = HealthcheckResult::HC_PASS;
     message = "connection successful";
   }
 
@@ -87,7 +87,7 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
   // Create a socket.
   socket_fd = socket(address_family, SOCK_STREAM, 0);
   if (socket_fd == -1) {
-    this->end_check(HC_FAIL,
+    this->end_check(HealthcheckResult::HC_FAIL,
                     fmt::sprintf("socket() error %s", strerror(errno)));
     return false;
   }
@@ -116,8 +116,9 @@ int Healthcheck_tcp::schedule_healthcheck(struct timespec *now) {
   }
 
   if (result == -1 && errno != EINPROGRESS) {
-    this->end_check(HC_FAIL, fmt::sprintf("connect() error %s pton %d",
-                                          strerror(errno), pton_res));
+    this->end_check(
+        HealthcheckResult::HC_FAIL,
+        fmt::sprintf("connect() error %s pton %d", strerror(errno), pton_res));
     close(socket_fd);
     return false;
   }

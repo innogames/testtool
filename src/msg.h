@@ -13,19 +13,19 @@
 
 using namespace std;
 
-typedef enum msgType {
+enum class MessageType {
   MSG_INFO,
   MSG_CRIT,
   MSG_DEBUG,
   MSG_STATE_UP,
   MSG_STATE_DOWN,
-} msgType;
+};
 
 void start_logging();
 
-void log(int loglevel, string msg);
-void log(int loglevel, LbPool *lbpool, string msg);
-void log(int loglevel, LbNode *lbnode, string msg);
-void log(int loglevel, Healthcheck *hc, string msg);
+void log(MessageType loglevel, string msg);
+void log(MessageType loglevel, LbPool *lbpool, string msg);
+void log(MessageType loglevel, LbNode *lbnode, string msg);
+void log(MessageType loglevel, Healthcheck *hc, string msg);
 
 #endif
