@@ -312,10 +312,8 @@ void LbPool::update_pfctl(void) {
   }
 }
 
-string LbPool::get_state_text() {
-  if (state == LbPoolState::STATE_UP)
-    return "UP";
-  return "DOWN";
+string LbPool::state_to_string() {
+  return LbPoolStateNames[static_cast<int>(state)];
 }
 
 set<string> LbPool::get_up_nodes_names() {

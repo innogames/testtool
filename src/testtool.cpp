@@ -245,7 +245,7 @@ void TestTool::dump_status() {
         {"route_network", lb_pool.second->route_network},
         {"nodes_alive", lb_pool.second->count_up_nodes()},
         {"nodes", lb_nodes_status},
-        {"state", lb_pool.second->get_state_text()},
+        {"state", lb_pool.second->state_to_string()},
         {"ipv4_address", lb_pool.second->ipv4_address},
         {"ipv6_address", lb_pool.second->ipv6_address},
     };
