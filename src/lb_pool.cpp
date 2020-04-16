@@ -247,7 +247,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 
       string up_nodes_str;
       for (auto node : up_nodes) {
-        up_nodes_str += node->name;
+        up_nodes_str += node->name + ", ";
       }
 
       log(MSG_INFO, this, fmt::sprintf("up_lbnodes: %s", up_nodes_str));
