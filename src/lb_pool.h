@@ -31,6 +31,7 @@ private:
 };
 
 enum class LbPoolState { STATE_DOWN, STATE_UP };
+static const char *LbPoolStateNames[] = {"down", "up"};
 
 // Fault policy infers the pool state from the set of node states.
 enum class FaultPolicy {
@@ -54,7 +55,7 @@ public:
   void pool_logic(LbNode *last_node);
   void finalize_healthchecks();
   void update_pfctl();
-  string get_state_text();
+  string state_to_string();
   size_t count_up_nodes();
   string get_backup_pool_state();
   string fault_policy_to_string();
