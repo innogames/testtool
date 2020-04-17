@@ -177,26 +177,36 @@ void LbPool::pool_logic(LbNode *last_node) {
     // nodes are found.
     backup_pool_active = false;
 
-    // Add nodes while satisfying max_nodes if it is set. First add nodes
-    // which were added on previous change in order to avoid rebalancing.
-    for (auto node : nodes) {
-      if (node->max_nodes_kept) {
-        if (node->is_up() &&
-            (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
-          wanted_nodes.insert(node);
-        }
-      }
+    // Add nodes while satisfying max_nodes if it is set.
+
+    // First add nodes which were added on previous change in order to avoid
+    // rebalancing.
+    for (LbNode *node : nodes) {
+      if (!(max_nodes == 0 || wanted_nodes.size() < max_nodes))
+        break; // Above max_nodes limit.
+      if (!node->is_up())
+        continue; // Don't add down nodes.
+      if (!node->max_nodes_kept)
+        continue; // Nodes which did not violate max_nodes before.
+      log(MessageType::MSG_INFO, this,
+          fmt::sprintf("Adding previously wanted up LB Node %s", node->name));
+      wanted_nodes.insert(node);
     }
-    // Then add other active nodes if still possible within max_nodes limit.
-    for (auto node : nodes) {
-      if (!node->max_nodes_kept) {
-        if (node->is_up() &&
-            (max_nodes == 0 || wanted_nodes.size() < max_nodes)) {
-          wanted_nodes.insert(node);
-          node->max_nodes_kept = true;
-        }
-      }
+
+    // Then add other active nodes
+    for (LbNode *node : nodes) {
+      if (!(max_nodes == 0 || wanted_nodes.size() < max_nodes))
+        break; // Above max_nodes limit.
+      if (!node->is_up())
+        continue; // Don't add down nodes.
+      if (node->max_nodes_kept)
+        continue; // Nodes which did violate max_nodes before.
+      log(MessageType::MSG_INFO, this,
+          fmt::sprintf("Adding any up LB Node %s", node->name));
+      wanted_nodes.insert(node);
+      node->max_nodes_kept = true;
     }
+
     // Now satisfy minNodes depending on its configuration
     if (min_nodes > 0 && wanted_nodes.size() < min_nodes) {
       switch (fault_policy) {
