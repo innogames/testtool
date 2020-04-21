@@ -40,6 +40,7 @@ protected:
   string host;
   int port;
   vector<string> ok_codes;
+  vector<string> drain_codes;
   struct addrinfo *addrinfo;
   string reply;
 };

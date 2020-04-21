@@ -104,6 +104,9 @@ protected:
     case HealthcheckResult::HC_FAIL:
       message = "dummy_fail";
       break;
+    case HealthcheckResult::HC_DRAIN:
+      message = "dummy_drain";
+      break;
     case HealthcheckResult::HC_PANIC:
       message = "dummy_panic";
       break;
