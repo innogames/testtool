@@ -52,14 +52,16 @@ Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
   this->query = safe_get<string>(config, "hc_query", "HEAD /");
   this->host = safe_get<string>(config, "hc_host", "");
 
-  for (const int &ok_code : config["hc_ok_codes"]) {
+  vector<int> def_ok_codes{200};
+  for (const int &ok_code :
+       safe_get<std::vector<int>>(config, "hc_ok_codes", def_ok_codes)) {
     // OK Codes are stored as integers in Serveradmin but HTTP
     // protocol returns strings. Convert them now and compare
     // strings later.
     this->ok_codes.push_back(fmt::sprintf("%d", ok_code));
   }
   if (this->ok_codes.size() == 0) {
-    this->ok_codes.push_back("200");
+    this->ok_codes.push_back(fmt::sprintf("%d", def_ok_codes[0]));
   }
   // If host was not given, use IP address
   if (("" == host) && (AF_INET == address_family)) {
