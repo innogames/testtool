@@ -29,5 +29,5 @@ template bool safe_get(const nlohmann::json &, const char *, bool);
 template int safe_get(const nlohmann::json &, const char *, int);
 template std::string safe_get(const nlohmann::json &, const char *,
                               std::string);
-template std::vector<std::string> safe_get(const nlohmann::json &, const char *,
-                                           std::vector<std::string>);
+template std::vector<int> safe_get(const nlohmann::json &, const char *,
+                                   std::vector<int>);
