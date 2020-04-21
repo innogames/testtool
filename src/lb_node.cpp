@@ -118,6 +118,7 @@ void LbNode::finalize_healthchecks() {
 void LbNode::node_logic() {
   unsigned int num_healthchecks = healthchecks.size();
   unsigned int ok_healthchecks = 0;
+  unsigned int drain_healthchecks = 0;
 
   // Go over all healthchecks for this node and count hard STATE_UP
   // healthchecks.
@@ -126,6 +127,8 @@ void LbNode::node_logic() {
       checked = true;
     if (hc->hard_state == HealthcheckState::STATE_UP)
       ok_healthchecks++;
+    if (hc->hard_state == HealthcheckState::STATE_DRAIN)
+      drain_healthchecks++;
   }
 
   // Do not check all healthchecks and don't notify pool until all check
@@ -137,18 +140,42 @@ void LbNode::node_logic() {
   // Log and update pool if state changed. There is no need to check for
   // downtimes.
   state_changed = false;
-  LbNodeState new_state = (ok_healthchecks < num_healthchecks)
-                              ? LbNodeState::STATE_DOWN
-                              : LbNodeState::STATE_UP;
-  if (state == LbNodeState::STATE_UP && new_state == LbNodeState::STATE_DOWN) {
-    state_changed = true;
-    max_nodes_kept = false;
-    state = LbNodeState::STATE_DOWN;
-    log(MessageType::MSG_STATE_DOWN, this,
-        fmt::sprintf("message: %d of %d checks failed",
-                     num_healthchecks - ok_healthchecks, num_healthchecks));
-  } else if (state == LbNodeState::STATE_DOWN &&
-             new_state == LbNodeState::STATE_UP) {
+
+  LbNodeState new_state = LbNodeState::STATE_DOWN;
+
+  if (drain_healthchecks)
+    new_state = LbNodeState::STATE_DRAIN;
+  else if (ok_healthchecks == num_healthchecks)
+    new_state = LbNodeState::STATE_UP;
+
+  if (state == LbNodeState::STATE_UP) {
+    switch (new_state) {
+    case LbNodeState::STATE_DOWN:
+      // Change from UP to DOWN
+      state_changed = true;
+      max_nodes_kept = false;
+      state = LbNodeState::STATE_DOWN;
+      log(MessageType::MSG_STATE_DOWN, this,
+          fmt::sprintf("message: %d of %d checks failed",
+                       num_healthchecks - ok_healthchecks, num_healthchecks));
+      break;
+    case LbNodeState::STATE_DRAIN:
+      // Change from UP to DRAIN
+      state_changed = true;
+      max_nodes_kept = false;
+      state = LbNodeState::STATE_DRAIN;
+      log(MessageType::MSG_STATE_DOWN, this,
+          fmt::sprintf("message: %d of %d checks draining", drain_healthchecks,
+                       num_healthchecks));
+      break;
+    case LbNodeState::STATE_DOWNTIME:
+      // Handled LbNode::change_downtime().
+    case LbNodeState::STATE_UP:
+      // No change.
+      break;
+    }
+  } else if (new_state == LbNodeState::STATE_UP) {
+    // Change from any state to UP
     state_changed = true;
     min_nodes_kept = false;
     state = LbNodeState::STATE_UP;

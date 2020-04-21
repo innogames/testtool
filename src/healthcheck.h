@@ -14,7 +14,7 @@
 
 #include "lb_node.h"
 
-enum class HealthcheckState { STATE_DOWN, STATE_UP };
+enum class HealthcheckState { STATE_DRAIN, STATE_DOWN, STATE_UP };
 
 // The results health-check implementations can select
 enum class HealthcheckResult {
@@ -31,6 +31,12 @@ enum class HealthcheckResult {
   // send to this server, after it fails the configured number
   // of times.
   HC_FAIL,
+
+  // The expected negative result with LB Node draining
+  //
+  // The same as above but will cause the LB Node to be gracefully drained of
+  // traffic
+  HC_DRAIN,
 
   // The unexpected result
   //

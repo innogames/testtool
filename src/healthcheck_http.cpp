@@ -63,6 +63,15 @@ Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
   if (this->ok_codes.size() == 0) {
     this->ok_codes.push_back(fmt::sprintf("%d", def_ok_codes[0]));
   }
+
+  vector<int> def_drain_codes{};
+  for (const int &drain_code :
+       safe_get<std::vector<int>>(config, "hc_drain_codes", def_drain_codes)) {
+    // Drain codes are used for draining traffic from applications not using
+    // Serveradmin states.
+    this->drain_codes.push_back(fmt::sprintf("%d", drain_code));
+  }
+
   // If host was not given, use IP address
   if (("" == host) && (AF_INET == address_family)) {
     host = *ip_address;
@@ -79,9 +88,10 @@ Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
   snprintf(port_str, sizeof(port_str), "%d", port);
   getaddrinfo(ip_address->c_str(), port_str, NULL, &addrinfo);
 
-  this->log_prefix =
-      fmt::sprintf("query: '%s' port: %d ok_codes: %s", this->query, this->port,
-                   boost::algorithm::join(this->ok_codes, ","));
+  this->log_prefix = fmt::sprintf(
+      "query: '%s' port: %d ok_codes: %s drain_codes: %s", this->query,
+      this->port, boost::algorithm::join(this->ok_codes, ","),
+      boost::algorithm::join(this->drain_codes, ","));
 }
 
 /// Constructor for HTTPS healthcheck
@@ -256,6 +266,10 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
   statusline = statusline.substr(0, pos);
 
   message = fmt::sprintf("HTTP code %s", statusline);
+
+  for (auto drain_code : hc->drain_codes)
+    if (statusline.compare(drain_code) == 0)
+      return hc->end_check(HealthcheckResult::HC_DRAIN, message);
 
   for (auto ok_code : hc->ok_codes)
     if (statusline.compare(ok_code) == 0)
