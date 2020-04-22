@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 project(testtool)
+enable_testing()
 
 set(default_build_type "RelWithDebInfo")
 
@@ -59,3 +60,4 @@ include_directories(${_include_dirs})
 link_directories(${_link_dirs})
 
 add_subdirectory(src)
+add_subdirectory(tests)
