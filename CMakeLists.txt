@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 project(testtool)
+enable_testing()
 
 set(default_build_type "RelWithDebInfo")
 
@@ -76,4 +77,32 @@ install(
     PROGRAMS rc/testtool_freebsd
     DESTINATION etc/rc.d
     RENAME testtool
+)
+
+list(APPEND testtool_test_libraries ${testtool_libraries})
+list(FILTER testtool_test_libraries EXCLUDE REGEX "^(msg|pfctl_worker|pfctl|testtool).cpp$")
+
+find_package(GTest REQUIRED)
+include(GoogleTest)
+
+configure_file("tests/cmake_dirs.h.in" ${CMAKE_BINARY_DIR}/generated/cmake_dirs.h)
+include_directories(${CMAKE_BINARY_DIR}/generated ${CMAKE_SOURCE_DIR}/src)
+
+file(GLOB testtool_test_src "tests/*.cpp" "tests/*.h")
+add_executable(testtool_test ${testtool_test_src})
+add_dependencies(testtool_test ${testtool_test_libraries})
+gtest_discover_tests(testtool_test)
+
+target_link_libraries(testtool_test
+  GTest::GTest
+  GTest::Main 
+  ${testtool_test_libraries}
+  ${_libs}
+)
+
+# Create autoconf-compatible "check" commmand which also fixes
+# the issue of CMake not including dependency from test to test binaries
+add_custom_target(check
+ COMMAND ${CMAKE_CTEST_COMMAND}
+ DEPENDS testtool_test
 )

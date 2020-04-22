@@ -15,6 +15,7 @@
 #include "config.h"
 #include "healthcheck.h"
 #include "healthcheck_dns.h"
+#include "healthcheck_dummy.h"
 #include "healthcheck_http.h"
 #include "healthcheck_ping.h"
 #include "healthcheck_postgres.h"
@@ -130,6 +131,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const nlohmann::json &config,
         new Healthcheck_postgres(config, _parent_lbnode, ip_address);
   else if (type == "dns")
     new_healthcheck = new Healthcheck_dns(config, _parent_lbnode, ip_address);
+  else if (type == "dummy")
+    new_healthcheck = new Healthcheck_dummy(config, _parent_lbnode, ip_address);
   else
     return NULL;
 
