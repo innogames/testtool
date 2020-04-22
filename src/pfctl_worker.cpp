@@ -190,7 +190,9 @@ message_queue *start_pfctl_worker() {
   if (pid == 0) {
     // Child process
     signal(SIGTERM, worker_signal_handler);
+#ifdef __FreeBSD__
     setproctitle("%s", "pfctl worker");
+#endif
     message_queue *mq = attach_pfctl_queue();
     if (mq == NULL) {
       log(MessageType::MSG_CRIT,
