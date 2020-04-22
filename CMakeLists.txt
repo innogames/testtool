@@ -7,25 +7,70 @@ add_compile_options(
   "-Wall" "-pedantic" "-std=c++11"
 )
 
-include_directories(/usr/local/include)
-link_directories(/usr/local/lib)
+if (APPLE)
+  # Include packages installed from brew
+  set(OPENSSL_ROOT_DIR /usr/local/opt/openssl)
+  set(nlohmann_json_DIR /usr/local/opt/nlohmann-json/lib/cmake/nlohmann_json/)
+endif()
 
 set(Boost_USE_STATIC_LIBS ON)
-find_package(OpenSSL REQUIRED)
 find_package(Boost REQUIRED COMPONENTS system)
-find_package(PostgreSQL REQUIRED)
-find_package(nlohmann_json 3.3.0 REQUIRED)
+list(APPEND _include_dirs ${Boost_INCLUDE_DIR})
+list(APPEND _libs ${Boost_LIBRARIES})
+message("boost include: ${Boost_INCLUDE_DIR}")
 
-file(GLOB testtool_src "src/*.cpp")
-add_executable(testtool ${testtool_src})
-target_link_libraries(testtool
-    event.a event_core.a event_pthreads.a event_openssl.a
-    thr.a pq.a intl.a
-    fmt
-    ${OPENSSL_LIBRARIES}
-    ${Boost_LIBRARIES}
-    nlohmann_json::nlohmann_json
-)
+find_package(fmt 3.3.0 REQUIRED)
+if (APPLE)
+  # Does not provide include dir as it seems
+  list(APPEND _include_dirs /usr/local/opt/nlohmann-json/include)
+endif()
+list(APPEND _libs fmt::fmt)
+
+find_package(nlohmann_json 3.3.0 REQUIRED)
+# Does not provide include dir as it seems
+list(APPEND _libs nlohmann_json::nlohmann_json)
+
+# find_package(libevent REQUIRED) # Does not come with cmake support?
+# Libraries will hopefully be in default directory
+if (APPLE)
+  list(APPEND _include_dirs /usr/local/opt/libevent/include)
+  list(APPEND _link_dirs /usr/local/opt/libevent/lib)
+endif()
+if(UNIX AND NOT APPLE AND NOT LINUX)
+  set(_link_dirs /usr/local/lib)
+  set(_include_dirs /usr/local/include)
+endif()
+list(APPEND _libs event event_core event_pthreads event_openssl)
+
+find_package(OpenSSL REQUIRED)
+list(APPEND _include_dirs ${OPENSSL_INCLUDE_DIR})
+list(APPEND _libs ${OPENSSL_LIBRARIES})
+
+find_package(PostgreSQL REQUIRED)
+list(APPEND _libs ${PostgreSQL_LIBRARIES})
+
+find_package(yaml-cpp REQUIRED)
+list(APPEND _include_dirs ${YAML_CPP_INCLUDE_DIR})
+list(APPEND _libs ${YAML_CPP_LIBRARIES})
+
+if(UNIX AND NOT APPLE AND NOT LINUX)
+  # Only on FreeBSD
+  list(APPEND _libs thr.a)
+endif()
+
+include_directories(${_include_dirs})
+link_directories(${_link_dirs})
+
+file(GLOB testtool_sources "src/*.cpp")
+file(GLOB testtool_headers "src/*.h")
+foreach(testtool_source ${testtool_sources})
+  string(REGEX REPLACE ".*/" "" testtool_library ${testtool_source})
+  add_library("${testtool_library}" OBJECT ${testtool_source} ${testool_headers})
+  list(APPEND testtool_libraries ${testtool_library})
+endforeach()
+
+add_executable(testtool)
+target_link_libraries(testtool ${_libs} ${testtool_libraries})
 install(TARGETS testtool DESTINATION sbin)
 install(
     PROGRAMS rc/testtool_freebsd
