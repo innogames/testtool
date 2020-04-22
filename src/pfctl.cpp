@@ -62,7 +62,8 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
       lines->push_back(line);
     }
   }
-  ret = WEXITSTATUS(pclose(fp));
+  int status = pclose(fp);
+  ret = WEXITSTATUS(status);
   high_resolution_clock::time_point t2 = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(t2 - t1).count();
   log(MSG_DEBUG,

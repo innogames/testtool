@@ -386,7 +386,9 @@ int main(int argc, char *argv[]) {
 
   parent_pid = getpid();
   pfctl_mq = start_pfctl_worker();
+#ifdef __FreeBSD__
   setproctitle("%s", "main process");
+#endif
 
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
