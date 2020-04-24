@@ -80,19 +80,12 @@ bool pfctl_worker_loop(message_queue *mq) {
 
     // Decode the message
     string table_name(msg.table_name);
-    set<string> wanted_addresses;
-
-    for (int i = 0; i < MAX_NODES * 2; i++) {
-      string wanted_address(msg.wanted_addresses[i]);
-      if (wanted_address.length())
-        wanted_addresses.insert(wanted_address);
-    }
 
     // Measure total time of all pfctl operations.
     // Don't use std::chrono, there is a conflict with boost.
     chrono::high_resolution_clock::time_point t1 =
         chrono::high_resolution_clock::now();
-    pf_sync_table(table_name, wanted_addresses);
+    pf_sync_table(table_name, msg.synced_lb_nodes);
     chrono::high_resolution_clock::time_point t2 =
         chrono::high_resolution_clock::now();
     auto duration =
@@ -157,25 +150,35 @@ message_queue *attach_pfctl_queue() {
 }
 
 bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> lb_nodes) {
+                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
   pfctl_msg msg;
 
   memset(&msg, 0, sizeof(msg));
   strncpy(msg.pool_name, pool_name.c_str(), sizeof(msg.pool_name));
   strncpy(msg.table_name, table_name.c_str(), sizeof(msg.table_name));
-  int address_index = 0;
-  assert(lb_nodes.size() < MAX_NODES);
-  for (auto node : lb_nodes) {
-    if (!node->ipv4_address.empty()) {
-      strncpy(msg.wanted_addresses[address_index], node->ipv4_address.c_str(),
-              ADDR_LEN);
-      address_index++;
+  int lb_node_index = 0;
+  assert(all_lb_nodes.size() < MAX_NODES);
+  assert(up_lb_nodes.size() < MAX_NODES);
+
+  // Information sent to pfctl worker contains the list of all nodes, down ones
+  // too because way of downing a node (with killing states or without) must be
+  // kept for each node separately.
+  for (LbNode *lb_node : all_lb_nodes) {
+    strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[0],
+            lb_node->ipv4_address.c_str(), ADDR_LEN);
+    strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[1],
+            lb_node->ipv6_address.c_str(), ADDR_LEN);
+
+    // State of each node is overwriten by presence of said node in up_lb_nodes,
+    // as the later one includes calculation of min_ and max_nodes and
+    // backup_pools.
+    if (up_lb_nodes.count(lb_node)) {
+      msg.synced_lb_nodes[lb_node_index].state = LbNodeState::STATE_UP;
+    } else {
+      msg.synced_lb_nodes[lb_node_index].state = lb_node->state;
     }
-    if (!node->ipv6_address.empty()) {
-      strncpy(msg.wanted_addresses[address_index], node->ipv6_address.c_str(),
-              ADDR_LEN);
-      address_index++;
-    }
+
+    lb_node_index++;
   }
   return mq->try_send(&msg, sizeof(pfctl_msg), 0);
 }
