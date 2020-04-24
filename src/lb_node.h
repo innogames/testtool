@@ -14,8 +14,8 @@
 
 using namespace std;
 
-enum class LbNodeState { STATE_DOWNTIME, STATE_DOWN, STATE_UP };
-static const char *LbNodeStateNames[] = {"downtimed", "down", "up"};
+enum class LbNodeState { STATE_DRAIN, STATE_DOWNTIME, STATE_DOWN, STATE_UP };
+static const char *LbNodeStateNames[] = {"drained", "downtimed", "down", "up"};
 
 LbNodeState state_from_config(string s);
 
@@ -50,6 +50,7 @@ public:
 
 private:
   bool backup;
+  bool kill_states; // Kill states when downtimed.
 };
 
 #endif

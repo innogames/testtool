@@ -27,7 +27,7 @@ LbNodeState state_from_config(string s) {
   if (s == "deploy_online")
     return LbNodeState::STATE_UP;
   if (s == "deploy_offline")
-    return LbNodeState::STATE_DOWNTIME;
+    return LbNodeState::STATE_DRAIN;
   if (s == "maintenance")
     return LbNodeState::STATE_DOWNTIME;
   if (s == "retired")
@@ -164,14 +164,17 @@ void LbNode::node_logic() {
 /// Starts or ends a downtime.
 void LbNode::change_downtime(string s) {
   LbNodeState new_state = state_from_config(s);
+  kill_states = !(new_state == LbNodeState::STATE_DRAIN);
 
   // Do nothing if there is no change
   if (new_state == state)
     return;
 
   if (new_state < LbNodeState::STATE_DOWN) {
-    log(MessageType::MSG_STATE_DOWN, this, "downtime: starting");
-    state = LbNodeState::STATE_DOWNTIME;
+    log(MessageType::MSG_STATE_DOWN, this,
+        fmt::sprintf("downtime: starting, drain: %s",
+                     kill_states ? "no" : "yes"));
+    state = new_state;
     max_nodes_kept = false;
     // Enable pool logic. It will consider a downtimed node down and remove it.
     this->state_changed = true;

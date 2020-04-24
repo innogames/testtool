@@ -295,8 +295,7 @@ void LbPool::pool_logic(LbNode *last_node) {
 void LbPool::update_pfctl(void) {
   // Update primary LB Pool
   if (!pf_synced) {
-    pf_synced =
-        send_message(pfctl_mq, this->name, this->pf_name, this->up_nodes);
+    pf_synced = send_message(pfctl_mq, name, pf_name, nodes, up_nodes);
     if (!pf_synced)
       log(MessageType::MSG_INFO, this, fmt::sprintf("sync: delayed"));
     else
