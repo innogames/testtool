@@ -109,15 +109,12 @@ string Healthcheck_http::parse_query_template() {
   boost::replace_all(new_query, "{NODE_NAME}", this->parent_lbnode->name);
   boost::replace_all(new_query, "{NODE_ADDRESS}", *this->ip_address);
 
-  vector<std::string> up_nodes_names;
-  for (auto node : this->parent_lbnode->parent_lbpool->up_nodes) {
-    up_nodes_names.push_back(node->name);
-  }
-  string joined_up_nodes_names = boost::algorithm::join(up_nodes_names, ",");
+  string joined_up_nodes_names = boost::algorithm::join(
+      this->parent_lbnode->parent_lbpool->get_up_nodes_names(), ",");
   boost::replace_all(new_query, "{ACTIVE_NODES_NAMES}", joined_up_nodes_names);
 
   vector<std::string> up_nodes_addresses;
-  for (auto node : this->parent_lbnode->parent_lbpool->up_nodes) {
+  for (LbNode *node : this->parent_lbnode->parent_lbpool->get_up_nodes()) {
     if (!node->ipv4_address.empty())
       up_nodes_addresses.push_back(node->ipv4_address);
     if (!node->ipv6_address.empty())

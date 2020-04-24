@@ -293,3 +293,15 @@ string LbPool::get_state_text() {
     return "UP";
   return "DOWN";
 }
+
+set<string> LbPool::get_up_nodes_names() {
+  set<string> ret;
+  for (LbNode *node : up_nodes) {
+    ret.insert(node->name);
+  }
+  return ret;
+}
+
+set<LbNode *> LbPool::get_up_nodes() {
+  return up_nodes; // Hopefully it returns a copy
+}

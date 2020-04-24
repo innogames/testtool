@@ -57,7 +57,7 @@ LbNode::LbNode(string name, const nlohmann::json &config,
   this->min_nodes_kept = false;
   this->max_nodes_kept = false;
 
-  this->parent_lbpool->nodes.push_back(this);
+  this->parent_lbpool->nodes.insert(this);
 
   if (safe_get<bool>(config, "downtime", false)) {
     this->admin_state = LbNodeState::STATE_DOWN;
