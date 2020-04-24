@@ -58,6 +58,8 @@ public:
   size_t count_up_nodes();
   string get_backup_pool_state();
   string fault_policy_to_string();
+  set<string> get_up_nodes_names();
+  set<LbNode *> get_up_nodes();
 
   // Members
 public:
@@ -67,8 +69,7 @@ public:
   string ipv6_address;
   string pf_name;
   LbPoolState state;
-  vector<class LbNode *> nodes;
-  set<class LbNode *> up_nodes;
+  set<class LbNode *> nodes;
 
 private:
   string backup_pool_name;
@@ -80,6 +81,7 @@ private:
   FaultPolicy fault_policy;
   map<std::string, LbPool *> *all_lb_pools;
   bool pf_synced;
+  set<class LbNode *> up_nodes;
 };
 
 #endif
