@@ -8,10 +8,11 @@
 #include <gtest/gtest.h>
 #include <openssl/ssl.h>
 
-#include "cmake.h"
+#include "cmake_dirs.h"
 #include "healthcheck_dummy.h"
 #include "lb_node.h"
 #include "lb_pool.h"
+#include "testtool_test.h"
 
 using namespace std;
 using namespace boost::interprocess;
@@ -25,101 +26,9 @@ int verbose = 0;
 boost::interprocess::message_queue *pfctl_mq;
 
 extern bool _pf_is_in_table;
+extern set<string> sent_up_lb_nodes;
 
-string test_lb_pool = "lbpool.example.com";
-
-class LbPoolTestException : virtual public runtime_error {
-public:
-  explicit LbPoolTestException(const string &msg) : runtime_error(msg) {}
-  virtual ~LbPoolTestException() throw() {}
-};
-
-namespace {
-class LbPoolTest : public ::testing::Test {
-
-protected:
-  map<string, LbPool *> lb_pools;
-  json base_config;
-  set<LbNode *> up_nodes_test;
-
-  virtual void SetUp() {
-    string path = CMAKE_SOURCE_DIR + "/tests/lb_pool_test.json";
-    ifstream config_file(path);
-    config_file >> base_config;
-    config_file.close();
-  }
-
-  virtual void SetUp(bool init_state) {
-    _pf_is_in_table = init_state;
-    for (const auto &lb_pool : base_config.items()) {
-      string name = lb_pool.key();
-      LbPool *new_lbpool = NULL;
-      new_lbpool = new LbPool(name, lb_pool.value(), &lb_pools);
-      lb_pools[new_lbpool->name] = new_lbpool;
-    }
-  }
-
-  virtual void TearDown() {
-    lb_pools.clear();
-    up_nodes_test.clear();
-  }
-
-  LbNode *GetLbNode(string lb_pool_name, string lb_node_name) {
-    LbNode *ret = NULL;
-    for (LbNode *node : lb_pools[lb_pool_name]->nodes) {
-      if (node->name == lb_node_name) {
-        ret = node;
-        break;
-      }
-    }
-    if (ret == NULL)
-      throw LbPoolTestException("Could't find LB Pool " + lb_pool_name +
-                                " LB Node " + lb_node_name);
-
-    return ret;
-  }
-
-  LbNodeState GetLbNodeState(string lb_pool_name, string lb_node_name) {
-    return GetLbNode(lb_pool_name, lb_node_name)->state;
-  }
-
-  void EndDummyHC(string lb_pool_name, string lb_node_name,
-                  HealthcheckResult result) {
-    Healthcheck_dummy *hcd = NULL;
-
-    LbNode *lbn = GetLbNode(lb_pool_name, lb_node_name);
-
-    try {
-      hcd = (Healthcheck_dummy *)(lbn->healthchecks.at(0));
-    } catch (out_of_range) {
-      throw LbPoolTestException("Could't find HC for LB Pool " + lb_pool_name +
-                                " LB Node " + lb_node_name);
-    }
-
-    string message;
-    switch (result) {
-    case HealthcheckResult::HC_PASS:
-      message = "dummy_pass";
-      break;
-    case HealthcheckResult::HC_FAIL:
-      message = "dummy_fail";
-      break;
-    case HealthcheckResult::HC_DRAIN:
-      message = "dummy_drain";
-      break;
-    case HealthcheckResult::HC_PANIC:
-      message = "dummy_panic";
-      break;
-    }
-    hcd->dummy_end_check(result, message);
-  }
-
-  set<string> UpNodesNames() {
-    return lb_pools[test_lb_pool]->get_up_nodes_names();
-  }
-};
-
-} // namespace
+class LbPoolTest : public TesttoolTest {};
 
 TEST_F(LbPoolTest, InitDown) {
   SetUp(false);

@@ -1,8 +1,0 @@
-//
-// Export some variables to source code.
-//
-
-
-std::string MAKE_BINARY_DIR = "@CMAKE_BINARY_DIR@";
-std::string CMAKE_SOURCE_DIR = "@CMAKE_SOURCE_DIR@";
-

@@ -1,0 +1,12 @@
+//
+// Export some variables to source code.
+//
+
+#ifndef CMAKE_DIRS_H
+#define CMAKE_DIRS_H
+
+#define MAKE_BINARY_DIR "@CMAKE_BINARY_DIR@"
+#define CMAKE_SOURCE_DIR "@CMAKE_SOURCE_DIR@"
+
+#endif
+
