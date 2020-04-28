@@ -246,7 +246,7 @@ void LbPool::pool_logic(LbNode *last_node) {
           if (wanted_nodes.size() >= min_nodes)
             break; // Enough nodes already wanted.
           if (!fuc->min_nodes_kept)
-            continue; // Don't add nodes which were
+            continue; // Don't add nodes which were not added previously.
           log(MessageType::MSG_INFO, this,
               fmt::sprintf("Force keeping previously force-kept LB Node %s",
                            fuc->name));
