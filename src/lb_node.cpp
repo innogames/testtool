@@ -147,10 +147,16 @@ void LbNode::node_logic() {
                               ? LbNodeState::STATE_DOWN
                               : LbNodeState::STATE_UP;
 
+  LbNodeAdminState new_admin_state = (drain_healthchecks == 0)
+                                         ? LbNodeAdminState::STATE_ENABLED
+                                         : LbNodeAdminState::STATE_DRAIN;
+
   if (state == LbNodeState::STATE_UP && new_state == LbNodeState::STATE_DOWN) {
     state_changed = true;
     max_nodes_kept = false;
     state = LbNodeState::STATE_DOWN;
+    if (admin_state == LbNodeAdminState::STATE_ENABLED)
+      admin_state = new_admin_state;
     log(MessageType::MSG_STATE_DOWN, this,
         fmt::sprintf("message: %d of %d checks failed",
                      num_healthchecks - ok_healthchecks, num_healthchecks));
@@ -160,6 +166,8 @@ void LbNode::node_logic() {
     state_changed = true;
     min_nodes_kept = false;
     state = LbNodeState::STATE_UP;
+    if (admin_state == LbNodeAdminState::STATE_DRAIN)
+      admin_state = LbNodeAdminState::STATE_ENABLED;
     log(MessageType::MSG_STATE_DOWN, this,
         fmt::sprintf("message: all of %d checks passed", num_healthchecks));
   }
