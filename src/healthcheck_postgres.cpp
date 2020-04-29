@@ -6,6 +6,8 @@
 //
 // Copyright (c) 2018 InnoGames GmbH
 
+#define FMT_HEADER_ONLY
+
 #include <cassert>
 #include <errno.h>
 #include <event2/event.h>

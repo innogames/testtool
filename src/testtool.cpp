@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <event2/event.h>
 #include <fmt/format.h>

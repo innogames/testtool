@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/system/error_code.hpp>

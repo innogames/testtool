@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <errno.h>
