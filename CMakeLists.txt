@@ -18,7 +18,6 @@ set(Boost_USE_STATIC_LIBS ON)
 find_package(Boost REQUIRED COMPONENTS system)
 list(APPEND _include_dirs ${Boost_INCLUDE_DIR})
 list(APPEND _libs ${Boost_LIBRARIES})
-message("boost include: ${Boost_INCLUDE_DIR}")
 
 find_package(fmt 3.3.0 REQUIRED)
 
@@ -39,14 +38,14 @@ if(UNIX AND NOT APPLE AND NOT LINUX)
   set(_link_dirs /usr/local/lib)
   set(_include_dirs /usr/local/include)
 endif()
-list(APPEND _libs event event_core event_pthreads event_openssl)
+list(APPEND _libs event.a event_core.a event_pthreads.a event_openssl.a)
 
 find_package(OpenSSL REQUIRED)
 list(APPEND _include_dirs ${OPENSSL_INCLUDE_DIR})
 list(APPEND _libs ${OPENSSL_LIBRARIES})
 
 find_package(PostgreSQL REQUIRED)
-list(APPEND _libs ${PostgreSQL_LIBRARIES})
+list(APPEND _libs libpq.a)
 
 find_package(yaml-cpp REQUIRED)
 list(APPEND _include_dirs ${YAML_CPP_INCLUDE_DIR})
@@ -55,6 +54,7 @@ list(APPEND _libs ${YAML_CPP_LIBRARIES})
 if(UNIX AND NOT APPLE AND NOT LINUX)
   # Only on FreeBSD
   list(APPEND _libs thr.a)
+  list(APPEND _libs libintl.a)
 endif()
 
 include_directories(${_include_dirs})
