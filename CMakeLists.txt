@@ -21,14 +21,12 @@ list(APPEND _libs ${Boost_LIBRARIES})
 message("boost include: ${Boost_INCLUDE_DIR}")
 
 find_package(fmt 3.3.0 REQUIRED)
+
+find_package(nlohmann_json 3.3.0 REQUIRED)
 if (APPLE)
   # Does not provide include dir as it seems
   list(APPEND _include_dirs /usr/local/opt/nlohmann-json/include)
 endif()
-list(APPEND _libs fmt::fmt)
-
-find_package(nlohmann_json 3.3.0 REQUIRED)
-# Does not provide include dir as it seems
 list(APPEND _libs nlohmann_json::nlohmann_json)
 
 # find_package(libevent REQUIRED) # Does not come with cmake support?

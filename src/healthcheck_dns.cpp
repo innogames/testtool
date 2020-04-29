@@ -12,6 +12,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <event2/event.h>

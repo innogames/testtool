@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <nlohmann/json.hpp>
