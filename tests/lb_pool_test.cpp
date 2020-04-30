@@ -270,3 +270,27 @@ TEST_F(LbPoolTest, DowntimeFromHealthcheckAndAdminState) {
   EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
+
+// Initial config loading in maintenance state.
+//
+TEST_F(LbPoolTest, InitUpDowntimedMaintenance) {
+  base_config["lbpool.example.com"]["nodes"]["lbnode1"]["state"] =
+      "maintenance";
+  SetUp(true);
+
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+}
+
+// Initial config loading in draining state.
+//
+TEST_F(LbPoolTest, InitUpDowntimedDrain) {
+  base_config["lbpool.example.com"]["nodes"]["lbnode1"]["state"] =
+      "deploy_offline";
+  SetUp(true);
+
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+}

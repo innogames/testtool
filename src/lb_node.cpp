@@ -29,7 +29,7 @@ LbNodeAdminState admin_state_from_config(string s) {
   if (s == "deploy_online")
     return LbNodeAdminState::STATE_ENABLED;
   if (s == "deploy_offline")
-    return LbNodeAdminState::STATE_DRAIN;
+    return LbNodeAdminState::STATE_DRAIN_HARD;
   if (s == "maintenance")
     return LbNodeAdminState::STATE_DOWNTIME;
   if (s == "retired")
@@ -162,7 +162,7 @@ void LbNode::node_logic() {
 
   LbNodeAdminState new_admin_state = (drain_healthchecks == 0)
                                          ? LbNodeAdminState::STATE_ENABLED
-                                         : LbNodeAdminState::STATE_DRAIN;
+                                         : LbNodeAdminState::STATE_DRAIN_SOFT;
 
   if (state == LbNodeState::STATE_UP && new_state == LbNodeState::STATE_DOWN) {
     state_changed = true;
@@ -179,7 +179,7 @@ void LbNode::node_logic() {
     state_changed = true;
     min_nodes_kept = false;
     state = LbNodeState::STATE_UP;
-    if (admin_state == LbNodeAdminState::STATE_DRAIN)
+    if (admin_state == LbNodeAdminState::STATE_DRAIN_SOFT)
       admin_state = LbNodeAdminState::STATE_ENABLED;
     log(MessageType::MSG_STATE_DOWN, this,
         fmt::sprintf("message: all of %d checks passed", num_healthchecks));
@@ -199,7 +199,7 @@ void LbNode::change_downtime(string s) {
     return;
 
   if (new_admin_state < LbNodeAdminState::STATE_ENABLED) {
-    kill_states = !(new_admin_state == LbNodeAdminState::STATE_DRAIN);
+    kill_states = !(new_admin_state <= LbNodeAdminState::STATE_DRAIN_SOFT);
     log(MessageType::MSG_STATE_DOWN, this,
         fmt::sprintf("downtime: starting, drain: %s",
                      kill_states ? "no" : "yes"));

@@ -264,7 +264,7 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
   // check against to_del.
   for (int i = 0; i < MAX_NODES; i++) {
     bool with_states =
-        !(synced_lb_nodes[i].admin_state == LbNodeAdminState::STATE_DRAIN);
+        !(synced_lb_nodes[i].admin_state <= LbNodeAdminState::STATE_DRAIN_SOFT);
 
     for (int proto = 0; proto < 2; proto++) {
       if (strlen(synced_lb_nodes[i].ip_address[proto]) == 0)

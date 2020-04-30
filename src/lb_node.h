@@ -17,9 +17,14 @@ using namespace std;
 enum class LbNodeState { STATE_DOWN, STATE_UP };
 static const char *LbNodeStateNames[] = {"down", "up"};
 
-enum class LbNodeAdminState { STATE_DRAIN, STATE_DOWNTIME, STATE_ENABLED };
-static const char *LbNodeAdminStateNames[] = {"drained", "downtimed",
-                                              "enabled"};
+enum class LbNodeAdminState {
+  STATE_DRAIN_HARD,
+  STATE_DRAIN_SOFT,
+  STATE_DOWNTIME,
+  STATE_ENABLED
+};
+static const char *LbNodeAdminStateNames[] = {"drained_hard", "drained_soft",
+                                              "downtimed", "enabled"};
 
 LbNodeAdminState admin_state_from_config(string s);
 
