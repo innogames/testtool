@@ -31,9 +31,7 @@ public:
   void schedule_healthchecks(struct timespec *now);
   void finalize_healthchecks();
   void node_logic();
-
   void change_downtime(string s);
-
   bool is_up();
   string is_up_string();
   string get_state_string();
