@@ -238,7 +238,8 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
   for (int i = 0; i < MAX_NODES; i++) {
     for (int proto = 0; proto < 2; proto++) {
       if (strlen(synced_lb_nodes[i].ip_address[proto]) &&
-          synced_lb_nodes[i].state == LbNodeState::STATE_UP) {
+          synced_lb_nodes[i].state == LbNodeState::STATE_UP &&
+          synced_lb_nodes[i].admin_state == LbNodeAdminState::STATE_ENABLED) {
         want_set.insert(string(synced_lb_nodes[i].ip_address[proto]));
       }
     }
