@@ -55,10 +55,10 @@ public:
   void pool_logic(LbNode *last_node);
   void finalize_healthchecks();
   void update_pfctl();
-  string state_to_string();
+  string get_state_string();
   size_t count_up_nodes();
   string get_backup_pool_state();
-  string fault_policy_to_string();
+  string get_fault_policy_string();
   set<string> get_up_nodes_names();
   set<LbNode *> get_up_nodes();
 

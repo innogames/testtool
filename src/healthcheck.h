@@ -15,6 +15,7 @@
 #include "lb_node.h"
 
 enum class HealthcheckState { STATE_DRAIN, STATE_DOWN, STATE_UP };
+static const char *HealthcheckStateNames[] = {"fail", "down", "up"};
 
 // The results health-check implementations can select
 enum class HealthcheckResult {
@@ -47,6 +48,9 @@ enum class HealthcheckResult {
   // to recover from this situation.
   HC_PANIC
 };
+
+static const char *HealthcheckResultNames[] = {"pass", "fail", "drain",
+                                               "panic"};
 
 // A quite useful macros are available in sys/time.h but
 // only for _KERNEL, at least in FreeBSD.

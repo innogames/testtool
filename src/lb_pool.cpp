@@ -90,11 +90,9 @@ LbPool::LbPool(string name, nlohmann::json &config,
     max_nodes = min_nodes;
   }
 
-  string fault_policy_name = this->fault_policy_to_string();
-
   log(MessageType::MSG_INFO, this,
       fmt::sprintf("min_nodes: %d max_nodes: %d policy: %s state: created",
-                   min_nodes, max_nodes, fault_policy_name));
+                   min_nodes, max_nodes, this->get_fault_policy_string()));
 
   // Glue things together. Please note that children append themselves
   // to property of parent in their own code.
@@ -129,7 +127,7 @@ LbPool::LbPool(string name, nlohmann::json &config,
   pool_logic(NULL);
 }
 
-string LbPool::fault_policy_to_string() {
+string LbPool::get_fault_policy_string() {
   return FaultPolicyNames[static_cast<int>(this->fault_policy)];
 }
 
@@ -323,7 +321,7 @@ void LbPool::update_pfctl(void) {
   }
 }
 
-string LbPool::state_to_string() {
+string LbPool::get_state_string() {
   return LbPoolStateNames[static_cast<int>(state)];
 }
 

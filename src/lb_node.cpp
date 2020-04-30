@@ -79,19 +79,30 @@ LbNode::LbNode(string name, const nlohmann::json &config,
   this->parent_lbpool->nodes.insert(this);
 
   log(MessageType::MSG_INFO, this,
-      fmt::sprintf("state: created initial_state: %s",
-                   this->state_to_string()));
+      fmt::sprintf("state: created state: %s admin_state: %s",
+                   this->get_state_string(), this->get_admin_state_string()));
 }
 
-string LbNode::state_to_string() {
+string LbNode::get_state_string() {
   return LbNodeStateNames[static_cast<int>(this->state)];
 }
 
+string LbNode::get_admin_state_string() {
+  return LbNodeAdminStateNames[static_cast<int>(this->admin_state)];
+}
+
+// Determine if LB Node is up or down by joining State and AdminState.
+//
 bool LbNode::is_up() {
   if (this->admin_state < LbNodeAdminState::STATE_ENABLED)
     return false;
   return (this->state == LbNodeState::STATE_UP);
 }
+
+// Determine if LB Node is up or down by joining State and AdminState, return it
+// as string.
+//
+string LbNode::is_up_string() { return this->is_up() ? "up" : "down"; }
 
 /// Schedules all LB Node's Healthchecks to run
 ///

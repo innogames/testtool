@@ -236,7 +236,7 @@ void TestTool::dump_status() {
 
     for (const auto &lb_node : lb_pool.second->nodes) {
       lb_nodes_status[lb_node->name] = {
-          {"state", lb_node->state_to_string()},
+          {"state", lb_node->is_up_string()},
           {"route_network", lb_node->route_network},
           {"ipv4_address", lb_node->ipv4_address},
           {"ipv6_address", lb_node->ipv6_address},
@@ -247,7 +247,7 @@ void TestTool::dump_status() {
         {"route_network", lb_pool.second->route_network},
         {"nodes_alive", lb_pool.second->count_up_nodes()},
         {"nodes", lb_nodes_status},
-        {"state", lb_pool.second->state_to_string()},
+        {"state", lb_pool.second->get_state_string()},
         {"ipv4_address", lb_pool.second->ipv4_address},
         {"ipv6_address", lb_pool.second->ipv6_address},
     };

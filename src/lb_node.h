@@ -35,7 +35,9 @@ public:
   void change_downtime(string s);
 
   bool is_up();
-  string state_to_string();
+  string is_up_string();
+  string get_state_string();
+  string get_admin_state_string();
 
   // Members
 public:
