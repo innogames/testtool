@@ -62,17 +62,10 @@ void TesttoolTest::TearDown() {
 }
 
 void TesttoolTest::EndDummyHC(string lb_pool_name, string lb_node_name,
-                              HealthcheckResult result) {
+                              HealthcheckResult result, bool all_hcs) {
   Healthcheck_dummy *hcd = NULL;
 
   LbNode *lbn = GetLbNode(lb_pool_name, lb_node_name);
-
-  try {
-    hcd = (Healthcheck_dummy *)(lbn->healthchecks.at(0));
-  } catch (out_of_range) {
-    throw LbPoolTestException("Could't find HC for LB Pool " + lb_pool_name +
-                              " LB Node " + lb_node_name);
-  }
 
   string message;
   switch (result) {
@@ -89,7 +82,16 @@ void TesttoolTest::EndDummyHC(string lb_pool_name, string lb_node_name,
     message = "dummy_panic";
     break;
   }
-  hcd->dummy_end_check(result, message);
+
+  try {
+    for (int i = 0; i < (all_hcs ? lbn->healthchecks.size() : 1); i++) {
+      hcd = (Healthcheck_dummy *)(lbn->healthchecks.at(i));
+      hcd->dummy_end_check(result, message);
+    }
+  } catch (out_of_range) {
+    throw LbPoolTestException("Could't find HC for LB Pool " + lb_pool_name +
+                              " LB Node " + lb_node_name);
+  }
 }
 
 LbNode *TesttoolTest::GetLbNode(string lb_pool_name, string lb_node_name) {

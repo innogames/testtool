@@ -28,7 +28,7 @@ protected:
   virtual void SetUp(bool init_state);
   virtual void TearDown();
   void EndDummyHC(string lb_pool_name, string lb_node_name,
-                  HealthcheckResult result);
+                  HealthcheckResult result, bool all_hcs);
   LbNode *GetLbNode(string lb_pool_name, string lb_node_name);
   LbNodeState GetLbNodeState(string lb_pool_name, string lb_node_name);
   set<string> UpNodesNames();
