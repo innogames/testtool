@@ -16,6 +16,8 @@
 
 #include "healthcheck.h"
 
+#define HC_UA "testtool"
+
 class Healthcheck_http : public Healthcheck {
 
   // Methods
@@ -38,6 +40,7 @@ protected:
   string host;
   int port;
   vector<string> ok_codes;
+  vector<string> drain_codes;
   struct addrinfo *addrinfo;
   string reply;
 };

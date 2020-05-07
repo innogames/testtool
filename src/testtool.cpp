@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <event2/event.h>
 #include <fmt/format.h>
@@ -74,7 +76,7 @@ void signal_handler(int signum) {
 /// - After the downtime is removed, they will be subject to normal healthchecks
 /// before getting traffic again.
 void TestTool::load_downtimes() {
-  log(MSG_INFO, "Reloading downtime list.");
+  log(MessageType::MSG_INFO, "Reloading downtime list.");
 
   json config;
   std::ifstream config_file(config_file_name);
@@ -91,18 +93,16 @@ void TestTool::load_downtimes() {
         auto pool_nodes = pool_config.value("nodes", nlohmann::json{});
         auto node_config = pool_nodes.value(lb_node->name, nlohmann::json{});
         if (!node_config.empty()) {
-          if (safe_get<bool>(node_config, "downtime", false)) {
-            lb_node->start_downtime();
-          } else {
-            lb_node->end_downtime();
-          }
+          lb_node->change_downtime(
+              safe_get<string>(node_config, "state", "online"));
         } else {
-          log(MSG_INFO, fmt::sprintf("Can't find LB Node '%s' in new config",
-                                     lb_node->name));
+          log(MessageType::MSG_INFO,
+              fmt::sprintf("Can't find LB Node '%s' in new config",
+                           lb_node->name));
         }
       }
     } else {
-      log(MSG_INFO,
+      log(MessageType::MSG_INFO,
           fmt::sprintf("Can't find LB Pool '%s' in new config", lb_pool.first));
     }
   }
@@ -110,7 +110,7 @@ void TestTool::load_downtimes() {
 
 /// Loads pools from given configuration file.
 void TestTool::load_config() {
-  log(MSG_INFO, "Loading configration file  " + config_file_name);
+  log(MessageType::MSG_INFO, "Loading configration file  " + config_file_name);
 
   json config;
   std::ifstream config_file(config_file_name);
@@ -125,8 +125,9 @@ void TestTool::load_config() {
       lb_pools[new_lbpool->name] = new_lbpool;
     } catch (NotLbPoolException ex) {
       // Nothing to do, just ignore it
-      log(MSG_INFO, fmt::sprintf("lbpool: %s state: not created message: %s",
-                                 name, ex.what()));
+      log(MessageType::MSG_INFO,
+          fmt::sprintf("lbpool: %s state: not created message: %s", name,
+                       ex.what()));
     }
   }
 }
@@ -185,17 +186,17 @@ void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
     // Worker still working.
   } else if (result == -1) {
     // Unable to get worker status
-    log(MSG_CRIT, "testtool: pfctl worker died");
+    log(MessageType::MSG_CRIT, "testtool: pfctl worker died");
     event_base_loopbreak(eventBase);
   } else {
     // Worker exited normally, status is its exit code
     switch (status) {
     case EXIT_FAILURE:
-      log(MSG_CRIT, "testtool: pfctl worked died with error code");
+      log(MessageType::MSG_CRIT, "testtool: pfctl worked died with error code");
       event_base_loopbreak(eventBase);
       break;
     case EXIT_SUCCESS:
-      log(MSG_INFO, "testtool: pfclt worker terminated normally");
+      log(MessageType::MSG_INFO, "testtool: pfclt worker terminated normally");
       break;
     }
   }
@@ -235,7 +236,7 @@ void TestTool::dump_status() {
 
     for (const auto &lb_node : lb_pool.second->nodes) {
       lb_nodes_status[lb_node->name] = {
-          {"state", lb_node->get_state_text()},
+          {"state", lb_node->is_up_string()},
           {"route_network", lb_node->route_network},
           {"ipv4_address", lb_node->ipv4_address},
           {"ipv6_address", lb_node->ipv6_address},
@@ -246,7 +247,7 @@ void TestTool::dump_status() {
         {"route_network", lb_pool.second->route_network},
         {"nodes_alive", lb_pool.second->count_up_nodes()},
         {"nodes", lb_nodes_status},
-        {"state", lb_pool.second->get_state_text()},
+        {"state", lb_pool.second->get_state_string()},
         {"ipv4_address", lb_pool.second->ipv4_address},
         {"ipv6_address", lb_pool.second->ipv6_address},
     };
@@ -259,7 +260,7 @@ void TestTool::dump_status() {
     rename("/var/run/iglb/lbpools_state.json.new",
            "/var/run/iglb/lbpools_state.json");
   } else {
-    log(MSG_CRIT,
+    log(MessageType::MSG_CRIT,
         fmt::sprintf("Could not write status file, will retry next time."));
   }
 }
@@ -309,7 +310,7 @@ void TestTool::setup_events() {
 
 void init_libevent() {
   eventBase = event_base_new();
-  log(MSG_INFO,
+  log(MessageType::MSG_INFO,
       fmt::sprintf("libevent method: %s", event_base_get_method(eventBase)));
 }
 
@@ -320,7 +321,7 @@ int init_libssl() {
   SSL_load_error_strings();
   OpenSSL_add_all_algorithms();
 
-  log(MSG_INFO,
+  log(MessageType::MSG_INFO,
       fmt::sprintf("OpenSSL version: %s", SSLeay_version(SSLEAY_VERSION)));
 
   sctx = SSL_CTX_new(TLSv1_2_client_method());
@@ -382,11 +383,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  log(MSG_INFO, "Initializing various stuff...");
+  log(MessageType::MSG_INFO, "Initializing various stuff...");
 
   parent_pid = getpid();
   pfctl_mq = start_pfctl_worker();
+#ifdef __FreeBSD__
   setproctitle("%s", "main process");
+#endif
 
   signal(SIGINT, signal_handler);
   signal(SIGTERM, signal_handler);
@@ -395,13 +398,14 @@ int main(int argc, char *argv[]) {
   signal(SIGUSR1, signal_handler);
 
   if (!init_libssl()) {
-    log(MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
+    log(MessageType::MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
     exit(EXIT_FAILURE);
   }
   init_libevent();
 
   if (!Healthcheck_ping::initialize()) {
-    log(MSG_CRIT, "Unable to initialize Healthcheck_ping, terminating!");
+    log(MessageType::MSG_CRIT,
+        "Unable to initialize Healthcheck_ping, terminating!");
     exit(EXIT_FAILURE);
   }
 
@@ -409,19 +413,19 @@ int main(int argc, char *argv[]) {
   tool->load_config();
 
   tool->setup_events();
-  log(MSG_INFO, "Entering the main loop...");
+  log(MessageType::MSG_INFO, "Entering the main loop...");
   event_base_dispatch(eventBase);
-  log(MSG_INFO, "Left the main loop.");
+  log(MessageType::MSG_INFO, "Left the main loop.");
 
   delete tool;
-  log(MSG_INFO, "Stopping testtool");
+  log(MessageType::MSG_INFO, "Stopping testtool");
 
   Healthcheck_ping::destroy();
 
   finish_libevent();
   finish_libssl();
   stop_pfctl_worker();
-  log(MSG_INFO, "Waiting for pfctl worker");
+  log(MessageType::MSG_INFO, "Waiting for pfctl worker");
   wait(NULL);
-  log(MSG_INFO, "Testtool finished, bye!");
+  log(MessageType::MSG_INFO, "Testtool finished, bye!");
 }

@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/interprocess/ipc/message_queue.hpp>
 #include <fmt/format.h>
 #include <fmt/printf.h>
@@ -39,7 +41,7 @@ bool pfctl_worker_loop(message_queue *mq) {
   unsigned int priority;
   bool mq_success;
 
-  log(MSG_INFO, "pfctl_worker: entering worker loop");
+  log(MessageType::MSG_INFO, "pfctl_worker: entering worker loop");
 
   running = true;
   while (running) {
@@ -55,7 +57,7 @@ bool pfctl_worker_loop(message_queue *mq) {
       mq_success = mq->timed_receive(&msg, sizeof(pfctl_msg), recvd_size,
                                      priority, delay);
     } catch (const exception &ex) {
-      log(MSG_CRIT,
+      log(MessageType::MSG_CRIT,
           fmt::sprintf("pfctl_worker: exception while receiving from queue %s",
                        ex.what()));
       return false;
@@ -63,7 +65,7 @@ bool pfctl_worker_loop(message_queue *mq) {
 
     // Check if master process is still alive.
     if (getppid() != parent_pid) {
-      log(MSG_CRIT, fmt::sprintf("pfctl_worker: parent died"));
+      log(MessageType::MSG_CRIT, fmt::sprintf("pfctl_worker: parent died"));
       return false;
     }
 
@@ -74,29 +76,23 @@ bool pfctl_worker_loop(message_queue *mq) {
 
     assert(recvd_size == sizeof(pfctl_msg));
 
-    log(MSG_INFO, fmt::sprintf("lbpool: %s sync: start pf_table: %s",
-                               msg.pool_name, msg.table_name));
+    log(MessageType::MSG_INFO,
+        fmt::sprintf("lbpool: %s sync: start pf_table: %s", msg.pool_name,
+                     msg.table_name));
 
     // Decode the message
     string table_name(msg.table_name);
-    set<string> wanted_addresses;
-
-    for (int i = 0; i < MAX_NODES * 2; i++) {
-      string wanted_address(msg.wanted_addresses[i]);
-      if (wanted_address.length())
-        wanted_addresses.insert(wanted_address);
-    }
 
     // Measure total time of all pfctl operations.
     // Don't use std::chrono, there is a conflict with boost.
     chrono::high_resolution_clock::time_point t1 =
         chrono::high_resolution_clock::now();
-    pf_sync_table(table_name, wanted_addresses);
+    pf_sync_table(table_name, msg.synced_lb_nodes);
     chrono::high_resolution_clock::time_point t2 =
         chrono::high_resolution_clock::now();
     auto duration =
         chrono::duration_cast<chrono::milliseconds>(t2 - t1).count();
-    log(MSG_INFO,
+    log(MessageType::MSG_INFO,
         fmt::sprintf("lbpool: %s sync: finish pf_table: %s time: %dms",
                      msg.pool_name, msg.table_name, duration));
   }
@@ -111,11 +107,11 @@ message_queue *new_pfctl_queue() {
     rmq = &mq;
   } catch (const runtime_error &ex) {
     // speciffic handling for runtime_error
-    log(MSG_INFO,
+    log(MessageType::MSG_INFO,
         fmt::sprintf("testtool: unable to create queue %s", ex.what()));
   } catch (const exception &ex) {
     // std::runtime_error which is handled explicitly
-    log(MSG_INFO,
+    log(MessageType::MSG_INFO,
         fmt::sprintf("testtool: unable to create queue %s", ex.what()));
   }
   return rmq;
@@ -133,18 +129,19 @@ message_queue *attach_pfctl_queue() {
         usleep(100000);
         continue;
       } else {
-        log(MSG_INFO, fmt::sprintf("pfctl_worker: Interprocess Exception while "
-                                   "waiting for queue %d",
-                                   ex.get_error_code()));
+        log(MessageType::MSG_INFO,
+            fmt::sprintf("pfctl_worker: Interprocess Exception while "
+                         "waiting for queue %d",
+                         ex.get_error_code()));
       }
     } catch (const runtime_error &ex) {
       // speciffic handling for runtime_error
-      log(MSG_INFO,
+      log(MessageType::MSG_INFO,
           fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
                        ex.what()));
     } catch (const exception &ex) {
       // std::runtime_error which is handled explicitly
-      log(MSG_INFO,
+      log(MessageType::MSG_INFO,
           fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
                        ex.what()));
     }
@@ -155,25 +152,39 @@ message_queue *attach_pfctl_queue() {
 }
 
 bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> lb_nodes) {
+                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
   pfctl_msg msg;
 
   memset(&msg, 0, sizeof(msg));
   strncpy(msg.pool_name, pool_name.c_str(), sizeof(msg.pool_name));
   strncpy(msg.table_name, table_name.c_str(), sizeof(msg.table_name));
-  int address_index = 0;
-  assert(lb_nodes.size() < MAX_NODES);
-  for (auto node : lb_nodes) {
-    if (!node->ipv4_address.empty()) {
-      strncpy(msg.wanted_addresses[address_index], node->ipv4_address.c_str(),
-              ADDR_LEN);
-      address_index++;
+  int lb_node_index = 0;
+  assert(all_lb_nodes.size() < MAX_NODES);
+  assert(up_lb_nodes.size() < MAX_NODES);
+
+  // Information sent to pfctl worker contains the list of all nodes, down ones
+  // too because way of downing a node (with killing states or without) must be
+  // kept for each node separately.
+  for (LbNode *lb_node : all_lb_nodes) {
+    strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[0],
+            lb_node->ipv4_address.c_str(), ADDR_LEN);
+    strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[1],
+            lb_node->ipv6_address.c_str(), ADDR_LEN);
+
+    // State of each node is overwriten by presence of said node in up_lb_nodes,
+    // as the later one includes calculation of min_ and max_nodes and
+    // backup_pools.
+    if (up_lb_nodes.count(lb_node)) {
+      msg.synced_lb_nodes[lb_node_index].state = LbNodeState::STATE_UP;
+    } else {
+      msg.synced_lb_nodes[lb_node_index].state = lb_node->state;
     }
-    if (!node->ipv6_address.empty()) {
-      strncpy(msg.wanted_addresses[address_index], node->ipv6_address.c_str(),
-              ADDR_LEN);
-      address_index++;
-    }
+
+    // Pass information on if node is to be removed with or without killing
+    // states.
+    msg.synced_lb_nodes[lb_node_index].admin_state = lb_node->admin_state;
+
+    lb_node_index++;
   }
   return mq->try_send(&msg, sizeof(pfctl_msg), 0);
 }
@@ -188,14 +199,18 @@ message_queue *start_pfctl_worker() {
   if (pid == 0) {
     // Child process
     signal(SIGTERM, worker_signal_handler);
+#ifdef __FreeBSD__
     setproctitle("%s", "pfctl worker");
+#endif
     message_queue *mq = attach_pfctl_queue();
     if (mq == NULL) {
-      log(MSG_CRIT, "pfctl_worker: unable to attach to message queue");
+      log(MessageType::MSG_CRIT,
+          "pfctl_worker: unable to attach to message queue");
       exit(EXIT_FAILURE);
     }
     if (pfctl_worker_loop(mq)) {
-      log(MSG_INFO, fmt::sprintf("pfctl_worker: worker loop finished"));
+      log(MessageType::MSG_INFO,
+          fmt::sprintf("pfctl_worker: worker loop finished"));
       message_queue::remove("pfctl");
       exit(EXIT_SUCCESS);
     } else {
@@ -204,14 +219,14 @@ message_queue *start_pfctl_worker() {
       exit(EXIT_FAILURE);
     }
   } else if (pid == -1) {
-    log(MSG_CRIT, "testtool: unable to fork, terminating!");
+    log(MessageType::MSG_CRIT, "testtool: unable to fork, terminating!");
     exit(EXIT_FAILURE);
   } else {
     // Parent process
     worker_pid = pid;
     message_queue *mq = new_pfctl_queue();
     if (mq == NULL) {
-      log(MSG_CRIT, "testtool: unable to create message queue");
+      log(MessageType::MSG_CRIT, "testtool: unable to create message queue");
       return NULL;
     }
     return mq;
@@ -219,7 +234,7 @@ message_queue *start_pfctl_worker() {
 }
 
 void stop_pfctl_worker() {
-  log(MSG_INFO, "testtool: stopping pfctl worker");
+  log(MessageType::MSG_INFO, "testtool: stopping pfctl worker");
   kill(worker_pid, 15);
   message_queue::remove("pfctl");
 }

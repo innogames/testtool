@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/replace.hpp>
 #include <errno.h>
@@ -52,15 +54,26 @@ Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
   this->query = safe_get<string>(config, "hc_query", "HEAD /");
   this->host = safe_get<string>(config, "hc_host", "");
 
-  for (const int &ok_code : config["hc_ok_codes"]) {
+  vector<int> def_ok_codes{200};
+  for (const int &ok_code :
+       safe_get<std::vector<int>>(config, "hc_ok_codes", def_ok_codes)) {
     // OK Codes are stored as integers in Serveradmin but HTTP
     // protocol returns strings. Convert them now and compare
     // strings later.
     this->ok_codes.push_back(fmt::sprintf("%d", ok_code));
   }
   if (this->ok_codes.size() == 0) {
-    this->ok_codes.push_back("200");
+    this->ok_codes.push_back(fmt::sprintf("%d", def_ok_codes[0]));
   }
+
+  vector<int> def_drain_codes{};
+  for (const int &drain_code :
+       safe_get<std::vector<int>>(config, "hc_drain_codes", def_drain_codes)) {
+    // Drain codes are used for draining traffic from applications not using
+    // Serveradmin states.
+    this->drain_codes.push_back(fmt::sprintf("%d", drain_code));
+  }
+
   // If host was not given, use IP address
   if (("" == host) && (AF_INET == address_family)) {
     host = *ip_address;
@@ -77,9 +90,10 @@ Healthcheck_http::Healthcheck_http(const nlohmann::json &config,
   snprintf(port_str, sizeof(port_str), "%d", port);
   getaddrinfo(ip_address->c_str(), port_str, NULL, &addrinfo);
 
-  this->log_prefix =
-      fmt::sprintf("query: '%s' port: %d ok_codes: %s", this->query, this->port,
-                   boost::algorithm::join(this->ok_codes, ","));
+  this->log_prefix = fmt::sprintf(
+      "query: '%s' port: %d ok_codes: %s drain_codes: %s", this->query,
+      this->port, boost::algorithm::join(this->ok_codes, ","),
+      boost::algorithm::join(this->drain_codes, ","));
 }
 
 /// Constructor for HTTPS healthcheck
@@ -107,15 +121,12 @@ string Healthcheck_http::parse_query_template() {
   boost::replace_all(new_query, "{NODE_NAME}", this->parent_lbnode->name);
   boost::replace_all(new_query, "{NODE_ADDRESS}", *this->ip_address);
 
-  vector<std::string> up_nodes_names;
-  for (auto node : this->parent_lbnode->parent_lbpool->up_nodes) {
-    up_nodes_names.push_back(node->name);
-  }
-  string joined_up_nodes_names = boost::algorithm::join(up_nodes_names, ",");
+  string joined_up_nodes_names = boost::algorithm::join(
+      this->parent_lbnode->parent_lbpool->get_up_nodes_names(), ",");
   boost::replace_all(new_query, "{ACTIVE_NODES_NAMES}", joined_up_nodes_names);
 
   vector<std::string> up_nodes_addresses;
-  for (auto node : this->parent_lbnode->parent_lbpool->up_nodes) {
+  for (LbNode *node : this->parent_lbnode->parent_lbpool->get_up_nodes()) {
     if (!node->ipv4_address.empty())
       up_nodes_addresses.push_back(node->ipv4_address);
     if (!node->ipv6_address.empty())
@@ -143,9 +154,10 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
-  evbuffer_add_printf(bufferevent_get_output(bev),
-                      "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                      new_query.c_str(), this->host.c_str());
+  evbuffer_add_printf(
+      bufferevent_get_output(bev),
+      "%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nConnection: close\r\n\r\n",
+      new_query.c_str(), this->host.c_str(), HC_UA);
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -175,9 +187,10 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
-  evbuffer_add_printf(bufferevent_get_output(bev),
-                      "%s HTTP/1.1\r\nHost: %s\r\nConnection: close\r\n\r\n",
-                      new_query.c_str(), this->host.c_str());
+  evbuffer_add_printf(
+      bufferevent_get_output(bev),
+      "%s HTTP/1.1\r\nHost: %s\r\nUser-Agent: %s\r\nConnection: close\r\n\r\n",
+      new_query.c_str(), this->host.c_str(), HC_UA);
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
@@ -217,13 +230,13 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
   if (events & BEV_EVENT_TIMEOUT) {
     message = fmt::sprintf("timeout after %d.%3ds", hc->timeout.tv_sec,
                            hc->timeout.tv_usec / 1000);
-    return hc->end_check(HC_FAIL, message);
+    return hc->end_check(HealthcheckResult::HC_FAIL, message);
   }
 
   if (events & BEV_EVENT_ERROR) {
     if (hc->type == "https")
       return hc->end_check(
-          HC_FAIL,
+          HealthcheckResult::HC_FAIL,
           fmt::sprintf(
               "bev error: %s openssl error: %s",
               evutil_socket_error_to_string(
@@ -231,7 +244,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
               ERR_reason_error_string(bufferevent_get_openssl_error(bev))));
     else
       return hc->end_check(
-          HC_FAIL,
+          HealthcheckResult::HC_FAIL,
           fmt::sprintf("bev error: %s",
                        evutil_socket_error_to_string(
                            evutil_socket_geterror(bufferevent_getfd(bev)))));
@@ -256,16 +269,21 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
 
   message = fmt::sprintf("HTTP code %s", statusline);
 
+  for (auto drain_code : hc->drain_codes)
+    if (statusline.compare(drain_code) == 0)
+      return hc->end_check(HealthcheckResult::HC_DRAIN, message);
+
   for (auto ok_code : hc->ok_codes)
     if (statusline.compare(ok_code) == 0)
-      return hc->end_check(HC_PASS, message);
+      return hc->end_check(HealthcheckResult::HC_PASS, message);
 
-  return hc->end_check(HC_FAIL, message);
+  return hc->end_check(HealthcheckResult::HC_FAIL, message);
 }
 
 /// Overrides end_check() method to clean up things
 void Healthcheck_http::end_check(HealthcheckResult result, string message) {
-  if (verbose >= 2 && result != HC_PASS && this->bev != NULL) {
+  if (verbose >= 2 && result != HealthcheckResult::HC_PASS &&
+      this->bev != NULL) {
     char *error = evutil_socket_error_to_string(evutil_socket_geterror());
 
     if (error != NULL && strlen(error) > 0)

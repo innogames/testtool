@@ -14,13 +14,21 @@
 
 using namespace std;
 
-class LbNode {
-public:
-  enum State {
-    STATE_DOWN = 0,
-    STATE_UP = 1,
-  };
+enum class LbNodeState { STATE_DOWN, STATE_UP };
+static const char *LbNodeStateNames[] = {"down", "up"};
 
+enum class LbNodeAdminState {
+  STATE_DRAIN_HARD,
+  STATE_DRAIN_SOFT,
+  STATE_DOWNTIME,
+  STATE_ENABLED
+};
+static const char *LbNodeAdminStateNames[] = {"drained_hard", "drained_soft",
+                                              "downtimed", "enabled"};
+
+LbNodeAdminState admin_state_from_config(string s);
+
+class LbNode {
   // Methods
 public:
   LbNode(string name, const nlohmann::json &config,
@@ -28,12 +36,11 @@ public:
   void schedule_healthchecks(struct timespec *now);
   void finalize_healthchecks();
   void node_logic();
-
-  void start_downtime();
-  void end_downtime();
-
-  State get_state();       // getter for private member
-  string get_state_text(); // same, but text representation
+  void change_downtime(string s);
+  bool is_up();
+  string is_up_string();
+  string get_state_string();
+  string get_admin_state_string();
 
   // Members
 public:
@@ -43,16 +50,17 @@ public:
   string ipv4_address;
   string ipv6_address;
   class LbPool *parent_lbpool;
-  State state;
+  LbNodeState state;
+  LbNodeAdminState admin_state;
   vector<class Healthcheck *> healthchecks;
   bool min_nodes_kept; // Node was kept to meet min_nodes requirement.
   bool max_nodes_kept; // Node was kept because it met max_nodes requirement.
   bool checked;        // This node has all of its checks ran at least once.
   bool state_changed;  // This node hs changed its state since last check.
-  State admin_state;   // Keeps information about downtimes.
 
 private:
   bool backup;
+  bool kill_states; // Kill states when downtimed.
 };
 
 #endif

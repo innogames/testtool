@@ -14,10 +14,11 @@
 
 #include "lb_node.h"
 
-enum HealthcheckState { STATE_DOWN = 0, STATE_UP = 1 };
+enum class HealthcheckState { STATE_DRAIN, STATE_DOWN, STATE_UP };
+static const char *HealthcheckStateNames[] = {"fail", "down", "up"};
 
 // The results health-check implementations can select
-enum HealthcheckResult {
+enum class HealthcheckResult {
   // The excpected positive result
   //
   // This indicates that everything went fine with the check,
@@ -32,6 +33,12 @@ enum HealthcheckResult {
   // of times.
   HC_FAIL,
 
+  // The expected negative result with LB Node draining
+  //
+  // The same as above but will cause the LB Node to be gracefully drained of
+  // traffic
+  HC_DRAIN,
+
   // The unexpected result
   //
   // This indicates something wrong with our system.  It can be
@@ -41,6 +48,9 @@ enum HealthcheckResult {
   // to recover from this situation.
   HC_PANIC
 };
+
+static const char *HealthcheckResultNames[] = {"pass", "fail", "drain",
+                                               "panic"};
 
 // A quite useful macros are available in sys/time.h but
 // only for _KERNEL, at least in FreeBSD.
@@ -78,8 +88,8 @@ private:
   // Members
 public:
   class LbNode *parent_lbnode;
-  char last_state;
-  char hard_state;
+  HealthcheckState last_state;
+  HealthcheckState hard_state;
   string type;
   bool ran;          // This check was ran at least once.
   string log_prefix; // Common logging string

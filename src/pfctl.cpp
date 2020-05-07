@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <boost/algorithm/string.hpp>
 #include <boost/asio.hpp>
 #include <boost/system/error_code.hpp>
@@ -19,6 +21,7 @@
 
 #include "msg.h"
 #include "pfctl.h"
+#include "pfctl_worker.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -41,13 +44,13 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
     return true;
 
   if (verbose_pfctl) {
-    log(MSG_INFO, cmd);
+    log(MessageType::MSG_INFO, cmd);
   }
 
   high_resolution_clock::time_point t1 = high_resolution_clock::now();
   fp = popen(cmd.c_str(), "r");
   if (!fp) {
-    log(MSG_CRIT,
+    log(MessageType::MSG_CRIT,
         fmt::sprintf("pfctl: '%s' message: can't spawn process", cmd));
     return false;
   }
@@ -62,10 +65,11 @@ bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
       lines->push_back(line);
     }
   }
-  ret = WEXITSTATUS(pclose(fp));
+  int status = pclose(fp);
+  ret = WEXITSTATUS(status);
   high_resolution_clock::time_point t2 = high_resolution_clock::now();
   auto duration = duration_cast<milliseconds>(t2 - t1).count();
-  log(MSG_DEBUG,
+  log(MessageType::MSG_DEBUG,
       fmt::sprintf("pfctl: '%s' exit_code: %d time: %dms", cmd, ret, duration));
 
   if (ret != 0)
@@ -121,7 +125,7 @@ bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
   return pfctl_run_command(&cmd, NULL);
 }
 
-bool pf_kill_states_to_rdr(string *table, string *address, bool with_states) {
+bool pf_kill_states_to_rdr(string *table, string *address) {
   vector<string> cmd;
   cmd.push_back("-k");
   cmd.push_back("table");
@@ -131,12 +135,10 @@ bool pf_kill_states_to_rdr(string *table, string *address, bool with_states) {
   cmd.push_back("rdrhost");
   cmd.push_back("-k");
   cmd.push_back(*address);
-  if (with_states) {
-    cmd.push_back("-k");
-    cmd.push_back("kill");
-    cmd.push_back("-k");
-    cmd.push_back("rststates");
-  }
+  cmd.push_back("-k");
+  cmd.push_back("kill");
+  cmd.push_back("-k");
+  cmd.push_back("rststates");
 
   return pfctl_run_command(&cmd, NULL);
 }
@@ -167,16 +169,17 @@ bool pf_get_table(string *table, set<string> *result) {
   }
   boost::system::error_code ec;
   if (verbose_pfctl) {
-    log(MSG_INFO, "pfctl: IP addresses in table");
+    log(MessageType::MSG_INFO, "pfctl: IP addresses in table");
   }
   for (auto line : out) {
     boost::trim(line);
     boost::asio::ip::address::from_string(line, ec);
     if (ec)
-      log(MSG_CRIT, fmt::sprintf("pfctl: Not an IP Address '%s'", line));
+      log(MessageType::MSG_CRIT,
+          fmt::sprintf("pfctl: Not an IP Address '%s'", line));
     else {
       if (verbose_pfctl) {
-        log(MSG_INFO, line);
+        log(MessageType::MSG_INFO, line);
       }
       result->insert(line);
     }
@@ -225,11 +228,22 @@ bool pf_table_rebalance(string *table, set<string> *skip_addresses) {
   return true;
 }
 
-bool pf_sync_table(string table, set<string> want_set) {
+bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
   set<string> cur_set;
+  set<string> want_set;
 
   if (!pf_get_table(&table, &cur_set))
     return false;
+
+  for (int i = 0; i < MAX_NODES; i++) {
+    for (int proto = 0; proto < 2; proto++) {
+      if (strlen(synced_lb_nodes[i].ip_address[proto]) &&
+          synced_lb_nodes[i].state == LbNodeState::STATE_UP &&
+          synced_lb_nodes[i].admin_state == LbNodeAdminState::STATE_ENABLED) {
+        want_set.insert(string(synced_lb_nodes[i].ip_address[proto]));
+      }
+    }
+  }
 
   // Prepare nodes to add and remove
   std::set<string> to_add;
@@ -240,22 +254,47 @@ bool pf_sync_table(string table, set<string> want_set) {
   std::set_difference(cur_set.begin(), cur_set.end(), want_set.begin(),
                       want_set.end(), std::inserter(to_del, to_del.end()));
 
-  // Remove unwanted nodes from table.
+  // Remove unwanted LB Nodes from table. This prevents any future connections
+  // to be balanced to them but does not affect existing connections.
   if (!pf_table_del(&table, &to_del))
     return false;
-  for (auto del : to_del) {
-    // Kill all src_nodes, linked states and unlinked states.
-    pf_kill_src_nodes_to(&table, &del, true);
-    pf_kill_states_to_rdr(&table, &del, true);
-    // Kill nodes again, there might be some which were created after last
-    // kill due to belonging to states with deferred src_nodes.
-    // See TECH-6711 and around.
-    pf_kill_src_nodes_to(&table, &del, true);
+
+  // This used to be done with iteration over std::set_difference but we need to
+  // keep information about killing states, so iterate manually instead and
+  // check against to_del.
+  for (int i = 0; i < MAX_NODES; i++) {
+    bool with_states =
+        !(synced_lb_nodes[i].admin_state <= LbNodeAdminState::STATE_DRAIN_SOFT);
+
+    for (int proto = 0; proto < 2; proto++) {
+      if (strlen(synced_lb_nodes[i].ip_address[proto]) == 0)
+        continue;
+
+      string lb_node_ip_address(synced_lb_nodes[i].ip_address[proto]);
+
+      // Don't delete things not include in to_del.
+      if (to_del.count(lb_node_ip_address) == 0)
+        continue;
+
+      // Kill src_nodes. And linked states if necessary.
+      pf_kill_src_nodes_to(&table, &lb_node_ip_address, with_states);
+
+      if (with_states) {
+        // Kill unlinked states if necessary.
+        pf_kill_states_to_rdr(&table, &lb_node_ip_address);
+
+        // Kill nodes again, there might be some which were created after last
+        // kill due to belonging to states with deferred src_nodes. See
+        // TECH-6711 and around.
+        pf_kill_src_nodes_to(&table, &lb_node_ip_address, true);
+      }
+    }
   }
 
   // Add wanted nodes to table
   if (!pf_table_add(&table, &to_add))
     return false;
+
   // Rebalance table if new hosts are added. Kill src_nodes to old entries
   if (to_add.size())
     pf_table_rebalance(&table, &to_add);

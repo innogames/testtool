@@ -4,6 +4,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <iostream>
@@ -15,6 +17,7 @@
 #include "config.h"
 #include "healthcheck.h"
 #include "healthcheck_dns.h"
+#include "healthcheck_dummy.h"
 #include "healthcheck_http.h"
 #include "healthcheck_ping.h"
 #include "healthcheck_postgres.h"
@@ -91,15 +94,15 @@ Healthcheck::Healthcheck(const nlohmann::json &config,
   this->ran = false;
 
   // Initialize healthchecks state basing on state of parent node.
-  // Proper initial state for the healthcheck quarantees no
+  // Proper initial state for the healthcheck guarantees no
   // unnecessary messages.
-  if (parent_lbnode->get_state() == LbNode::STATE_UP) {
-    hard_state = STATE_UP;
-    last_state = STATE_UP;
+  if (parent_lbnode->is_up()) {
+    hard_state = HealthcheckState::STATE_UP;
+    last_state = HealthcheckState::STATE_UP;
     failure_counter = 0;
   } else {
-    hard_state = STATE_DOWN;
-    last_state = STATE_DOWN;
+    hard_state = HealthcheckState::STATE_DOWN;
+    last_state = HealthcheckState::STATE_DOWN;
     failure_counter = max_failed_checks;
   }
 }
@@ -130,10 +133,12 @@ Healthcheck *Healthcheck::healthcheck_factory(const nlohmann::json &config,
         new Healthcheck_postgres(config, _parent_lbnode, ip_address);
   else if (type == "dns")
     new_healthcheck = new Healthcheck_dns(config, _parent_lbnode, ip_address);
+  else if (type == "dummy")
+    new_healthcheck = new Healthcheck_dummy(config, _parent_lbnode, ip_address);
   else
     return NULL;
 
-  log(MSG_INFO, new_healthcheck, "state: created");
+  log(MessageType::MSG_INFO, new_healthcheck, "state: created");
 
   return new_healthcheck;
 }
@@ -158,7 +163,7 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
   is_running = true;
 
   if (verbose > 1)
-    log(MSG_INFO, this, "scheduling");
+    log(MessageType::MSG_INFO, this, "scheduling");
 
   return true;
 }
@@ -176,26 +181,33 @@ void Healthcheck::finalize() {
 // the health check.  If it wouldn't be called, the process is not
 // going to continue.
 void Healthcheck::end_check(HealthcheckResult result, string message) {
-  msgType log_type;
+  MessageType log_type;
   string statemsg;
 
   switch (result) {
-  case HC_PASS:
-    log_type = MSG_STATE_UP;
-    this->last_state = STATE_UP;
+  case HealthcheckResult::HC_PASS:
+    log_type = MessageType::MSG_STATE_UP;
+    this->last_state = HealthcheckState::STATE_UP;
     statemsg = fmt::sprintf("state: up message: %s", message);
     this->handle_result(statemsg);
     break;
 
-  case HC_FAIL:
-    log_type = MSG_STATE_DOWN;
-    this->last_state = STATE_DOWN;
+  case HealthcheckResult::HC_FAIL:
+    log_type = MessageType::MSG_STATE_DOWN;
+    this->last_state = HealthcheckState::STATE_DOWN;
     statemsg = fmt::sprintf("state: down message: %s", message);
     this->handle_result(statemsg);
     break;
 
-  case HC_PANIC:
-    log_type = MSG_CRIT;
+  case HealthcheckResult::HC_DRAIN:
+    log_type = MessageType::MSG_STATE_DOWN;
+    this->last_state = HealthcheckState::STATE_DRAIN;
+    statemsg = fmt::sprintf("state: down with draining, message: %s", message);
+    this->handle_result(statemsg);
+    break;
+
+  case HealthcheckResult::HC_PANIC:
+    log_type = MessageType::MSG_CRIT;
     statemsg = fmt::sprintf("state: failure message: %s", message);
     log(log_type, this, statemsg);
     exit(2);
@@ -212,33 +224,44 @@ void Healthcheck::end_check(HealthcheckResult result, string message) {
 void Healthcheck::handle_result(string message) {
   string fail_message;
   bool changed = false;
-  int log_level = MSG_INFO;
+  MessageType log_level = MessageType::MSG_INFO;
 
   // If a healtcheck has passed, zero the failure counter.
-  if (last_state == STATE_UP)
+  if (last_state == HealthcheckState::STATE_UP)
     failure_counter = 0;
 
-  // Change from DOWN to UP. The healthcheck has passed again.
-  if (hard_state == STATE_DOWN && last_state == STATE_UP) {
-    hard_state = STATE_UP;
-    failure_counter = 0;
-    changed = true;
-    log_level = MSG_STATE_UP;
-  }
-  // Change from UP to DOWN. The healthcheck has failed.
-  else if (hard_state == STATE_UP && last_state == STATE_DOWN) {
-    changed = true;
-    log_level = MSG_STATE_DOWN;
-
-    failure_counter++;
-    fail_message =
-        fmt::sprintf("failure: %d of %d", failure_counter, max_failed_checks);
-
-    // Mark the hard DOWN state only after the number of failed checks is
-    // reached.
-    if (failure_counter >= max_failed_checks) {
-      hard_state = STATE_DOWN;
+  if (hard_state == HealthcheckState::STATE_UP) {
+    switch (last_state) {
+    case HealthcheckState::STATE_UP:
+      // No change, make compiler happy.
+      break;
+    case HealthcheckState::STATE_DOWN:
+      // Change from UP to DOWN. The healthcheck has failed.
+      changed = true;
+      log_level = MessageType::MSG_STATE_DOWN;
+      failure_counter++;
+      fail_message =
+          fmt::sprintf("failure: %d of %d", failure_counter, max_failed_checks);
+      // Mark the hard DOWN state only after the number of failed checks is
+      // reached.
+      if (failure_counter >= max_failed_checks) {
+        hard_state = HealthcheckState::STATE_DOWN;
+      }
+      break;
+    case HealthcheckState::STATE_DRAIN:
+      // Change from UP to DRAIN. The healthcheck has failed with draining.
+      changed = true;
+      log_level = MessageType::MSG_STATE_DOWN;
+      // Make it fail immediately not waiting for max_failed.
+      hard_state = HealthcheckState::STATE_DRAIN;
+      break;
     }
+  } else if (last_state == HealthcheckState::STATE_UP) {
+    // Change from any state to UP. The healthcheck has passed again.
+    hard_state = HealthcheckState::STATE_UP;
+    failure_counter = 0;
+    changed = true;
+    log_level = MessageType::MSG_STATE_UP;
   }
 
   if (changed || verbose) {

@@ -12,6 +12,8 @@
 // Copyright (c) 2018 InnoGames GmbH
 //
 
+#define FMT_HEADER_ONLY
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <event2/event.h>
@@ -122,7 +124,8 @@ int Healthcheck_dns::schedule_healthcheck(struct timespec *now) {
   }
 
   if (socket_fd == -1) {
-    log(MSG_CRIT, this, fmt::sprintf("socket(): error %s", strerror(errno)));
+    log(MessageType::MSG_CRIT, this,
+        fmt::sprintf("socket(): error %s", strerror(errno)));
     return false;
   }
 
@@ -199,13 +202,13 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what,
   int bytes_received;
   struct dns_header *dns_query_struct = (struct dns_header *)raw_packet;
   string message = "bad event";
-  HealthcheckResult result = HC_PANIC;
+  HealthcheckResult result = HealthcheckResult::HC_PANIC;
 
   // Prepare memory
   memset(&raw_packet, 0, sizeof(raw_packet));
 
   if (what & EV_TIMEOUT) {
-    result = HC_FAIL;
+    result = HealthcheckResult::HC_FAIL;
     message =
         fmt::sprintf("timeout after %d.%03ds", healthcheck->timeout.tv_sec,
                      healthcheck->timeout.tv_usec / 1000);
@@ -216,27 +219,27 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what,
       // This happens when the target host is not in the arp table and
       // therefore nothing was ever sent to it. Although sending send() returns
       // no error. Or when an ICMP dst unreachable is received.
-      result = HC_FAIL;
+      result = HealthcheckResult::HC_FAIL;
       message = "connection refused";
     } else if (bytes_received < (int)sizeof(struct dns_header) ||
                bytes_received > DNS_BUFFER_SIZE) {
       // Size of the received message shall be between the size of header and
       // the maximum dns packet size.
-      result = HC_FAIL;
+      result = HealthcheckResult::HC_FAIL;
       message = "received malformed data";
     } else if (ntohs(dns_query_struct->ancount) == 0) {
       // No answers means that the server knows nothing about the domain.
       // Therefore it fails the check.
-      result = HC_FAIL;
+      result = HealthcheckResult::HC_FAIL;
       message = "received no DNS answers";
     } else if (ntohs(dns_query_struct->qid) != healthcheck->my_transaction_id) {
       // Received transaction id must be the same as in the last query sent to
       // the server.
-      result = HC_FAIL;
+      result = HealthcheckResult::HC_FAIL;
       message = "received wrong transaction id";
     } else {
       // Finally, it seems that all is fine.
-      result = HC_PASS;
+      result = HealthcheckResult::HC_PASS;
       message = "received a DNS answer";
 
       // We do not really check the contents of the answer sections.

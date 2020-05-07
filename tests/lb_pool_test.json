@@ -1,0 +1,30 @@
+{
+    "lbpool.example.com": {
+        "health_checks": [
+            {
+                "hc_type": "dummy"
+            }
+        ],
+        "ip4": "192.0.2.0",
+        "ip6": "2001:db8:0000::0",
+        "nodes": {
+            "lbnode1": {
+                "ip4": "10.0.0.1",
+                "ip6": "2001:db8:1000::1"
+            },
+            "lbnode2": {
+                "ip4": "10.0.0.2",
+                "ip6": "2001:db8:1000::2"
+            },
+            "lbnode3": {
+                "ip4": "10.0.0.3",
+                "ip6": "2001:db8:1000::3"
+            }
+        },
+        "pf_name": "pool_0",
+        "protocol_port": [
+            "tcp80"
+        ],
+        "testtool_active": true
+    }
+}

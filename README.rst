@@ -31,9 +31,10 @@ HTTP and HTTPS
 
 The check sends the following HTTP request::
 
-	$hc_query HTTP/1.1
-	Host: $ip_addr
-	Connection: close
+  $hc_query HTTP/1.1
+  Host: $ip_addr
+  User-agent: testtool
+  Connection: close
 
 The request is sent to the specified port, or port 80 for `http` or port
 443 for `https`.  Health check port number has nothing to do with forwarded
@@ -51,8 +52,22 @@ Fails on:
 Type-specific attributes:
 
 * `hc_port`: Port number to connect to
-* `hc_query`: HTTP method and the URL (path) to test
-  (e.g. "HEAD /backend/lb_check.php")
+* `hc_query`: HTTP method and the URL (path) to test, like
+  "HEAD /backend/lb_check.php?pool={POOL_NAME}".
+  There are a few macros available which can be put into the query.
+  For expansion of a single IP address the address of the same address family
+  as the check is choosen. For expansion of multiple addresses both IPv4 and
+  IPv6 addresses will be sent.
+
+  - `{POOL_NAME}` - hostname of currently checked LB Pool
+  - `{POOL_ADDRESS}` - IP address of currently checked LB Pool
+  - `{NODE_NAME}` - hostname of currently checked LB Node
+  - `{NODE_ADDRESS}` - IP address of currently checked LB Node
+  - `{ACTIVE_NODES_NAMES}` - hostnames of LB Nodes of currently checked LB Pool
+    considered up by testtool
+  - `{ACTIVE_NODES_ADDRESSES}` - IP addresses of LB Nodes of currently checked
+    LB Pool considered up by testtool
+
 * `hc_ok_codes`: List of HTTP codes treated as "OK"
 * `hc_host`: Host header to be sent
 
