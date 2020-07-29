@@ -175,9 +175,18 @@ bool send_message(message_queue *mq, string pool_name, string table_name,
     // as the later one includes calculation of min_ and max_nodes and
     // backup_pools.
     if (up_lb_nodes.count(lb_node)) {
-      msg.synced_lb_nodes[lb_node_index].state = LbNodeState::STATE_UP;
+      log(MessageType::MSG_INFO, lb_node,
+          fmt::sprintf(
+              "Syncing lb_node with wanted state up admin_state %s state %s",
+              lb_node->get_admin_state_string(), lb_node->get_state_string()));
+      msg.synced_lb_nodes[lb_node_index].wanted_state = LbNodeState::STATE_UP;
     } else {
-      msg.synced_lb_nodes[lb_node_index].state = lb_node->state;
+      log(MessageType::MSG_INFO, lb_node,
+          fmt::sprintf("Syncing lb_node with wanted state down "
+                       "admin_state %s state %s",
+                       lb_node->get_admin_state_string(),
+                       lb_node->get_state_string()));
+      msg.synced_lb_nodes[lb_node_index].wanted_state = LbNodeState::STATE_DOWN;
     }
 
     // Pass information on if node is to be removed with or without killing
