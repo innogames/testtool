@@ -12,7 +12,7 @@ LIB_DEPENDS=	libyaml-cpp.so:devel/yaml-cpp
 
 BUILD_DEPENDS=	${NONEXISTENT}:devel/libevent \
 		${NONEXISTENT}:devel/boost-libs \
-		${NONEXISTENT}:databases/postgresql94-client \
+		${NONEXISTENT}:databases/postgresql95-client \
 		${NONEXISTENT}:devel/nlohmann-json \
 		${NONEXISTENT}:devel/googletest \
 		${NONEXISTENT}:devel/libfmt
