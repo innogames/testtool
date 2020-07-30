@@ -31,7 +31,7 @@ bool send_message(message_queue *mq, string pool_name, string table_name,
                   set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes);
 
 typedef struct {
-  LbNodeState state;            // To add or remove LB Node from table.
+  LbNodeState wanted_state;     // To add or remove LB Node from table.
   LbNodeAdminState admin_state; // How to remove LB Node from table.
   // IPv4 and IPv6 addresses.
   char ip_address[2][ADDR_LEN];
