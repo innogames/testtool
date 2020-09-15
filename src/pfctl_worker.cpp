@@ -159,6 +159,9 @@ bool send_message(message_queue *mq, string pool_name, string table_name,
   strncpy(msg.pool_name, pool_name.c_str(), sizeof(msg.pool_name));
   strncpy(msg.table_name, table_name.c_str(), sizeof(msg.table_name));
   int lb_node_index = 0;
+
+  log(MessageType::MSG_INFO, fmt::sprintf("Syncing lb_pool %s", pool_name));
+
   assert(all_lb_nodes.size() < MAX_NODES);
   assert(up_lb_nodes.size() < MAX_NODES);
 
