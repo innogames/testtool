@@ -22,7 +22,7 @@ using namespace boost::interprocess;
 // 120ms. Optimal lenght would be 16. Keep it a bit shorter in case operations
 // take way longer, for example when HWLB is under a DDoS.
 #define QUEUE_LEN 10
-#define MAX_NODES 20 // I hope 20 LB Nodes is reasonable enough
+#define MAX_NODES 100 // I hope 100 LB Nodes is reasonable enough
 #define ADDR_LEN sizeof("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:255.255.255.255") + 1
 
 message_queue *start_pfctl_worker();
