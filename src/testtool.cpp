@@ -7,7 +7,9 @@
 #define FMT_HEADER_ONLY
 
 #include <boost/interprocess/ipc/message_queue.hpp>
-#include <event2/event.h>
+#include <event2/event-config.h>
+#include <event2/util.h>
+#include <event2/visibility.h>
 #include <fmt/format.h>
 #include <fmt/printf.h>
 #include <fstream>
@@ -50,8 +52,10 @@ message_queue *pfctl_mq;
 pid_t parent_pid;
 pid_t worker_pid;
 
-void signal_handler(int signum) {
-  switch (signum) {
+static void signal_handler(evutil_socket_t fd, short event, void *arg) {
+  int signal = event_get_signal((struct event *)arg);
+
+  switch (signal) {
   case SIGPIPE:
     // This will happen on failed SSL checks.
     break;
@@ -391,17 +395,31 @@ int main(int argc, char *argv[]) {
   setproctitle("%s", "main process");
 #endif
 
-  signal(SIGINT, signal_handler);
-  signal(SIGTERM, signal_handler);
-  signal(SIGHUP, signal_handler);
-  signal(SIGPIPE, signal_handler);
-  signal(SIGUSR1, signal_handler);
-
   if (!init_libssl()) {
     log(MessageType::MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
     exit(EXIT_FAILURE);
   }
   init_libevent();
+
+  struct event *ev_sigint =
+      evsignal_new(eventBase, SIGINT, signal_handler, event_self_cbarg());
+  evsignal_add(ev_sigint, NULL);
+
+  struct event *ev_sigterm =
+      evsignal_new(eventBase, SIGTERM, signal_handler, event_self_cbarg());
+  evsignal_add(ev_sigterm, NULL);
+
+  struct event *ev_sighup =
+      evsignal_new(eventBase, SIGHUP, signal_handler, event_self_cbarg());
+  evsignal_add(ev_sighup, NULL);
+
+  struct event *ev_sigpipe =
+      evsignal_new(eventBase, SIGPIPE, signal_handler, event_self_cbarg());
+  evsignal_add(ev_sigpipe, NULL);
+
+  struct event *ev_sigusr1 =
+      evsignal_new(eventBase, SIGUSR1, signal_handler, event_self_cbarg());
+  evsignal_add(ev_sigusr1, NULL);
 
   if (!Healthcheck_ping::initialize()) {
     log(MessageType::MSG_CRIT,
