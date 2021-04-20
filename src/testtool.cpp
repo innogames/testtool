@@ -312,10 +312,12 @@ void TestTool::setup_events() {
   event_add(dump_status_event, &dump_status_interval);
 }
 
-void init_libevent() {
+bool init_libevent() {
   eventBase = event_base_new();
-  log(MessageType::MSG_INFO,
-      fmt::sprintf("libevent method: %s", event_base_get_method(eventBase)));
+  if (!eventBase) {
+    return false;
+  }
+  return true;
 }
 
 void finish_libevent() { event_base_free(eventBase); }
@@ -361,7 +363,6 @@ int main(int argc, char *argv[]) {
   start_logging();
 
   srand(time(NULL));
-  ;
 
   string config_file_name = "/etc/iglb/lbpools.json";
 
@@ -399,28 +400,32 @@ int main(int argc, char *argv[]) {
     log(MessageType::MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
     exit(EXIT_FAILURE);
   }
-  init_libevent();
 
-  struct event *ev_sigint =
-      evsignal_new(eventBase, SIGINT, signal_handler, event_self_cbarg());
-  evsignal_add(ev_sigint, NULL);
+  if (!init_libevent()) {
+    log(MessageType::MSG_CRIT, "Could not initialize libevent!");
+    exit(EXIT_FAILURE);
+  }
+  /*
+    struct event *ev_sigint =
+        evsignal_new(eventBase, SIGINT, signal_handler, event_self_cbarg());
+    evsignal_add(ev_sigint, NULL);
 
-  struct event *ev_sigterm =
-      evsignal_new(eventBase, SIGTERM, signal_handler, event_self_cbarg());
-  evsignal_add(ev_sigterm, NULL);
+    struct event *ev_sigterm =
+        evsignal_new(eventBase, SIGTERM, signal_handler, event_self_cbarg());
+    evsignal_add(ev_sigterm, NULL);
 
-  struct event *ev_sighup =
-      evsignal_new(eventBase, SIGHUP, signal_handler, event_self_cbarg());
-  evsignal_add(ev_sighup, NULL);
+    struct event *ev_sighup =
+        evsignal_new(eventBase, SIGHUP, signal_handler, event_self_cbarg());
+    evsignal_add(ev_sighup, NULL);
 
-  struct event *ev_sigpipe =
-      evsignal_new(eventBase, SIGPIPE, signal_handler, event_self_cbarg());
-  evsignal_add(ev_sigpipe, NULL);
+    struct event *ev_sigpipe =
+        evsignal_new(eventBase, SIGPIPE, signal_handler, event_self_cbarg());
+    evsignal_add(ev_sigpipe, NULL);
 
-  struct event *ev_sigusr1 =
-      evsignal_new(eventBase, SIGUSR1, signal_handler, event_self_cbarg());
-  evsignal_add(ev_sigusr1, NULL);
-
+    struct event *ev_sigusr1 =
+        evsignal_new(eventBase, SIGUSR1, signal_handler, event_self_cbarg());
+    evsignal_add(ev_sigusr1, NULL);
+  */
   if (!Healthcheck_ping::initialize()) {
     log(MessageType::MSG_CRIT,
         "Unable to initialize Healthcheck_ping, terminating!");
