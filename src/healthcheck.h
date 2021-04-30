@@ -52,18 +52,6 @@ enum class HealthcheckResult {
 static const char *HealthcheckResultNames[] = {"pass", "fail", "drain",
                                                "panic"};
 
-// A quite useful macros are available in sys/time.h but
-// only for _KERNEL, at least in FreeBSD.
-#define timespecsub(vvp, uvp)                                                  \
-  do {                                                                         \
-    (vvp)->tv_sec -= (uvp)->tv_sec;                                            \
-    (vvp)->tv_nsec -= (uvp)->tv_nsec;                                          \
-    if ((vvp)->tv_nsec < 0) {                                                  \
-      (vvp)->tv_sec--;                                                         \
-      (vvp)->tv_nsec += 1000000000;                                            \
-    }                                                                          \
-  } while (0)
-
 using namespace std;
 
 class Healthcheck {
@@ -78,6 +66,7 @@ public:
   Healthcheck(const nlohmann::json &config, class LbNode *_parent_lbnode,
               string *ip_address);
   virtual void finalize();
+  int timeout_to_ms();
 
 protected:
   void end_check(HealthcheckResult result, string message);
