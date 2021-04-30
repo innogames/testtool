@@ -228,8 +228,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
     return;
 
   if (events & BEV_EVENT_TIMEOUT) {
-    message = fmt::sprintf("timeout after %d.%3ds", hc->timeout.tv_sec,
-                           hc->timeout.tv_usec / 1000);
+    message = fmt::sprintf("timeout after %dms", hc->timeout_to_ms());
     return hc->end_check(HealthcheckResult::HC_FAIL, message);
   }
 

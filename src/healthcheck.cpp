@@ -26,17 +26,11 @@
 #include "lb_pool.h"
 #include "msg.h"
 #include "pfctl.h"
+#include "time_helper.h"
 
 using namespace std;
 
 extern int verbose;
-
-int timespec_diffms(struct timespec *a, struct timespec *b) {
-  time_t diff_sec = a->tv_sec - b->tv_sec;
-  long diff_nsec = a->tv_nsec - b->tv_nsec;
-  long diff_msec = (diff_sec * 1000) + (diff_nsec / 1000000);
-  return diff_msec;
-}
 
 /// Constructor of Healthcheck class.
 ///
@@ -84,7 +78,7 @@ Healthcheck::Healthcheck(const nlohmann::json &config,
   this->check_interval = safe_get<int>(config, "hc_interval", 2);
   this->max_failed_checks = safe_get<int>(config, "hc_max_failed", 3);
   int tmp_timeout = safe_get<int>(config, "hc_timeout", 1500);
-  // Timeout was read in ms, convert it to s and ns.
+  // Timeout was read in ms, convert it to s and μs.
   this->timeout.tv_sec = tmp_timeout / 1000;
   this->timeout.tv_usec = (tmp_timeout % 1000) * 1000;
   // Random delay to spread healthchecks in space-time continuum.
@@ -156,7 +150,8 @@ int Healthcheck::schedule_healthcheck(struct timespec *now) {
     return false;
 
   // Check if host should be checked at this time.
-  if (timespec_diffms(now, &last_checked) < check_interval * 1000 + extra_delay)
+  if (timespec_diff_ms(now, &last_checked) <
+      check_interval * 1000 + extra_delay)
     return false;
 
   memcpy(&last_checked, now, sizeof(struct timespec));
@@ -273,3 +268,5 @@ void Healthcheck::handle_result(string message) {
   is_running = false;
   ran = true;
 }
+
+int Healthcheck::timeout_to_ms() { return timeval_to_ms(&this->timeout); }
