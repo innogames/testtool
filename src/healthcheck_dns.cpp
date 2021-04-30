@@ -209,9 +209,7 @@ void Healthcheck_dns::callback(evutil_socket_t socket_fd, short what,
 
   if (what & EV_TIMEOUT) {
     result = HealthcheckResult::HC_FAIL;
-    message =
-        fmt::sprintf("timeout after %d.%03ds", healthcheck->timeout.tv_sec,
-                     healthcheck->timeout.tv_usec / 1000);
+    message = fmt::sprintf("timeout after %dms", healthcheck->timeout_to_ms());
   } else if (what & EV_READ) {
     bytes_received = recv(socket_fd, &raw_packet, DNS_BUFFER_SIZE, 0);
 
