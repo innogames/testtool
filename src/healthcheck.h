@@ -14,6 +14,14 @@
 
 #include "lb_node.h"
 
+using namespace std;
+
+struct HealthcheckSchedulingException : public std::exception {
+  string msg;
+  HealthcheckSchedulingException(const std::string &_msg) : msg(_msg) {}
+  virtual const char *what() const throw() { return msg.c_str(); }
+};
+
 enum class HealthcheckState { STATE_DRAIN, STATE_DOWN, STATE_UP };
 static const char *HealthcheckStateNames[] = {"fail", "down", "up"};
 
@@ -51,8 +59,6 @@ enum class HealthcheckResult {
 
 static const char *HealthcheckResultNames[] = {"pass", "fail", "drain",
                                                "panic"};
-
-using namespace std;
 
 class Healthcheck {
 

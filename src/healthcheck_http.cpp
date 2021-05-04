@@ -149,8 +149,10 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
   string new_query = this->parse_query_template();
 
   bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
-  if (bev == NULL)
-    return false;
+  if (bev == NULL) {
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_new errno %d", errno));
+  }
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
@@ -161,9 +163,13 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-  if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) <
-      0)
-    return false;
+  int ret =
+      bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen);
+  if (ret < 0) {
+    bufferevent_free(bev);
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_connect errno %d", errno));
+  }
 
   return true;
 }
@@ -182,8 +188,10 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
   bev = bufferevent_openssl_socket_new(eventBase, -1, ssl,
                                        BUFFEREVENT_SSL_CONNECTING,
                                        0 | BEV_OPT_CLOSE_ON_FREE);
-  if (bev == NULL)
-    return false;
+  if (bev == NULL) {
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_new errno %d", errno));
+  }
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
@@ -194,9 +202,14 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-  if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) <
-      0)
-    return false;
+  int ret =
+      bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen);
+
+  if (ret < 0) {
+    bufferevent_free(bev);
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_connect errno %d", errno));
+  }
 
   return true;
 }

@@ -142,7 +142,14 @@ void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
   (void)(fd);
   (void)(what);
 
-  ((TestTool *)arg)->schedule_healthchecks();
+  try {
+    ((TestTool *)arg)->schedule_healthchecks();
+  } catch (const HealthcheckSchedulingException &e) {
+    log(MessageType::MSG_CRIT,
+        fmt::sprintf("testtool: scheduling a check failed: %s, terminating",
+                     e.what()));
+    event_base_loopbreak(eventBase);
+  }
 }
 
 void TestTool::schedule_healthchecks() {
