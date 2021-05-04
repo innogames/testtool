@@ -38,7 +38,7 @@ if(UNIX AND NOT APPLE AND NOT LINUX)
   set(_link_dirs /usr/local/lib)
   set(_include_dirs /usr/local/include)
 endif()
-list(APPEND _libs event.a event_core.a event_pthreads.a event_openssl.a)
+list(APPEND _libs event.so event_core.so event_openssl.so)
 
 find_package(OpenSSL REQUIRED)
 list(APPEND _include_dirs ${OPENSSL_INCLUDE_DIR})
