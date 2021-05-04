@@ -28,24 +28,39 @@ if (APPLE)
 endif()
 list(APPEND _libs nlohmann_json::nlohmann_json)
 
-# find_package(libevent REQUIRED) # Does not come with cmake support?
-# Libraries will hopefully be in default directory
-if (APPLE)
-  list(APPEND _include_dirs /usr/local/opt/libevent/include)
-  list(APPEND _link_dirs /usr/local/opt/libevent/lib)
-endif()
-if(UNIX AND NOT APPLE AND NOT LINUX)
-  set(_link_dirs /usr/local/lib)
-  set(_include_dirs /usr/local/include)
-endif()
-list(APPEND _libs event.a event_core.a event_pthreads.a event_openssl.a)
 
+# libevent
+set(LibEvent_EXTRA_PREFIXES /usr/local /opt/local /usr/local/opt/libevent)
+foreach(prefix ${LibEvent_EXTRA_PREFIXES})
+  list(APPEND LibEvent_INCLUDE_PATHS "${prefix}/include")
+  list(APPEND LibEvent_LIB_PATHS "${prefix}/lib")
+endforeach()
+foreach(library event event_core event_openssl)
+  find_library(LibEvent_LIBRARY NAMES ${library} PATHS ${LibEvent_LIB_PATHS})
+  list(APPEND LibEvent_LIBRARIES ${library})
+endforeach()
+find_path(LibEvent_INCLUDE_DIR event.h PATHS ${LibEvent_INCLUDE_PATHS})
+if (LibEvent_LIBRARIES AND LibEvent_INCLUDE_DIR)
+  set(LibEvent_FOUND TRUE)
+else ()
+  message(FATAL_ERROR "Could NOT find libevent!")
+endif ()
+list(APPEND _link_dirs ${LibEvent_LIB_PATHS})
+list(APPEND _libs ${LibEvent_LIBRARIES})
+list(APPEND _include_dirs ${LibEvent_INCLUDE_DIR})
+message(STATUS "LibEvent_LIB_PATHS: ${LibEvent_LIB_PATHS}")
+message(STATUS "LibEvent_LIBRARIES: ${LibEvent_LIBRARIES}")
+message(STATUS "LibEvent_INCLUDE_PATHS: ${LibEvent_INCLUDE_PATHS}")
+message(STATUS "LibEvent_INCLUDE_DIR: ${LibEvent_INCLUDE_DIR}")
+
+# openssl
 find_package(OpenSSL REQUIRED)
 list(APPEND _include_dirs ${OPENSSL_INCLUDE_DIR})
 list(APPEND _libs ${OPENSSL_LIBRARIES})
 
+# libpq
 find_package(PostgreSQL REQUIRED)
-list(APPEND _libs libpq.a)
+list(APPEND _libs ${PostgreSQL_LIBRARIES})
 
 find_package(yaml-cpp REQUIRED)
 list(APPEND _include_dirs ${YAML_CPP_INCLUDE_DIR})
@@ -53,8 +68,9 @@ list(APPEND _libs ${YAML_CPP_LIBRARIES})
 
 if(UNIX AND NOT APPLE AND NOT LINUX)
   # Only on FreeBSD
+  find_package(Intl REQUIRED)
   list(APPEND _libs thr.a)
-  list(APPEND _libs libintl.a)
+  list(APPEND _libs ${Intl_LIBRARIES})
 endif()
 
 include_directories(${_include_dirs})
