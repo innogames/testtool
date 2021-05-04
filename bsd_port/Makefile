@@ -8,7 +8,8 @@ COMMENT=	Testtool checks health of loadbalanced services.
 
 USES=		cmake
 
-LIB_DEPENDS=	libyaml-cpp.so:devel/yaml-cpp
+LIB_DEPENDS=	libyaml-cpp.so:devel/yaml-cpp \
+		${NONEXISTENT}:devel/libevent \
 
 BUILD_DEPENDS=	${NONEXISTENT}:devel/libevent \
 		${NONEXISTENT}:devel/boost-libs \
