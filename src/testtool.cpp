@@ -335,7 +335,14 @@ int init_libssl() {
   log(MessageType::MSG_INFO,
       fmt::sprintf("OpenSSL version: %s", SSLeay_version(SSLEAY_VERSION)));
 
-  sctx = SSL_CTX_new(TLSv1_2_client_method());
+#if defined(LWS_HAVE_TLS_CLIENT_METHOD)
+  sctx = SSL_CTX_newTLS_client_method());
+#elif defined(LWS_HAVE_TLSV1_2_CLIENT_METHOD)
+  sctx = SSL_CTX_new)TLSv1_2_client_method());
+#else
+  sctx = SSL_CTX_new(SSLv23_client_method());
+#endif
+
   if (!sctx) {
     return false;
   }
