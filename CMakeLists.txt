@@ -2,10 +2,13 @@ cmake_minimum_required(VERSION 3.11)
 project(testtool)
 enable_testing()
 
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 11)
+
 set(default_build_type "RelWithDebInfo")
 
 add_compile_options(
-  "-Wall" "-pedantic" "-std=c++11"
+  "-Wextra" "-pedantic" "-Wno-c11-extensions"
 )
 
 if (APPLE)
