@@ -20,18 +20,45 @@ using namespace boost::interprocess;
 // faking state input for tests.
 bool _pf_is_in_table = false;
 bool pf_is_in_table(string *table, string *address, bool *answer) {
+  // Make compiler happy
+  (void)(table);
+  (void)(address);
   *answer = _pf_is_in_table;
   return true;
 }
 
-void log(MessageType loglevel, string msg){};
-void log(MessageType loglevel, LbPool *lbpool, string msg){};
-void log(MessageType loglevel, LbNode *lbnode, string msg){};
-void log(MessageType loglevel, Healthcheck *hc, string msg){};
+void log(MessageType loglevel, string msg) {
+  // Make compiler happy
+  (void)(loglevel);
+  (void)(msg);
+};
+void log(MessageType loglevel, LbPool *lbpool, string msg) {
+  // Make compiler happy
+  (void)(loglevel);
+  (void)(lbpool);
+  (void)(msg);
+};
+void log(MessageType loglevel, LbNode *lbnode, string msg) {
+  // Make compiler happy
+  (void)(loglevel);
+  (void)(lbnode);
+  (void)(msg);
+};
+void log(MessageType loglevel, Healthcheck *hc, string msg) {
+  // Make compiler happy
+  (void)(loglevel);
+  (void)(hc);
+  (void)(msg);
+};
 
 set<string> sent_up_lb_nodes;
 bool send_message(message_queue *mq, string pool_name, string table_name,
                   set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
+  // Make compiler happy
+  (void)(mq);
+  (void)(pool_name);
+  (void)(table_name);
+  (void)(all_lb_nodes);
 
   for (LbNode *up_lb_node : up_lb_nodes)
     sent_up_lb_nodes.insert(up_lb_node->name);
@@ -84,7 +111,8 @@ void TesttoolTest::EndDummyHC(string lb_pool_name, string lb_node_name,
   }
 
   try {
-    for (int i = 0; i < (all_hcs ? lbn->healthchecks.size() : 1); i++) {
+    for (unsigned int i = 0; i < (all_hcs ? lbn->healthchecks.size() : 1);
+         i++) {
       hcd = (Healthcheck_dummy *)(lbn->healthchecks.at(i));
       hcd->dummy_end_check(result, message);
     }

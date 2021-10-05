@@ -190,7 +190,8 @@ Healthcheck_ping::Healthcheck_ping(const nlohmann::json &config,
 /// without handling healthcheck result. This results in Healthcheck's timeout.
 void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what,
                                 void *arg) {
-  (void)(arg); // Make compiler happy.
+  // Make compiler happy
+  (void)(arg);
 
   Healthcheck_ping *healthcheck = NULL;
   unsigned char raw_packet[IP_MAXPACKET];

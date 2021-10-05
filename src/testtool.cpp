@@ -53,6 +53,9 @@ pid_t parent_pid;
 pid_t worker_pid;
 
 static void signal_handler(evutil_socket_t fd, short event, void *arg) {
+  // Make compiler happy
+  (void)(fd);
+  (void)(event);
   int signal = event_get_signal((struct event *)arg);
 
   switch (signal) {
@@ -138,7 +141,7 @@ void TestTool::load_config() {
 
 /// Schedules healthchecks on all lbnodes.
 void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 
@@ -171,7 +174,7 @@ void TestTool::schedule_healthchecks() {
 
 /// Parses the results of healthchecks for all lbpools.
 void healthcheck_finalizer_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 
@@ -187,9 +190,10 @@ void TestTool::finalize_healthchecks() {
 
 /// Checks if pfctl worker is still alive.
 void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
+  (void)(arg);
 
   int status;
   pid_t result = waitpid(worker_pid, &status, WNOHANG);
@@ -214,7 +218,7 @@ void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
 }
 
 void dump_status_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 

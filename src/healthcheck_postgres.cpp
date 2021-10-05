@@ -398,6 +398,9 @@ void Healthcheck_postgres::handle_io_event(int fd, short flag, void *arg) {
 ///
 /// XXX This should be shared by all health checks.
 void Healthcheck_postgres::handle_timeout_event(int fd, short flag, void *arg) {
+  // Make compiler happy
+  (void)(fd);
+
   Healthcheck_postgres *hc = (Healthcheck_postgres *)arg;
 
   assert(flag == EV_TIMEOUT);
