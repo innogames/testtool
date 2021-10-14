@@ -7,9 +7,7 @@
 #ifndef _CHECK_TCP_HPP_
 #define _CHECK_TCP_HPP_
 
-#include <event2/event.h>
-#include <event2/event_struct.h>
-#include <event2/util.h>
+#include <event2/bufferevent.h>
 #include <sstream>
 #include <unistd.h>
 #include <vector>
@@ -26,12 +24,12 @@ public:
   int schedule_healthcheck(struct timespec *now);
 
 protected:
-  static void callback(evutil_socket_t fd, short what, void *arg);
+  static void event_callback(struct bufferevent *bev, short events, void *arg);
+  void end_check(HealthcheckResult result, string message);
 
   // Members
 private:
-  int socket_fd;
-  struct event *ev;
+  bufferevent *bev;
   int port;
 };
 
