@@ -53,6 +53,9 @@ pid_t parent_pid;
 pid_t worker_pid;
 
 static void signal_handler(evutil_socket_t fd, short event, void *arg) {
+  // Make compiler happy
+  (void)(fd);
+  (void)(event);
   int signal = event_get_signal((struct event *)arg);
 
   switch (signal) {
@@ -138,11 +141,18 @@ void TestTool::load_config() {
 
 /// Schedules healthchecks on all lbnodes.
 void healthcheck_scheduler_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 
-  ((TestTool *)arg)->schedule_healthchecks();
+  try {
+    ((TestTool *)arg)->schedule_healthchecks();
+  } catch (const HealthcheckSchedulingException &e) {
+    log(MessageType::MSG_CRIT,
+        fmt::sprintf("testtool: scheduling a check failed: %s, terminating",
+                     e.what()));
+    event_base_loopbreak(eventBase);
+  }
 }
 
 void TestTool::schedule_healthchecks() {
@@ -164,7 +174,7 @@ void TestTool::schedule_healthchecks() {
 
 /// Parses the results of healthchecks for all lbpools.
 void healthcheck_finalizer_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 
@@ -180,9 +190,10 @@ void TestTool::finalize_healthchecks() {
 
 /// Checks if pfctl worker is still alive.
 void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
+  (void)(arg);
 
   int status;
   pid_t result = waitpid(worker_pid, &status, WNOHANG);
@@ -207,7 +218,7 @@ void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
 }
 
 void dump_status_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy.
+  // Make compiler happy
   (void)(fd);
   (void)(what);
 
@@ -328,7 +339,14 @@ int init_libssl() {
   log(MessageType::MSG_INFO,
       fmt::sprintf("OpenSSL version: %s", SSLeay_version(SSLEAY_VERSION)));
 
-  sctx = SSL_CTX_new(TLSv1_2_client_method());
+#if defined(LWS_HAVE_TLS_CLIENT_METHOD)
+  sctx = SSL_CTX_newTLS_client_method());
+#elif defined(LWS_HAVE_TLSV1_2_CLIENT_METHOD)
+  sctx = SSL_CTX_new)TLSv1_2_client_method());
+#else
+  sctx = SSL_CTX_new(SSLv23_client_method());
+#endif
+
   if (!sctx) {
     return false;
   }

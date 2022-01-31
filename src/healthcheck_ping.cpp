@@ -28,6 +28,7 @@
 #include "lb_node.h"
 #include "lb_pool.h"
 #include "msg.h"
+#include "time_helper.h"
 
 using namespace std;
 
@@ -189,7 +190,8 @@ Healthcheck_ping::Healthcheck_ping(const nlohmann::json &config,
 /// without handling healthcheck result. This results in Healthcheck's timeout.
 void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what,
                                 void *arg) {
-  (void)(arg); // Make compiler happy.
+  // Make compiler happy
+  (void)(arg);
 
   Healthcheck_ping *healthcheck = NULL;
   unsigned char raw_packet[IP_MAXPACKET];
@@ -297,13 +299,10 @@ void Healthcheck_ping::finalize_result() {
 
   clock_gettime(CLOCK_MONOTONIC, &now);
 
-  timespecsub(&now, &last_checked);
+  int dt_ms = timespec_diff_ms(&now, &last_checked);
 
-  if (now.tv_sec > this->timeout.tv_sec ||
-      (now.tv_sec == this->timeout.tv_sec &&
-       now.tv_nsec > this->timeout.tv_usec * 1000)) {
-    message = fmt::sprintf("timeout after %d.%03ds", this->timeout.tv_sec,
-                           this->timeout.tv_usec / 1000);
+  if (dt_ms > this->timeout_to_ms()) {
+    message = fmt::sprintf("timeout after %d,s", this->timeout_to_ms());
     ping_my_seq = 0;
     end_check(HealthcheckResult::HC_FAIL, message);
   }

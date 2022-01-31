@@ -149,8 +149,10 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
   string new_query = this->parse_query_template();
 
   bev = bufferevent_socket_new(eventBase, -1, 0 | BEV_OPT_CLOSE_ON_FREE);
-  if (bev == NULL)
-    return false;
+  if (bev == NULL) {
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_new errno %d", errno));
+  }
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
@@ -161,9 +163,8 @@ int Healthcheck_http::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-  if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) <
-      0)
-    return false;
+  // Ignore connection errors. They will be handled by event callback later.
+  bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen);
 
   return true;
 }
@@ -182,8 +183,10 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
   bev = bufferevent_openssl_socket_new(eventBase, -1, ssl,
                                        BUFFEREVENT_SSL_CONNECTING,
                                        0 | BEV_OPT_CLOSE_ON_FREE);
-  if (bev == NULL)
-    return false;
+  if (bev == NULL) {
+    throw HealthcheckSchedulingException(
+        fmt::sprintf("bufferevent_socket_new errno %d", errno));
+  }
 
   bufferevent_setcb(bev, &read_callback, NULL, &event_callback, this);
   bufferevent_enable(bev, EV_READ | EV_WRITE);
@@ -194,9 +197,8 @@ int Healthcheck_https::schedule_healthcheck(struct timespec *now) {
 
   bufferevent_set_timeouts(bev, &this->timeout, &this->timeout);
 
-  if (bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen) <
-      0)
-    return false;
+  // Ignore connection errors. They will be handled by event callback later.
+  bufferevent_socket_connect(bev, addrinfo->ai_addr, addrinfo->ai_addrlen);
 
   return true;
 }
@@ -228,8 +230,7 @@ void Healthcheck_http::event_callback(struct bufferevent *bev, short events,
     return;
 
   if (events & BEV_EVENT_TIMEOUT) {
-    message = fmt::sprintf("timeout after %d.%3ds", hc->timeout.tv_sec,
-                           hc->timeout.tv_usec / 1000);
+    message = fmt::sprintf("timeout after %dms", hc->timeout_to_ms());
     return hc->end_check(HealthcheckResult::HC_FAIL, message);
   }
 

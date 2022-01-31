@@ -8,14 +8,21 @@ COMMENT=	Testtool checks health of loadbalanced services.
 
 USES=		cmake
 
-LIB_DEPENDS=	libyaml-cpp.so:devel/yaml-cpp
+LIB_DEPENDS=\
+		libevent.so:devel/libevent \
+		libintl.so:devel/gettext-runtime \
+		libpq.so:databases/postgresql96-client \
+		libyaml-cpp.so:devel/yaml-cpp
 
-BUILD_DEPENDS=	${NONEXISTENT}:devel/libevent \
-		${NONEXISTENT}:devel/boost-libs \
+BUILD_DEPENDS=\
 		${NONEXISTENT}:databases/postgresql96-client \
-		${NONEXISTENT}:devel/nlohmann-json \
+		${NONEXISTENT}:devel/boost-libs \
+		${NONEXISTENT}:devel/gettext-runtime \
 		${NONEXISTENT}:devel/googletest \
-		${NONEXISTENT}:devel/libfmt
+		${NONEXISTENT}:devel/libevent \
+		${NONEXISTENT}:devel/libfmt \
+		${NONEXISTENT}:devel/nlohmann-json \
+		${NONEXISTENT}:devel/yaml-cpp
 
 PLIST_FILES=	/usr/local/sbin/testtool \
 		/usr/local/etc/rc.d/testtool

@@ -30,6 +30,10 @@ Healthcheck_dummy::Healthcheck_dummy(const nlohmann::json &config,
 // Libecent callback for Dummy healthcheck.
 void Healthcheck_dummy::callback(evutil_socket_t socket_fd, short what,
                                  void *arg) {
+  // Make compiler happy
+  (void)(socket_fd);
+  (void)(what);
+
   Healthcheck_dummy *hc = (Healthcheck_dummy *)arg;
   string message = "dummy result";
   HealthcheckResult result = HealthcheckResult::HC_PANIC;

@@ -109,6 +109,7 @@ string LbNode::is_up_string() { return this->is_up() ? "up" : "down"; }
 /// Try to schedule all healthcheck of this node. Do not try if there is a
 /// downtime for this node.
 void LbNode::schedule_healthchecks(struct timespec *now) {
+  bool ret;
   for (unsigned int hc = 0; hc < healthchecks.size(); hc++) {
     healthchecks[hc]->schedule_healthcheck(now);
   }
