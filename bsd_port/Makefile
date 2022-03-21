@@ -11,11 +11,11 @@ USES=		cmake
 LIB_DEPENDS=\
 		libevent.so:devel/libevent \
 		libintl.so:devel/gettext-runtime \
-		libpq.so:databases/postgresql96-client \
+		libpq.so:databases/postgresql14-client \
 		libyaml-cpp.so:devel/yaml-cpp
 
 BUILD_DEPENDS=\
-		${NONEXISTENT}:databases/postgresql96-client \
+		${NONEXISTENT}:databases/postgresql14-client \
 		${NONEXISTENT}:devel/boost-libs \
 		${NONEXISTENT}:devel/gettext-runtime \
 		${NONEXISTENT}:devel/googletest \
