@@ -15,25 +15,30 @@ start_postcmd="start_postcmd"
 
 : ${testtool_enable:="NO"}
 
-pidfile="/var/run/${name}.pid"
+pidfile="/var/run/${name}_daemon.pid"
+pidfile_testtool="/var/run/${name}_testtool.pid"
+
 command="/usr/local/sbin/testtool"
-start_cmd="/usr/sbin/daemon -t ${command} -p ${pidfile} -f -c ${command}"
+procname="/usr/sbin/daemon"
+start_cmd="${procname} -r -P ${pidfile} -p ${pidfile_testtool} -f -c ${command}"
 
 load_rc_config $name
 
 start_postcmd() {
-	chown root:iglb $pidfile
-	chmod 640 $pidfile
+	# Allow the iglb user to read the pidfile and thus to trigger
+	# downtime-only config reload.
+	chown root:iglb $pidfile_testtool
+	chmod 640 $pidfile_testtool
 }
 
 downtimes_cmd() {
-	pid=$(check_pidfile $pidfile $command)
-	if [ -z "$pid" ]; then
+	pid_testtool=$(check_pidfile $pidfile_testtool $command)
+	if [ -z "$pid_testtool" ]; then
 		echo "$command is not running!"
 		exit 1
 	else
 		echo "Reloading downtimes"
-		kill -USR1 $pid
+		kill -USR1 $pid_testtool
 	fi
 }
 
