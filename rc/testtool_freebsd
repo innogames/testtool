@@ -20,7 +20,7 @@ pidfile_testtool="/var/run/${name}_testtool.pid"
 
 command="/usr/local/sbin/testtool"
 procname="/usr/sbin/daemon"
-start_cmd="${procname} -r -P ${pidfile} -p ${pidfile_testtool} -f -c ${command}"
+start_cmd="${procname} -u root -r -P ${pidfile} -p ${pidfile_testtool} -f -c ${command}"
 
 load_rc_config $name
 
