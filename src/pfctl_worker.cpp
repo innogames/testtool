@@ -131,19 +131,19 @@ message_queue *attach_pfctl_queue() {
         continue;
       } else {
         log(MessageType::MSG_INFO,
-            fmt::sprintf("pfctl_worker: Interprocess Exception while "
-                         "waiting for queue %d",
-                         ex.get_error_code()));
+            fmt::sprintf("pfctl_worker: Interprocess Exception %d "
+                         "while waiting for queue",
+                         int(ex.get_error_code())));
       }
     } catch (const runtime_error &ex) {
       // speciffic handling for runtime_error
       log(MessageType::MSG_INFO,
-          fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
+          fmt::sprintf("pfctl_worker: Exception %s while waiting for queue",
                        ex.what()));
     } catch (const exception &ex) {
       // std::runtime_error which is handled explicitly
       log(MessageType::MSG_INFO,
-          fmt::sprintf("pfctl_worker: Exception while waiting for queue %s",
+          fmt::sprintf("pfctl_worker: Exception %s while waiting for queue",
                        ex.what()));
     }
     break;
