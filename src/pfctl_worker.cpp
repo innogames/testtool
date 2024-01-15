@@ -133,7 +133,7 @@ message_queue *attach_pfctl_queue() {
         log(MessageType::MSG_INFO,
             fmt::sprintf("pfctl_worker: Interprocess Exception while "
                          "waiting for queue %d",
-                         ex.get_error_code()));
+                         int(ex.get_error_code())));
       }
     } catch (const runtime_error &ex) {
       // speciffic handling for runtime_error
