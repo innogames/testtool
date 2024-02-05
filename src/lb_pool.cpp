@@ -241,7 +241,7 @@ void LbPool::pool_logic(LbNode *last_node) {
           force_up_candidates.insert(node);
         }
 
-        // Not enough nodes? Add those which wer force-kept previously.
+        // Not enough nodes? Add those which were force-kept previously.
         for (LbNode *fuc : force_up_candidates) {
           if (wanted_nodes.size() >= min_nodes)
             break; // Enough nodes already wanted.
