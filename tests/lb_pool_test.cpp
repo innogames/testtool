@@ -294,3 +294,39 @@ TEST_F(LbPoolTest, InitUpDowntimedDrain) {
   EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 }
+
+// NDCO-4445: Force-up LB Nodes not added after downtime ends
+// if they change state.
+//
+TEST_F(LbPoolTest, ForceUpDowntimedDrain) {
+  // Only one LB Node in this test.
+  base_config["lbpool.example.com"]["nodes"].erase("lbnode2");
+  base_config["lbpool.example.com"]["nodes"].erase("lbnode3");
+
+  base_config["lbpool.example.com"]["health_checks"][0]["hc_max_failed"] = 1;
+  base_config["lbpool.example.com"]["min_nodes"] = 1;
+  base_config["lbpool.example.com"]["min_nodes_action"] = "force_up";
+
+  SetUp(true);
+
+  // Start with an online, up LB Node.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // Start a deployment.
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("deploy_offline");
+  EXPECT_EQ(UpNodesNames(), set<string>());
+
+  // Web server is stopped while the deployment is in progress.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_FAIL, true);
+  EXPECT_EQ(UpNodesNames(), set<string>());
+
+  // The LB Node is set back to online before the deployment is finished.
+  // min_nodes_action is obeyed, the LB Node is added even though it's down.
+  GetLbNode(test_lb_pool, "lbnode1")->change_downtime("online");
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // The deployment is finished.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+}
