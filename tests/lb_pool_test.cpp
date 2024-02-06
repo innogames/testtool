@@ -31,10 +31,22 @@ extern set<string> sent_up_lb_nodes;
 class LbPoolTest : public TesttoolTest {};
 
 TEST_F(LbPoolTest, InitDown) {
+  // On startup LB Nodes are read as down from pfctl.
   SetUp(false);
 
-  // On startup LB Nodes are read as down from pfctl.
+  // And they are still down once testtool starts.
   EXPECT_EQ(UpNodesNames(), set<string>({}));
+}
+
+TEST_F(LbPoolTest, InitDownNoHCs) {
+  // The LB Pool has no HCs.
+  base_config["lbpool.example.com"].erase("health_checks");
+
+  // On startup LB Nodes are read as down from pfctl.
+  SetUp(false);
+
+  // But they all become active since there are no HCs.
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
 
 TEST_F(LbPoolTest, InitUp) {
