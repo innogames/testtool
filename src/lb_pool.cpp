@@ -224,6 +224,7 @@ void LbPool::pool_logic(LbNode *last_node) {
         // First add the one which changed state recently.
         // If it was up, it is already added.
         if (last_node && last_node->state == LbNodeState::STATE_DOWN &&
+            last_node->admin_state == LbNodeAdminState::STATE_ENABLED &&
             wanted_nodes.size() < min_nodes) {
           wanted_nodes.insert(last_node);
           last_node->min_nodes_kept = true;
@@ -236,12 +237,12 @@ void LbPool::pool_logic(LbNode *last_node) {
         for (LbNode *node : nodes) {
           if (last_node && node == last_node)
             continue; // Don't add recently changed LB Node.
-          if (node->state < LbNodeState::STATE_DOWN)
+          if (node->admin_state < LbNodeAdminState::STATE_ENABLED)
             continue; // Don't add downtimed LB Nodes.
           force_up_candidates.insert(node);
         }
 
-        // Not enough nodes? Add those which wer force-kept previously.
+        // Not enough nodes? Add those which were force-kept previously.
         for (LbNode *fuc : force_up_candidates) {
           if (wanted_nodes.size() >= min_nodes)
             break; // Enough nodes already wanted.
