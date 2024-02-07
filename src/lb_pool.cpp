@@ -82,6 +82,9 @@ LbPool::LbPool(string name, nlohmann::json &config,
   if (health_checks == config.end() || health_checks->empty()) {
     this->fault_policy = FaultPolicy::FORCE_UP;
     this->min_nodes = config["nodes"].size();
+    this->has_hcs = false;
+  } else {
+    this->has_hcs = true;
   }
 
   // Ensure that min_ and max_nodes make sense. But only if max_nodes
@@ -319,6 +322,14 @@ void LbPool::update_pfctl(void) {
         lb_pool.second->backup_pool_active) {
       lb_pool.second->pool_logic(NULL);
     }
+  }
+}
+
+// Force syncing of LB Pools which have no Health Checks.
+void LbPool::sync_no_hc(void) {
+  if (!has_hcs && !pf_synced) {
+    log(MessageType::MSG_DEBUG, this, "sync: forcing for non-hc pool");
+    this->update_pfctl();
   }
 }
 

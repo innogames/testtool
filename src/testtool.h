@@ -26,6 +26,7 @@ public:
 
   void schedule_healthchecks();
   void finalize_healthchecks();
+  void sync_lbpools_without_healthchecks();
   boost::interprocess::message_queue *pfctl_mq;
 
   // Members

@@ -188,6 +188,22 @@ void TestTool::finalize_healthchecks() {
   }
 }
 
+/// Force syncing of LB Pools which have no Health Checks.
+void lbpool_syncer_callback(evutil_socket_t fd, short what, void *arg) {
+  // Make compiler happy
+  (void)(fd);
+  (void)(what);
+
+  ((TestTool *)arg)->sync_lbpools_without_healthchecks();
+}
+
+void TestTool::sync_lbpools_without_healthchecks() {
+  // Iterate over all lbpools parse healthcheck results.
+  for (auto &lbpool : lb_pools) {
+    lbpool.second->sync_no_hc();
+  }
+}
+
 /// Checks if pfctl worker is still alive.
 void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
   // Make compiler happy
@@ -321,6 +337,16 @@ void TestTool::setup_events() {
   struct event *dump_status_event =
       event_new(eventBase, -1, EV_PERSIST, dump_status_callback, this);
   event_add(dump_status_event, &dump_status_interval);
+
+  // Special case for LB Pools without Health Checks.
+  // No HCs mean that pool_logic is called only once during object creation.
+  // If by then update_pfctl() has failed, the pool will never be synced.
+  struct timeval lbpool_syncer_interval;
+  lbpool_syncer_interval.tv_sec = 1;
+  lbpool_syncer_interval.tv_usec = 0;
+  struct event *lbpool_syncer_event =
+      event_new(eventBase, -1, EV_PERSIST, lbpool_syncer_callback, this);
+  event_add(lbpool_syncer_event, &lbpool_syncer_interval);
 }
 
 void init_libevent() {

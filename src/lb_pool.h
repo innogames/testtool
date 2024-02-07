@@ -54,6 +54,7 @@ public:
   void schedule_healthchecks(struct timespec *now);
   void pool_logic(LbNode *last_node);
   void finalize_healthchecks();
+  void sync_no_hc();
   void update_pfctl();
   string get_state_string();
   size_t count_up_nodes();
@@ -82,6 +83,8 @@ private:
   FaultPolicy fault_policy;
   map<std::string, LbPool *> *all_lb_pools;
   bool pf_synced;
+  bool has_hcs; // Shortcut so we don't have to iterate over all nodes to find out
+                // if there are any healthchecks.
   set<class LbNode *> up_nodes;
 };
 
