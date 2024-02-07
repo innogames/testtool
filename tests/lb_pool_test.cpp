@@ -295,6 +295,18 @@ TEST_F(LbPoolTest, InitUpDowntimedMaintenance) {
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
 }
 
+// Initial config loading in cold_standby state.
+//
+TEST_F(LbPoolTest, InitUpDowntimedColdStandby) {
+  base_config["lbpool.example.com"]["nodes"]["lbnode1"]["state"] =
+      "cold_standby";
+  SetUp(true);
+
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2", "lbnode3"}));
+}
+
 // Initial config loading in draining state.
 //
 TEST_F(LbPoolTest, InitUpDowntimedDrain) {

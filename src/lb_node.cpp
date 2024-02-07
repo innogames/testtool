@@ -32,6 +32,8 @@ LbNodeAdminState admin_state_from_config(string s) {
     return LbNodeAdminState::STATE_DRAIN_HARD;
   if (s == "maintenance")
     return LbNodeAdminState::STATE_DOWNTIME;
+  if (s == "cold_standby")
+    return LbNodeAdminState::STATE_DOWNTIME;
   if (s == "retired")
     return LbNodeAdminState::STATE_DOWNTIME;
   return LbNodeAdminState::STATE_ENABLED;
