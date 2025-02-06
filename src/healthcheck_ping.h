@@ -58,7 +58,7 @@ public:
   int schedule_healthcheck(struct timespec *now);
   static int initialize();
   static void destroy();
-  void finalize_result();
+  void finalize();
 
 protected:
   void end_check(HealthcheckResult result, string message);

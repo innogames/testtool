@@ -289,7 +289,7 @@ void Healthcheck_ping::callback(evutil_socket_t socket_fd, short what,
 ///
 /// Due to lack of possibility to use typical libevent timeout mechanism on raw
 /// sockets, it is necessary to check timeout of this healthcheck manually.
-void Healthcheck_ping::finalize_result() {
+void Healthcheck_ping::finalize() {
   struct timespec now;
   string message;
 
