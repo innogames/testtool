@@ -49,8 +49,8 @@ LbPool::LbPool(string name, nlohmann::json &config,
 
   // Read parameters from json, read them safe and then verify if they make
   // sense.
-  this->ipv4_address = safe_get<string>(config, "ip4", "");
-  this->ipv6_address = safe_get<string>(config, "ip6", "");
+  this->ipv4_address = safe_get<string>(config, "ipv4", "");
+  this->ipv6_address = safe_get<string>(config, "ipv6", "");
   this->pf_name = safe_get<string>(config, "pf_name", "");
   this->route_network = safe_get<string>(config, "route_network", "");
   this->min_nodes = safe_get<int>(config, "min_nodes", 0);

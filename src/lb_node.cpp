@@ -49,8 +49,8 @@ LbNode::LbNode(string name, const nlohmann::json &config,
 
   this->route_network = safe_get<string>(config, "route_network", "");
 
-  this->ipv4_address = safe_get<string>(config, "ip4", "");
-  this->ipv6_address = safe_get<string>(config, "ip6", "");
+  this->ipv4_address = safe_get<string>(config, "ipv4", "");
+  this->ipv6_address = safe_get<string>(config, "ipv6", "");
 
   this->parent_lbpool = parent_lbpool;
 
