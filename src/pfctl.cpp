@@ -173,7 +173,7 @@ bool pf_get_table(string *table, set<string> *result) {
   }
   for (auto line : out) {
     boost::trim(line);
-    boost::asio::ip::address::from_string(line, ec);
+    boost::asio::ip::make_address(line, ec);
     if (ec)
       log(MessageType::MSG_CRIT,
           fmt::sprintf("pfctl: Not an IP Address '%s'", line));
