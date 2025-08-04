@@ -1,14 +1,14 @@
-cmake_minimum_required(VERSION 3.11)
+cmake_minimum_required(VERSION 3.31)
 project(testtool)
 enable_testing()
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
 
 set(default_build_type "RelWithDebInfo")
 
 add_compile_options(
-  "-Wextra" "-pedantic" "-Wno-c11-extensions"
+  "-Wextra" "-pedantic"
 )
 
 if (APPLE)
@@ -47,6 +47,12 @@ list(APPEND _link_dirs ${LibEvent_LIB_PATHS})
 list(APPEND _libs ${LibEvent_LIBRARIES})
 list(APPEND _include_dirs ${LibEvent_INCLUDE_DIR})
 
+# Threading
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+
+# Libevent
 find_package_handle_standard_args (LibEvent DEFAULT_MSG LibEvent_LIBRARIES LibEvent_INCLUDE_DIR)
 mark_as_advanced(LibEvent_INCLUDE_DIR LibEvent_LIBRARIES)
 
@@ -66,7 +72,6 @@ list(APPEND _libs ${YAML_CPP_LIBRARIES})
 if(UNIX AND NOT APPLE AND NOT LINUX)
   # Only on FreeBSD
   find_package(Intl REQUIRED)
-  list(APPEND _libs thr.a)
   list(APPEND _libs ${Intl_LIBRARIES})
 endif()
 
@@ -82,7 +87,7 @@ foreach(testtool_source ${testtool_sources})
 endforeach()
 
 add_executable(testtool)
-target_link_libraries(testtool ${_libs} ${testtool_libraries})
+target_link_libraries(testtool Threads::Threads ${_libs} ${testtool_libraries})
 install(TARGETS testtool DESTINATION sbin)
 install(
     PROGRAMS rc/testtool_freebsd
@@ -105,6 +110,7 @@ add_dependencies(testtool_test ${testtool_test_libraries})
 gtest_discover_tests(testtool_test)
 
 target_link_libraries(testtool_test
+  Threads::Threads
   GTest::GTest
   GTest::Main 
   ${testtool_test_libraries}
