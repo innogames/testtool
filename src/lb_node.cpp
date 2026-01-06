@@ -193,12 +193,13 @@ void LbNode::node_logic() {
 
   // Notify parent pool. Do it always, no matter if there was change or not.
   // The pool might not be synced if pfctl was busy.
-  parent_lbpool->pool_logic(this);
+  parent_lbpool->pool_logic(this, false);
 }
 
 /// Starts or ends a downtime.
 void LbNode::change_downtime(string s) {
   LbNodeAdminState new_admin_state = admin_state_from_config(s);
+  bool from_downtime = false;
 
   // Do nothing if there is no change
   if (new_admin_state == admin_state)
@@ -220,10 +221,11 @@ void LbNode::change_downtime(string s) {
     // Enable pool logic. If min_nodes is to be fulfilled, we can't depend only
     // on next check to finish.
     this->state_changed = true;
+    from_downtime = true;
   }
 
   // Call pool logic only once so that changes of downtimes to multiple LB Nodes
   // are processed as a single change.
   admin_state = new_admin_state;
-  parent_lbpool->pool_logic(this);
+  parent_lbpool->pool_logic(this, from_downtime);
 }
