@@ -76,6 +76,15 @@ void TesttoolTest::SetUp(bool init_state) {
     new_lbpool = new LbPool(name, lb_pool.value(), &lb_pools);
     lb_pools[new_lbpool->name] = new_lbpool;
   }
+  // Run dummy HCs for each created LB Node
+  for (const auto &lb_pool : lb_pools) {
+    for (LbNode *node : lb_pool.second->nodes) {
+      EndDummyHC(lb_pool.first, node->name,
+                 init_state ? HealthcheckResult::HC_PASS
+                            : HealthcheckResult::HC_FAIL,
+                 true);
+    }
+  }
 }
 
 void TesttoolTest::TearDown() {

@@ -137,20 +137,23 @@ void LbNode::node_logic() {
   unsigned int num_healthchecks = healthchecks.size();
   unsigned int ok_healthchecks = 0;
   unsigned int drain_healthchecks = 0;
+  unsigned int ran_healthchecks = 0;
 
   // Go over all healthchecks for this node and count hard STATE_UP
   // healthchecks.
   for (auto &hc : healthchecks) {
     if (hc->ran)
-      checked = true;
+      ran_healthchecks++;
     if (hc->hard_state == HealthcheckState::STATE_UP)
       ok_healthchecks++;
     if (hc->hard_state == HealthcheckState::STATE_DRAIN)
       drain_healthchecks++;
   }
 
-  // Do not check all healthchecks and don't notify pool until all check
-  // report at least once
+  // Do not check any healthchecks and don't notify pool until all check
+  // report at least once.
+  if (ran_healthchecks == num_healthchecks)
+    checked = true;
   if (!checked)
     return;
 
