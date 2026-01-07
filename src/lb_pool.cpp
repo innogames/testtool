@@ -278,6 +278,14 @@ void LbPool::pool_logic(LbNode *last_node) {
       }
     }
 
+    // Clear flags for nodes that are not in wanted_nodes anymore.
+    for (LbNode *node : nodes) {
+      if (wanted_nodes.find(node) == wanted_nodes.end()) {
+        node->min_nodes_kept = false;
+        node->max_nodes_kept = false;
+      }
+    }
+
     // Log only if state has changed.
     if (wanted_nodes != up_nodes) {
       up_nodes = wanted_nodes;
