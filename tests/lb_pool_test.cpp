@@ -30,11 +30,12 @@ extern set<string> sent_up_lb_nodes;
 
 class LbPoolTest : public TesttoolTest {};
 
-TEST_F(LbPoolTest, InitDown) {
+TEST_F(LbPoolTest, InitDownWithHCs) {
   // On startup LB Nodes are read as down from pfctl.
   SetUp(false);
 
-  // And they are still down once testtool starts.
+  // And they are still down once testtool starts, because they have HCs
+  // and the HCs must run before testool can take action.
   EXPECT_EQ(UpNodesNames(), set<string>({}));
 }
 
@@ -49,9 +50,24 @@ TEST_F(LbPoolTest, InitDownNoHCs) {
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
 
-TEST_F(LbPoolTest, InitUp) {
-  SetUp(true);
+TEST_F(LbPoolTest, InitUpWithHCs) {
   // On startup LB Nodes are read as up from pfctl.
+  SetUp(true);
+
+  // And they are still up once testtool starts, because they have HCs
+  // and the HCs must run before testool can take action.
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
+}
+
+TEST_F(LbPoolTest, InitUpNoHCs) {
+  // The LB Pool has no HCs.
+  base_config["lbpool.example.com"].erase("health_checks");
+
+  // On startup LB Nodes are read as up from pfctl.
+  SetUp(true);
+
+  // And they are kept active, they only might be changed later if after
+  // HCs would run.
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
 
