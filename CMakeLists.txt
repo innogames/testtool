@@ -11,66 +11,62 @@ add_compile_options(
   "-Wextra" "-pedantic"
 )
 
-if (APPLE)
-  # Include packages installed from brew
-  set(OPENSSL_ROOT_DIR /usr/local/opt/openssl)
-  set(nlohmann_json_DIR /usr/local/opt/nlohmann-json/lib/cmake/nlohmann_json/)
-endif()
-
-set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost REQUIRED COMPONENTS system)
-list(APPEND _include_dirs ${Boost_INCLUDE_DIR})
-list(APPEND _libs ${Boost_LIBRARIES})
-
-find_package(fmt 3.3.0 REQUIRED)
-
-find_package(nlohmann_json 3.3.0 REQUIRED)
-if (APPLE)
-  # Does not provide include dir as it seems
-  list(APPEND _include_dirs /usr/local/opt/nlohmann-json/include)
-endif()
-list(APPEND _libs nlohmann_json::nlohmann_json)
-
-
-# libevent
-set(LibEvent_EXTRA_PREFIXES /usr/local /opt/local /usr/local/opt/libevent)
-foreach(prefix ${LibEvent_EXTRA_PREFIXES})
-  list(APPEND LibEvent_INCLUDE_PATHS "${prefix}/include")
-  list(APPEND LibEvent_LIB_PATHS "${prefix}/lib")
-endforeach()
-foreach(library event event_core event_openssl)
-  find_library(LibEvent_LIBRARY NAMES ${library} PATHS ${LibEvent_LIB_PATHS} REQUIRED)
-  list(APPEND LibEvent_LIBRARIES ${library})
-endforeach()
-find_path(LibEvent_INCLUDE_DIR event.h PATHS ${LibEvent_INCLUDE_PATHS} REQUIRED)
-list(APPEND _link_dirs ${LibEvent_LIB_PATHS})
-list(APPEND _libs ${LibEvent_LIBRARIES})
-list(APPEND _include_dirs ${LibEvent_INCLUDE_DIR})
+find_package(PkgConfig REQUIRED)
 
 # Threading
 set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
 set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
-# Libevent
-find_package_handle_standard_args (LibEvent DEFAULT_MSG LibEvent_LIBRARIES LibEvent_INCLUDE_DIR)
-mark_as_advanced(LibEvent_INCLUDE_DIR LibEvent_LIBRARIES)
-
 # openssl
+if (APPLE)
+  set(OPENSSL_ROOT_DIR /opt/homebrew/opt/openssl)
+endif()
 find_package(OpenSSL REQUIRED)
 list(APPEND _include_dirs ${OPENSSL_INCLUDE_DIR})
 list(APPEND _libs ${OPENSSL_LIBRARIES})
 
+# boost
+set(Boost_USE_STATIC_LIBS ON)
+find_package(Boost REQUIRED)
+list(APPEND _include_dirs ${Boost_INCLUDE_DIR})
+
+# fmt
+find_package(fmt 3.3.0 REQUIRED)
+list(APPEND _libs fmt::fmt)
+
+# nlohmann_json
+if (APPLE)
+  set(nlohmann_json_DIR /opt/homebrew/opt/nlohmann-json/lib/cmake/nlohmann_json/)
+endif()
+find_package(nlohmann_json 3.3.0 REQUIRED)
+list(APPEND _libs nlohmann_json::nlohmann_json)
+
+# libevent
+if (APPLE)
+  set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/opt/libevent/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
+pkg_check_modules(LibEvent REQUIRED libevent libevent_openssl)
+list(APPEND _libs ${LibEvent_LIBRARIES})
+list(APPEND _include_dirs ${LibEvent_INCLUDE_DIRS})
+list(APPEND _link_dirs ${LibEvent_LIBRARY_DIRS})
+
 # libpq
 find_package(PostgreSQL REQUIRED)
+list(APPEND _include_dirs ${PostgreSQL_INCLUDE_DIRS})
 list(APPEND _libs ${PostgreSQL_LIBRARIES})
 
-find_package(yaml-cpp REQUIRED)
-list(APPEND _include_dirs ${YAML_CPP_INCLUDE_DIR})
+# yaml-cpp
+if (APPLE)
+  set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/opt/yaml-cpp/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
+pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
+list(APPEND _include_dirs ${YAML_CPP_INCLUDE_DIRS})
 list(APPEND _libs ${YAML_CPP_LIBRARIES})
+list(APPEND _link_dirs ${YAML_CPP_LIBRARY_DIRS})
 
-if(UNIX AND NOT APPLE AND NOT LINUX)
-  # Only on FreeBSD
+# Intl (FreeBSD only)
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
   find_package(Intl REQUIRED)
   list(APPEND _libs ${Intl_LIBRARIES})
 endif()
@@ -83,6 +79,8 @@ file(GLOB testtool_headers "src/*.h")
 foreach(testtool_source ${testtool_sources})
   string(REGEX REPLACE ".*/" "" testtool_library ${testtool_source})
   add_library("${testtool_library}" OBJECT ${testtool_source} ${testool_headers})
+  target_link_libraries("${testtool_library}" PRIVATE ${_libs})
+  target_include_directories("${testtool_library}" PRIVATE ${_include_dirs})
   list(APPEND testtool_libraries ${testtool_library})
 endforeach()
 
