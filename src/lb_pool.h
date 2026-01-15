@@ -52,7 +52,7 @@ public:
   LbPool(string name, nlohmann::json &config,
          map<std::string, LbPool *> *all_lb_pools);
   void schedule_healthchecks(struct timespec *now);
-  void pool_logic(LbNode *last_node);
+  void pool_logic(LbNode *last_node, bool from_downtime);
   void finalize_healthchecks();
   void sync_no_hc();
   void update_pfctl();

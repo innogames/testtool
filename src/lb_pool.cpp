@@ -127,7 +127,7 @@ LbPool::LbPool(string name, nlohmann::json &config,
   // entries which are not in config file anymore? Maybe it has no checks
   // assigned?
   pf_synced = false;
-  pool_logic(NULL);
+  pool_logic(NULL, false);
 }
 
 string LbPool::get_fault_policy_string() {
@@ -162,7 +162,7 @@ void LbPool::finalize_healthchecks() {
 
 /// Performs operations on LB Pool when LB Nodes' and their checks' statuses
 /// change
-void LbPool::pool_logic(LbNode *last_node) {
+void LbPool::pool_logic(LbNode *last_node, bool from_downtime) {
   // Now that checks results are known, operations can be performed on pf.
   // I tried to come multiple times with a differential algorithm.
   // I always failed because iteration was necessary in some cases anyway:
@@ -224,10 +224,12 @@ void LbPool::pool_logic(LbNode *last_node) {
         // Force some nodes up to satisfy min_nodes requirement. Only
         // non-downtimed nodes can be added.
 
-        // First add the one which changed state recently.
-        // If it was up, it is already added.
+        // First add the one which changed state recently. Unless it is coming
+        // out from a downtime to prevent rebalancing. If it was up,
+        // it is already added.
         if (last_node && last_node->state == LbNodeState::STATE_DOWN &&
             last_node->admin_state == LbNodeAdminState::STATE_ENABLED &&
+            !from_downtime &&
             wanted_nodes.size() < min_nodes) {
           wanted_nodes.insert(last_node);
           last_node->min_nodes_kept = true;
@@ -267,6 +269,18 @@ void LbPool::pool_logic(LbNode *last_node) {
           fuc->min_nodes_kept = true;
           wanted_nodes.insert(fuc);
         }
+
+        // Still not enough nodes? Add the node coming out from downtime.
+        if (from_downtime && last_node &&
+            last_node->admin_state == LbNodeAdminState::STATE_ENABLED &&
+            wanted_nodes.size() < min_nodes) {
+          wanted_nodes.insert(last_node);
+          last_node->min_nodes_kept = true;
+          log(MessageType::MSG_INFO, this,
+              fmt::sprintf("Force keeping recently un-downtimed LB Node %s",
+                           last_node->name));
+        }
+
         break;
 
       case FaultPolicy::BACKUP_POOL:
@@ -275,6 +289,14 @@ void LbPool::pool_logic(LbNode *last_node) {
           backup_pool_active = true;
         }
         break;
+      }
+    }
+
+    // Clear flags for nodes that are not in wanted_nodes anymore.
+    for (LbNode *node : nodes) {
+      if (wanted_nodes.find(node) == wanted_nodes.end()) {
+        node->min_nodes_kept = false;
+        node->max_nodes_kept = false;
       }
     }
 
@@ -320,7 +342,7 @@ void LbPool::update_pfctl(void) {
   for (auto &lb_pool : *all_lb_pools) {
     if (lb_pool.second->backup_pool_name == name &&
         lb_pool.second->backup_pool_active) {
-      lb_pool.second->pool_logic(NULL);
+      lb_pool.second->pool_logic(NULL, false);
     }
   }
 }
