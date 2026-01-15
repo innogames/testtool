@@ -28,9 +28,8 @@ list(APPEND _libs ${OPENSSL_LIBRARIES})
 
 # boost
 set(Boost_USE_STATIC_LIBS ON)
-find_package(Boost REQUIRED COMPONENTS system)
+find_package(Boost REQUIRED)
 list(APPEND _include_dirs ${Boost_INCLUDE_DIR})
-list(APPEND _libs ${Boost_LIBRARIES})
 
 # fmt
 find_package(fmt 3.3.0 REQUIRED)
