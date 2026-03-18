@@ -93,31 +93,49 @@ install(
     RENAME testtool
 )
 
-list(APPEND testtool_test_libraries ${testtool_libraries})
-list(FILTER testtool_test_libraries EXCLUDE REGEX "^(msg|pfctl_worker|pfctl|testtool).cpp$")
-
 find_package(GTest REQUIRED)
 include(GoogleTest)
 
 configure_file("tests/cmake_dirs.h.in" ${CMAKE_BINARY_DIR}/generated/cmake_dirs.h)
 include_directories(${CMAKE_BINARY_DIR}/generated ${CMAKE_SOURCE_DIR}/src)
 
-file(GLOB testtool_test_src "tests/*.cpp" "tests/*.h")
-add_executable(testtool_test ${testtool_test_src})
-add_dependencies(testtool_test ${testtool_test_libraries})
-gtest_discover_tests(testtool_test)
+# --- Pool logic tests (renamed from testtool_test) ---
+list(APPEND testtool_test_pool_libraries ${testtool_libraries})
+list(FILTER testtool_test_pool_libraries EXCLUDE REGEX "^(msg|pfctl_worker|pfctl|testtool).cpp$")
 
-target_link_libraries(testtool_test
+file(GLOB testtool_test_pool_src "tests/testtool_test.cpp" "tests/testtool_test.h" "tests/lb_pool_test.cpp")
+add_executable(testtool_test_pool ${testtool_test_pool_src})
+add_dependencies(testtool_test_pool ${testtool_test_pool_libraries})
+gtest_discover_tests(testtool_test_pool)
+
+target_link_libraries(testtool_test_pool
   Threads::Threads
   GTest::GTest
-  GTest::Main 
-  ${testtool_test_libraries}
+  GTest::Main
+  ${testtool_test_pool_libraries}
   ${_libs}
 )
 
-# Create autoconf-compatible "check" commmand which also fixes
+# --- pfctl tests ---
+list(APPEND testtool_test_pfctl_libraries ${testtool_libraries})
+list(FILTER testtool_test_pfctl_libraries EXCLUDE REGEX "^(msg|pfctl_worker|testtool).cpp$")
+
+file(GLOB testtool_test_pfctl_src "tests/pfctl_test.cpp" "tests/pfctl_test.h")
+add_executable(testtool_test_pfctl ${testtool_test_pfctl_src})
+add_dependencies(testtool_test_pfctl ${testtool_test_pfctl_libraries})
+gtest_discover_tests(testtool_test_pfctl)
+
+target_link_libraries(testtool_test_pfctl
+  Threads::Threads
+  GTest::GTest
+  GTest::Main
+  ${testtool_test_pfctl_libraries}
+  ${_libs}
+)
+
+# Create autoconf-compatible "check" command which also fixes
 # the issue of CMake not including dependency from test to test binaries
 add_custom_target(check
  COMMAND ${CMAKE_CTEST_COMMAND}
- DEPENDS testtool_test
+ DEPENDS testtool_test_pool testtool_test_pfctl
 )
