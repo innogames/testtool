@@ -1,5 +1,11 @@
-*.swp
 *.o
+*.swp
+.claude
+.devcontainer
+.downloads
+.idea
+Makefile
+build
+cmake-build-*
 obj/*
 testtool
-build
