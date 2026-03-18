@@ -9,7 +9,7 @@ After implementing any code changes, always do a clean build and run the tests:
 ```sh
 rm -rf obj
 cmake -B obj -S .
-/usr/bin/make -j$(sysctl -n hw.ncpu) -C obj check
+/usr/bin/make -j4 -C obj check
 ```
 
 Always delete `obj/` and re-run cmake before building — never reuse a stale build directory.
