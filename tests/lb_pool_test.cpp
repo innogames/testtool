@@ -30,11 +30,12 @@ extern set<string> sent_up_lb_nodes;
 
 class LbPoolTest : public TesttoolTest {};
 
-TEST_F(LbPoolTest, InitDown) {
+TEST_F(LbPoolTest, InitDownWithHCs) {
   // On startup LB Nodes are read as down from pfctl.
   SetUp(false);
 
-  // And they are still down once testtool starts.
+  // And they are still down once testtool starts, because they have HCs
+  // and the HCs must run before testool can take action.
   EXPECT_EQ(UpNodesNames(), set<string>({}));
 }
 
@@ -49,9 +50,24 @@ TEST_F(LbPoolTest, InitDownNoHCs) {
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
 
-TEST_F(LbPoolTest, InitUp) {
-  SetUp(true);
+TEST_F(LbPoolTest, InitUpWithHCs) {
   // On startup LB Nodes are read as up from pfctl.
+  SetUp(true);
+
+  // And they are still up once testtool starts, because they have HCs
+  // and the HCs must run before testool can take action.
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
+}
+
+TEST_F(LbPoolTest, InitUpNoHCs) {
+  // The LB Pool has no HCs.
+  base_config["lbpool.example.com"].erase("health_checks");
+
+  // On startup LB Nodes are read as up from pfctl.
+  SetUp(true);
+
+  // And they are kept active, they only might be changed later if after
+  // HCs would run.
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1", "lbnode2", "lbnode3"}));
 }
 
@@ -353,4 +369,49 @@ TEST_F(LbPoolTest, ForceUpDowntimedDrain) {
   // The deployment is finished.
   EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
   EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+}
+
+// NDCO-5968: Maintenance must not change force-kept node.
+// When a force-kept node exists, bringing another node online from maintenance
+// must not automatically force-keep the newly online node if it's still down.
+// The existing force-kept node must be retained.
+//
+// This test simulates a PostgreSQL writable pool scenario where max_nodes=1
+// and min_nodes=1 are used together. Only the primary (lbnode1) is writable
+// and passes health checks. The replicas (lbnode2, lbnode3) are read-only and
+// fail the writable check.
+//
+TEST_F(LbPoolTest, MaintenanceMustNotChangeForceKept) {
+  base_config["lbpool.example.com"]["health_checks"][0]["hc_max_failed"] = 1;
+  base_config["lbpool.example.com"]["min_nodes"] = 1;
+  base_config["lbpool.example.com"]["max_nodes"] = 1;
+  base_config["lbpool.example.com"]["min_nodes_action"] = "force_up";
+  SetUp(false);
+
+  // Only lbnode1 (primary) is writable and passes health checks.
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // lbnode2 and lbnode3 are read-only replicas, they fail the writable check.
+  EndDummyHC(test_lb_pool, "lbnode2", HealthcheckResult::HC_FAIL, false);
+  EndDummyHC(test_lb_pool, "lbnode3", HealthcheckResult::HC_FAIL, false);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // lbnode1 (primary) fails, it gets force-kept (min_nodes=1).
+  EndDummyHC(test_lb_pool, "lbnode1", HealthcheckResult::HC_FAIL, false);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // Put lbnode2 into maintenance.
+  GetLbNode(test_lb_pool, "lbnode2")->change_downtime("maintenance");
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // Take lbnode2 out of maintenance - it's still down from healthchecks.
+  // Bug: lbnode2 must NOT be force-kept, lbnode1 must remain active.
+  GetLbNode(test_lb_pool, "lbnode2")->change_downtime("online");
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode1"}));
+
+  // But what if this new node becomes writable master?
+  // It must become the active node, overriding the one force-kept before.
+  EndDummyHC(test_lb_pool, "lbnode2", HealthcheckResult::HC_PASS, true);
+  EXPECT_EQ(UpNodesNames(), set<string>({"lbnode2"}));
 }
