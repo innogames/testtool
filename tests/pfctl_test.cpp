@@ -1,21 +1,20 @@
 //
-// Tests for pfctl.cpp functions
+// Tests for pfctl async API
 //
 
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <gtest/gtest.h>
 #include <iostream>
 #include <openssl/ssl.h>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "msg.h"
 #include "pfctl.h"
+#include "pfctl_async.h"
 #include "pfctl_test.h"
-#include "pfctl_worker.h"
 
 using namespace std;
-using namespace boost::interprocess;
 
 // Global variables required by pfctl.cpp
 bool pf_action = true;
@@ -42,25 +41,12 @@ void log(MessageType loglevel, Healthcheck *hc, string msg) {
 struct event_base *eventBase = NULL;
 SSL_CTX *sctx = NULL;
 int verbose = 0;
-message_queue *pfctl_mq;
+PfctlAsync *pfctl_async = nullptr;
 
-// Mock send_message (lb_pool.cpp calls this via pfctl_worker.cpp which is excluded)
-bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
-  (void)(mq);
-  (void)(pool_name);
-  (void)(table_name);
-  (void)(all_lb_nodes);
-  (void)(up_lb_nodes);
-  return true;
-}
-
-// === pfctl_run_command tests ===
+// === PfctlAsync::run_command tests ===
 
 TEST_F(PfctlTest, RunCommandBasicAdd) {
-  // Test that pfctl_run_command correctly spawns the mock script
-  vector<string> args = {"-t", "test_table", "-T", "add", "2001:db8::1"};
-  bool ret = pfctl_run_command(&args, NULL);
+  bool ret = RunCommand({"-t", "test_table", "-T", "add", "2001:db8::1"});
   EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("test_table"), set<string>({"2001:db8::1"}));
 }
@@ -68,17 +54,15 @@ TEST_F(PfctlTest, RunCommandBasicAdd) {
 TEST_F(PfctlTest, RunCommandWithOutput) {
   SetTable("test_table", {"2001:db8::1", "2001:db8::2"});
 
-  vector<string> args = {"-t", "test_table", "-T", "show"};
   vector<string> lines;
-  bool ret = pfctl_run_command(&args, &lines);
+  bool ret = RunCommand({"-t", "test_table", "-T", "show"}, &lines);
   EXPECT_TRUE(ret);
   EXPECT_EQ(lines.size(), 2);
 }
 
 TEST_F(PfctlTest, RunCommandPfActionFalse) {
   pf_action = false;
-  vector<string> args = {"-t", "test_table", "-T", "add", "2001:db8::1"};
-  bool ret = pfctl_run_command(&args, NULL);
+  bool ret = RunCommand({"-t", "test_table", "-T", "add", "2001:db8::1"});
   EXPECT_TRUE(ret);
   // Table should be empty since command was not executed
   EXPECT_EQ(GetTable("test_table"), set<string>({}));
@@ -87,83 +71,75 @@ TEST_F(PfctlTest, RunCommandPfActionFalse) {
 
 TEST_F(PfctlTest, RunCommandFailure) {
   // Show on non-existent table should fail
-  vector<string> args = {"-t", "nonexistent", "-T", "show"};
   vector<string> lines;
-  bool ret = pfctl_run_command(&args, &lines);
+  bool ret = RunCommand({"-t", "nonexistent", "-T", "show"}, &lines);
   EXPECT_FALSE(ret);
 }
 
-// === pf_table_add tests ===
+// === Table add tests ===
 
 TEST_F(PfctlTest, TableAddSingle) {
-  string table = "pool_0";
-  set<string> addrs = {"2001:db8::1"};
-  EXPECT_TRUE(pf_table_add(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "add", "2001:db8::1"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1"}));
 }
 
 TEST_F(PfctlTest, TableAddMultiple) {
-  string table = "pool_0";
-  set<string> addrs = {"2001:db8::1", "2001:db8::2", "2001:db8::3"};
-  EXPECT_TRUE(pf_table_add(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "add", "2001:db8::1", "2001:db8::2", "2001:db8::3"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"),
             set<string>({"2001:db8::1", "2001:db8::2", "2001:db8::3"}));
 }
 
 TEST_F(PfctlTest, TableAddEmptySet) {
-  string table = "pool_0";
-  set<string> addrs = {};
-  // Empty set returns true without calling pfctl
-  EXPECT_TRUE(pf_table_add(&table, &addrs));
+  // Empty add creates the table but adds no addresses
+  bool ret = RunCommand({"-t", "pool_0", "-T", "add"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({}));
 }
 
 TEST_F(PfctlTest, TableAddIdempotent) {
-  string table = "pool_0";
-  set<string> addrs = {"2001:db8::1"};
-  EXPECT_TRUE(pf_table_add(&table, &addrs));
-  EXPECT_TRUE(pf_table_add(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "add", "2001:db8::1"});
+  EXPECT_TRUE(ret);
+  ret = RunCommand({"-t", "pool_0", "-T", "add", "2001:db8::1"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1"}));
 }
 
-// === pf_table_del tests ===
+// === Table del tests ===
 
 TEST_F(PfctlTest, TableDelSingle) {
-  string table = "pool_0";
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2"});
-  set<string> addrs = {"2001:db8::1"};
-  EXPECT_TRUE(pf_table_del(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "del", "2001:db8::1"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::2"}));
 }
 
 TEST_F(PfctlTest, TableDelAll) {
-  string table = "pool_0";
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2"});
-  set<string> addrs = {"2001:db8::1", "2001:db8::2"};
-  EXPECT_TRUE(pf_table_del(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "del", "2001:db8::1", "2001:db8::2"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({}));
 }
 
 TEST_F(PfctlTest, TableDelEmptySet) {
-  string table = "pool_0";
-  set<string> addrs = {};
-  EXPECT_TRUE(pf_table_del(&table, &addrs));
+  // Del with no addresses is a no-op
+  bool ret = RunCommand({"-t", "pool_0", "-T", "del"});
+  EXPECT_TRUE(ret);
 }
 
 TEST_F(PfctlTest, TableDelNonexistent) {
-  string table = "pool_0";
   SetTable("pool_0", {"2001:db8::1"});
-  set<string> addrs = {"2001:db8::99"};
-  EXPECT_TRUE(pf_table_del(&table, &addrs));
+  bool ret = RunCommand({"-t", "pool_0", "-T", "del", "2001:db8::99"});
+  EXPECT_TRUE(ret);
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1"}));
 }
 
-// === pf_kill_src_nodes_to tests ===
+// === Kill src_nodes tests ===
 
 TEST_F(PfctlTest, KillSrcNodesWithoutStates) {
-  string table = "pool_0";
-  string addr = "2001:db8::1";
-  EXPECT_TRUE(pf_kill_src_nodes_to(&table, &addr, false));
+  bool ret = RunCommand({"-K", "table", "-K", "pool_0", "-K", "dsthost", "-K", "2001:db8::1"});
+  EXPECT_TRUE(ret);
 
   json kill_log = GetKillLog();
   ASSERT_EQ(kill_log.size(), 1);
@@ -174,9 +150,9 @@ TEST_F(PfctlTest, KillSrcNodesWithoutStates) {
 }
 
 TEST_F(PfctlTest, KillSrcNodesWithStates) {
-  string table = "pool_0";
-  string addr = "2001:db8::1";
-  EXPECT_TRUE(pf_kill_src_nodes_to(&table, &addr, true));
+  bool ret = RunCommand({"-K", "table", "-K", "pool_0", "-K", "dsthost", "-K", "2001:db8::1",
+                          "-K", "kill", "-K", "rststates"});
+  EXPECT_TRUE(ret);
 
   json kill_log = GetKillLog();
   ASSERT_EQ(kill_log.size(), 1);
@@ -184,12 +160,12 @@ TEST_F(PfctlTest, KillSrcNodesWithStates) {
   EXPECT_EQ(kill_log[0]["with_states"], true);
 }
 
-// === pf_kill_states_to_rdr tests ===
+// === Kill states tests ===
 
 TEST_F(PfctlTest, KillStatesToRdr) {
-  string table = "pool_0";
-  string addr = "2001:db8::1";
-  EXPECT_TRUE(pf_kill_states_to_rdr(&table, &addr));
+  bool ret = RunCommand({"-k", "table", "-k", "pool_0", "-k", "rdrhost", "-k", "2001:db8::1",
+                          "-k", "kill", "-k", "rststates"});
+  EXPECT_TRUE(ret);
 
   json kill_log = GetKillLog();
   ASSERT_EQ(kill_log.size(), 1);
@@ -198,101 +174,110 @@ TEST_F(PfctlTest, KillStatesToRdr) {
   EXPECT_EQ(kill_log[0]["address"], "2001:db8::1");
 }
 
-// === pf_get_table tests ===
+// === Get table tests (via show command + output parsing) ===
 
 TEST_F(PfctlTest, GetTableExisting) {
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2"});
-  string table = "pool_0";
+
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
+
+  // Parse output (mock produces "   addr" format lines)
   set<string> result;
-  EXPECT_TRUE(pf_get_table(&table, &result));
+  for (auto &line : lines) {
+    // Trim whitespace
+    size_t start = line.find_first_not_of(" \t");
+    if (start != string::npos)
+      result.insert(line.substr(start));
+  }
   EXPECT_EQ(result, set<string>({"2001:db8::1", "2001:db8::2"}));
 }
 
 TEST_F(PfctlTest, GetTableEmpty) {
   SetTable("pool_0", {});
-  string table = "pool_0";
-  set<string> result;
-  EXPECT_TRUE(pf_get_table(&table, &result));
-  EXPECT_EQ(result, set<string>({}));
+
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
+  EXPECT_EQ(lines.size(), 0);
 }
 
 TEST_F(PfctlTest, GetTableNonexistentCreatesIt) {
-  // pf_get_table creates the table if it doesn't exist
-  string table = "new_table";
-  set<string> result;
-  EXPECT_TRUE(pf_get_table(&table, &result));
-  EXPECT_EQ(result, set<string>({}));
+  // Show on nonexistent table fails, then add creates it
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "new_table", "-T", "show"}, &lines);
+  EXPECT_FALSE(ret);
+
+  // Create the table via add
+  ret = RunCommand({"-t", "new_table", "-T", "add"});
+  EXPECT_TRUE(ret);
+
   // Table should now exist in state
   EXPECT_TRUE(ReadState()["tables"].contains("new_table"));
 }
 
 TEST_F(PfctlTest, GetTableMultipleAddresses) {
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2", "2001:db8::3"});
-  string table = "pool_0";
-  set<string> result;
-  EXPECT_TRUE(pf_get_table(&table, &result));
-  EXPECT_EQ(result,
-            set<string>({"2001:db8::1", "2001:db8::2", "2001:db8::3"}));
+
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
+  EXPECT_EQ(lines.size(), 3);
 }
 
-// === pf_is_in_table tests ===
+// === Is-in-table tests (show + check output) ===
 
 TEST_F(PfctlTest, IsInTablePresent) {
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2"});
-  string table = "pool_0";
-  string addr = "2001:db8::1";
-  bool answer = false;
-  EXPECT_TRUE(pf_is_in_table(&table, &addr, &answer));
-  EXPECT_TRUE(answer);
+
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
+
+  // Parse and check
+  set<string> result;
+  for (auto &line : lines) {
+    size_t start = line.find_first_not_of(" \t");
+    if (start != string::npos)
+      result.insert(line.substr(start));
+  }
+  EXPECT_TRUE(result.count("2001:db8::1") > 0);
 }
 
 TEST_F(PfctlTest, IsInTableAbsent) {
   SetTable("pool_0", {"2001:db8::1"});
-  string table = "pool_0";
-  string addr = "2001:db8::99";
-  bool answer = true;
-  EXPECT_TRUE(pf_is_in_table(&table, &addr, &answer));
-  EXPECT_FALSE(answer);
+
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
+
+  set<string> result;
+  for (auto &line : lines) {
+    size_t start = line.find_first_not_of(" \t");
+    if (start != string::npos)
+      result.insert(line.substr(start));
+  }
+  EXPECT_FALSE(result.count("2001:db8::99") > 0);
 }
 
 TEST_F(PfctlTest, IsInTableEmptyTable) {
   SetTable("pool_0", {});
-  string table = "pool_0";
-  string addr = "2001:db8::1";
-  bool answer = true;
-  EXPECT_TRUE(pf_is_in_table(&table, &addr, &answer));
-  EXPECT_FALSE(answer);
-}
 
-// === pf_table_rebalance tests ===
+  vector<string> lines;
+  bool ret = RunCommand({"-t", "pool_0", "-T", "show"}, &lines);
+  EXPECT_TRUE(ret);
 
-TEST_F(PfctlTest, RebalanceKillsOldEntries) {
-  SetTable("pool_0", {"2001:db8::1", "2001:db8::2", "2001:db8::3"});
-  string table = "pool_0";
-  set<string> skip = {"2001:db8::3"}; // newly added
-  EXPECT_TRUE(pf_table_rebalance(&table, &skip));
-
-  json kill_log = GetKillLog();
-  // Should kill src_nodes for ::1 and ::2 (not ::3)
-  ASSERT_EQ(kill_log.size(), 2);
-  set<string> killed;
-  for (const auto &entry : kill_log) {
-    EXPECT_EQ(entry["type"], "src_nodes");
-    EXPECT_EQ(entry["with_states"], false);
-    killed.insert(entry["address"].get<string>());
+  set<string> result;
+  for (auto &line : lines) {
+    size_t start = line.find_first_not_of(" \t");
+    if (start != string::npos)
+      result.insert(line.substr(start));
   }
-  EXPECT_EQ(killed, set<string>({"2001:db8::1", "2001:db8::2"}));
+  EXPECT_FALSE(result.count("2001:db8::1") > 0);
 }
 
-TEST_F(PfctlTest, RebalanceNonexistentTable) {
-  // pf_get_table will create it, then no entries to kill
-  string table = "new_table";
-  set<string> skip = {"2001:db8::1"};
-  EXPECT_TRUE(pf_table_rebalance(&table, &skip));
-  EXPECT_EQ(GetKillLog().size(), 0);
-}
-
-// === pf_sync_table tests ===
+// === Rebalance tests (via sync_table) ===
 
 // Helper to build SyncedLbNode array
 static void InitSyncedNodes(SyncedLbNode *nodes) {
@@ -308,8 +293,53 @@ static void SetSyncedNode(SyncedLbNode *nodes, int index,
   nodes[index].admin_state = admin;
 }
 
+TEST_F(PfctlTest, RebalanceKillsOldEntries) {
+  // Start with existing entries, add a new one via sync, verify rebalance kills
+  SetTable("pool_0", {"2001:db8::1", "2001:db8::2", "2001:db8::3"});
+
+  SyncedLbNode nodes[MAX_NODES];
+  InitSyncedNodes(nodes);
+  // All 3 wanted + a new one (::4) to trigger rebalance
+  SetSyncedNode(nodes, 0, "2001:db8::1", LbNodeState::STATE_UP,
+                LbNodeAdminState::STATE_ENABLED);
+  SetSyncedNode(nodes, 1, "2001:db8::2", LbNodeState::STATE_UP,
+                LbNodeAdminState::STATE_ENABLED);
+  SetSyncedNode(nodes, 2, "2001:db8::3", LbNodeState::STATE_UP,
+                LbNodeAdminState::STATE_ENABLED);
+  SetSyncedNode(nodes, 3, "2001:db8::4", LbNodeState::STATE_UP,
+                LbNodeAdminState::STATE_ENABLED);
+
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
+  EXPECT_EQ(GetTable("pool_0"),
+            set<string>({"2001:db8::1", "2001:db8::2", "2001:db8::3", "2001:db8::4"}));
+
+  // Should have rebalance kills for the old entries (::1, ::2, ::3)
+  json kill_log = GetKillLog();
+  set<string> killed;
+  for (const auto &entry : kill_log) {
+    if (entry["type"] == "src_nodes") {
+      killed.insert(entry["address"].get<string>());
+    }
+  }
+  EXPECT_TRUE(killed.count("2001:db8::1") > 0);
+  EXPECT_TRUE(killed.count("2001:db8::2") > 0);
+  EXPECT_TRUE(killed.count("2001:db8::3") > 0);
+}
+
+TEST_F(PfctlTest, RebalanceNonexistentTable) {
+  // Sync on nonexistent table should create it and add nodes
+  SyncedLbNode nodes[MAX_NODES];
+  InitSyncedNodes(nodes);
+  SetSyncedNode(nodes, 0, "2001:db8::1", LbNodeState::STATE_UP,
+                LbNodeAdminState::STATE_ENABLED);
+
+  EXPECT_TRUE(RunSyncTable("new_table", nodes));
+  EXPECT_EQ(GetTable("new_table"), set<string>({"2001:db8::1"}));
+}
+
+// === pf_sync_table_async tests ===
+
 TEST_F(PfctlTest, SyncTableAddNodes) {
-  // Empty table, add two wanted-up nodes
   SetTable("pool_0", {});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -319,12 +349,11 @@ TEST_F(PfctlTest, SyncTableAddNodes) {
   SetSyncedNode(nodes, 1, "2001:db8::2", LbNodeState::STATE_UP,
                 LbNodeAdminState::STATE_ENABLED);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1", "2001:db8::2"}));
 }
 
 TEST_F(PfctlTest, SyncTableRemoveNodes) {
-  // Table has 3 addresses, only 1 node is wanted
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2", "2001:db8::3"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -336,12 +365,11 @@ TEST_F(PfctlTest, SyncTableRemoveNodes) {
   SetSyncedNode(nodes, 2, "2001:db8::3", LbNodeState::STATE_DOWN,
                 LbNodeAdminState::STATE_ENABLED);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1"}));
 }
 
 TEST_F(PfctlTest, SyncTableNoChange) {
-  // Table matches desired state exactly
   SetTable("pool_0", {"2001:db8::1", "2001:db8::2"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -351,14 +379,13 @@ TEST_F(PfctlTest, SyncTableNoChange) {
   SetSyncedNode(nodes, 1, "2001:db8::2", LbNodeState::STATE_UP,
                 LbNodeAdminState::STATE_ENABLED);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1", "2001:db8::2"}));
   // No kills should have happened
   EXPECT_EQ(GetKillLog().size(), 0);
 }
 
 TEST_F(PfctlTest, SyncTableDrainSoftNoKillStates) {
-  // DRAIN_SOFT nodes should NOT kill states (with_states = false)
   SetTable("pool_0", {"2001:db8::1"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -366,7 +393,7 @@ TEST_F(PfctlTest, SyncTableDrainSoftNoKillStates) {
   SetSyncedNode(nodes, 0, "2001:db8::1", LbNodeState::STATE_DOWN,
                 LbNodeAdminState::STATE_DRAIN_SOFT);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({}));
 
   // Check kill log: should have only src_nodes kill, no states kill
@@ -382,9 +409,6 @@ TEST_F(PfctlTest, SyncTableDrainSoftNoKillStates) {
 }
 
 TEST_F(PfctlTest, SyncTableDrainHardNoKillStates) {
-  // DRAIN_HARD nodes should NOT kill states (with_states = false)
-  // Both DRAIN_HARD and DRAIN_SOFT are <= STATE_DRAIN_SOFT in the enum,
-  // so neither kills states. Only DOWNTIME and above do.
   SetTable("pool_0", {"2001:db8::1"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -392,7 +416,7 @@ TEST_F(PfctlTest, SyncTableDrainHardNoKillStates) {
   SetSyncedNode(nodes, 0, "2001:db8::1", LbNodeState::STATE_DOWN,
                 LbNodeAdminState::STATE_DRAIN_HARD);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({}));
 
   // Check kill log: should have src_nodes without states, no states_rdr
@@ -407,7 +431,6 @@ TEST_F(PfctlTest, SyncTableDrainHardNoKillStates) {
 }
 
 TEST_F(PfctlTest, SyncTableDowntimeKillsStates) {
-  // DOWNTIME nodes should kill states (admin_state > DRAIN_SOFT)
   SetTable("pool_0", {"2001:db8::1"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -415,7 +438,7 @@ TEST_F(PfctlTest, SyncTableDowntimeKillsStates) {
   SetSyncedNode(nodes, 0, "2001:db8::1", LbNodeState::STATE_DOWN,
                 LbNodeAdminState::STATE_DOWNTIME);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
 
   json kill_log = GetKillLog();
   bool has_states_rdr = false;
@@ -427,7 +450,6 @@ TEST_F(PfctlTest, SyncTableDowntimeKillsStates) {
 }
 
 TEST_F(PfctlTest, SyncTableRebalancesOnAdd) {
-  // When new nodes are added, existing entries should be rebalanced
   SetTable("pool_0", {"2001:db8::1"});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -437,7 +459,7 @@ TEST_F(PfctlTest, SyncTableRebalancesOnAdd) {
   SetSyncedNode(nodes, 1, "2001:db8::2", LbNodeState::STATE_UP,
                 LbNodeAdminState::STATE_ENABLED);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1", "2001:db8::2"}));
 
   // Should have rebalance kills (src_nodes for ::1, the old entry)
@@ -452,7 +474,6 @@ TEST_F(PfctlTest, SyncTableRebalancesOnAdd) {
 }
 
 TEST_F(PfctlTest, SyncTableNonEnabledNodesNotAdded) {
-  // Nodes that are UP but not ENABLED should NOT be added to the table
   SetTable("pool_0", {});
 
   SyncedLbNode nodes[MAX_NODES];
@@ -462,8 +483,117 @@ TEST_F(PfctlTest, SyncTableNonEnabledNodesNotAdded) {
   SetSyncedNode(nodes, 1, "2001:db8::2", LbNodeState::STATE_UP,
                 LbNodeAdminState::STATE_DOWNTIME);
 
-  EXPECT_TRUE(pf_sync_table("pool_0", nodes));
+  EXPECT_TRUE(RunSyncTable("pool_0", nodes));
   EXPECT_EQ(GetTable("pool_0"), set<string>({}));
+}
+
+// === New PfctlAsync-specific tests ===
+
+TEST_F(PfctlTest, AsyncQueueSerializes) {
+  // Queue 2 commands and verify they execute in order
+  vector<string> order;
+  done_ = false;
+  int completed = 0;
+
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::1"},
+    [&](bool success, vector<string> out) {
+      order.push_back("first");
+      completed++;
+      if (completed == 2) done_ = true;
+    });
+
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::2"},
+    [&](bool success, vector<string> out) {
+      order.push_back("second");
+      completed++;
+      if (completed == 2) done_ = true;
+    });
+
+  RunUntilDone();
+
+  ASSERT_EQ(order.size(), 2);
+  EXPECT_EQ(order[0], "first");
+  EXPECT_EQ(order[1], "second");
+  EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1", "2001:db8::2"}));
+}
+
+TEST_F(PfctlTest, AsyncQueueFullReturnsFalse) {
+  // Fill queue beyond MAX_QUEUE_LEN while a command is running
+  // First, start a command to make the instance busy
+  bool first_done = false;
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::1"},
+    [&](bool success, vector<string> out) {
+      first_done = true;
+    });
+
+  // Now queue MAX_QUEUE_LEN more commands (filling the queue)
+  for (size_t i = 0; i < 10; i++) {
+    bool queued = pfctl_->run_command(
+      {"-t", "pool_0", "-T", "add", "2001:db8::" + to_string(i + 10)},
+      [](bool, vector<string>) {});
+    // First 10 should succeed (queue has room)
+    EXPECT_TRUE(queued) << "Command " << i << " should have been queued";
+  }
+
+  // This should fail - queue is full and a child is running
+  bool queued = pfctl_->run_command(
+    {"-t", "pool_0", "-T", "add", "2001:db8::99"},
+    [](bool, vector<string>) {});
+  EXPECT_FALSE(queued);
+
+  // Drain to clean up
+  pfctl_->drain();
+}
+
+TEST_F(PfctlTest, AsyncDrainCompletes) {
+  // Queue commands, call drain(), verify all callbacks fired
+  int completed = 0;
+
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::1"},
+    [&](bool success, vector<string> out) {
+      EXPECT_TRUE(success);
+      completed++;
+    });
+
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::2"},
+    [&](bool success, vector<string> out) {
+      EXPECT_TRUE(success);
+      completed++;
+    });
+
+  pfctl_->drain();
+
+  EXPECT_EQ(completed, 2);
+  EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1", "2001:db8::2"}));
+}
+
+TEST_F(PfctlTest, AsyncCommandFailureContinues) {
+  // Queue a failing command followed by a succeeding one
+  // Both should execute
+  done_ = false;
+  int completed = 0;
+  bool first_success = true;
+  bool second_success = false;
+
+  pfctl_->run_command({"-t", "nonexistent", "-T", "show"},
+    [&](bool success, vector<string> out) {
+      first_success = success;
+      completed++;
+      if (completed == 2) done_ = true;
+    });
+
+  pfctl_->run_command({"-t", "pool_0", "-T", "add", "2001:db8::1"},
+    [&](bool success, vector<string> out) {
+      second_success = success;
+      completed++;
+      if (completed == 2) done_ = true;
+    });
+
+  RunUntilDone();
+
+  EXPECT_FALSE(first_success);
+  EXPECT_TRUE(second_success);
+  EXPECT_EQ(GetTable("pool_0"), set<string>({"2001:db8::1"}));
 }
 
 // === main ===

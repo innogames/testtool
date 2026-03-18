@@ -7,7 +7,6 @@
 #include "lb_pool.h"
 
 using namespace std;
-using namespace boost::interprocess;
 
 using json = nlohmann::json;
 

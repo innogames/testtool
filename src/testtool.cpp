@@ -6,7 +6,6 @@
 
 #define FMT_HEADER_ONLY
 
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <event2/event-config.h>
 #include <event2/util.h>
 #include <event2/visibility.h>
@@ -34,11 +33,10 @@
 #include "lb_node.h"
 #include "lb_pool.h"
 #include "msg.h"
-#include "pfctl_worker.h"
+#include "pfctl_async.h"
 #include "testtool.h"
 
 using namespace std;
-using namespace boost::interprocess;
 using json = nlohmann::json;
 
 // Global variables, some are exported to other modules.
@@ -48,9 +46,7 @@ int verbose = 0;
 int verbose_pfctl = 0;
 bool pf_action = true;
 bool check_downtimes = false; // Whether downtimes should be reloaded.
-message_queue *pfctl_mq;
-pid_t parent_pid;
-pid_t worker_pid;
+PfctlAsync *pfctl_async;
 
 static void signal_handler(evutil_socket_t fd, short event, void *arg) {
   // Make compiler happy
@@ -204,35 +200,6 @@ void TestTool::sync_lbpools_without_healthchecks() {
   }
 }
 
-/// Checks if pfctl worker is still alive.
-void worker_check_callback(evutil_socket_t fd, short what, void *arg) {
-  // Make compiler happy
-  (void)(fd);
-  (void)(what);
-  (void)(arg);
-
-  int status;
-  pid_t result = waitpid(worker_pid, &status, WNOHANG);
-  if (result == 0) {
-    // Worker still working.
-  } else if (result == -1) {
-    // Unable to get worker status
-    log(MessageType::MSG_CRIT, "testtool: pfctl worker died");
-    event_base_loopbreak(eventBase);
-  } else {
-    // Worker exited normally, status is its exit code
-    switch (status) {
-    case EXIT_FAILURE:
-      log(MessageType::MSG_CRIT, "testtool: pfctl worked died with error code");
-      event_base_loopbreak(eventBase);
-      break;
-    case EXIT_SUCCESS:
-      log(MessageType::MSG_INFO, "testtool: pfclt worker terminated normally");
-      break;
-    }
-  }
-}
-
 void dump_status_callback(evutil_socket_t fd, short what, void *arg) {
   // Make compiler happy
   (void)(fd);
@@ -319,14 +286,6 @@ void TestTool::setup_events() {
   struct event *healthcheck_finalizer_event = event_new(
       eventBase, -1, EV_PERSIST, healthcheck_finalizer_callback, this);
   event_add(healthcheck_finalizer_event, &healthcheck_finalizer_interval);
-
-  // Check if pfctl worker thread is still alive.
-  struct timeval worker_check_interval;
-  worker_check_interval.tv_sec = 1;
-  worker_check_interval.tv_usec = 0; // Just once a second.
-  struct event *worker_check_event =
-      event_new(eventBase, -1, EV_PERSIST, worker_check_callback, this);
-  event_add(worker_check_event, &worker_check_interval);
 
   // Dump the status to a file every 1 seconds.
   // We could also do it every time something changes via LbPool::pool_logic
@@ -433,8 +392,6 @@ int main(int argc, char *argv[]) {
 
   log(MessageType::MSG_INFO, "Initializing various stuff...");
 
-  parent_pid = getpid();
-  pfctl_mq = start_pfctl_worker();
 #ifdef __FreeBSD__
   setproctitle("%s", "main process");
 #endif
@@ -444,6 +401,7 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
   init_libevent();
+  pfctl_async = new PfctlAsync(eventBase);
 
   struct event *ev_sigint =
       evsignal_new(eventBase, SIGINT, signal_handler, event_self_cbarg());
@@ -486,8 +444,7 @@ int main(int argc, char *argv[]) {
 
   finish_libevent();
   finish_libssl();
-  stop_pfctl_worker();
-  log(MessageType::MSG_INFO, "Waiting for pfctl worker");
-  wait(NULL);
+  pfctl_async->drain();
+  delete pfctl_async;
   log(MessageType::MSG_INFO, "Testtool finished, bye!");
 }

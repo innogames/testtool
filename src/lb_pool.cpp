@@ -16,12 +16,12 @@
 #include "lb_pool.h"
 #include "msg.h"
 #include "pfctl.h"
-#include "pfctl_worker.h"
+#include "pfctl_async.h"
 
 using namespace std;
 
 // Linked from testtool.cpp
-extern message_queue *pfctl_mq;
+extern PfctlAsync *pfctl_async;
 
 FaultPolicy fault_policy_from_string(string s) {
   if (s == "force_down")
@@ -329,13 +329,48 @@ void LbPool::pool_logic(LbNode *last_node, bool from_downtime) {
 
 // Update pfctl to last known wanted_nodes if necessary.
 void LbPool::update_pfctl(void) {
-  // Update primary LB Pool
   if (!pf_synced) {
-    pf_synced = send_message(pfctl_mq, name, pf_name, nodes, up_nodes);
-    if (!pf_synced)
-      log(MessageType::MSG_INFO, this, fmt::sprintf("sync: delayed"));
-    else
-      log(MessageType::MSG_INFO, this, fmt::sprintf("sync: immediate"));
+    // Build pfctl_msg with node state (same logic as old send_message in pfctl_worker.cpp)
+    pfctl_msg msg;
+    memset(&msg, 0, sizeof(msg));
+    strncpy(msg.pool_name, name.c_str(), sizeof(msg.pool_name));
+    strncpy(msg.table_name, pf_name.c_str(), sizeof(msg.table_name));
+    int lb_node_index = 0;
+
+    for (LbNode *lb_node : nodes) {
+      strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[0],
+              lb_node->ipv4_address.c_str(), ADDR_LEN);
+      strncpy(msg.synced_lb_nodes[lb_node_index].ip_address[1],
+              lb_node->ipv6_address.c_str(), ADDR_LEN);
+
+      if (up_nodes.count(lb_node)) {
+        log(MessageType::MSG_INFO, lb_node,
+            fmt::sprintf("Syncing lb_node with wanted state up admin_state %s state %s",
+                         lb_node->get_admin_state_string(), lb_node->get_state_string()));
+        msg.synced_lb_nodes[lb_node_index].wanted_state = LbNodeState::STATE_UP;
+      } else {
+        log(MessageType::MSG_INFO, lb_node,
+            fmt::sprintf("Syncing lb_node with wanted state down admin_state %s state %s",
+                         lb_node->get_admin_state_string(), lb_node->get_state_string()));
+        msg.synced_lb_nodes[lb_node_index].wanted_state = LbNodeState::STATE_DOWN;
+      }
+
+      msg.synced_lb_nodes[lb_node_index].admin_state = lb_node->admin_state;
+      lb_node_index++;
+    }
+
+    // Queue async sync
+    pf_sync_table_async(pfctl_async, pf_name, msg.synced_lb_nodes,
+        [this](bool success) {
+          if (!success) {
+            pf_synced = false;
+            log(MessageType::MSG_INFO, this, fmt::sprintf("sync: failed"));
+          }
+        });
+
+    // Optimistically mark as synced to prevent re-queuing on next HC cycle
+    pf_synced = true;
+    log(MessageType::MSG_INFO, this, fmt::sprintf("sync: queued"));
   }
 
   // Update any other LB Pools which use this one as Backup Pool

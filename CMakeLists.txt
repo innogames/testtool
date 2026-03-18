@@ -101,7 +101,7 @@ include_directories(${CMAKE_BINARY_DIR}/generated ${CMAKE_SOURCE_DIR}/src)
 
 # --- Pool logic tests (renamed from testtool_test) ---
 list(APPEND testtool_test_pool_libraries ${testtool_libraries})
-list(FILTER testtool_test_pool_libraries EXCLUDE REGEX "^(msg|pfctl_worker|pfctl|testtool).cpp$")
+list(FILTER testtool_test_pool_libraries EXCLUDE REGEX "^(msg|pfctl_async|pfctl|testtool).cpp$")
 
 file(GLOB testtool_test_pool_src "tests/testtool_test.cpp" "tests/testtool_test.h" "tests/lb_pool_test.cpp")
 add_executable(testtool_test_pool ${testtool_test_pool_src})
@@ -118,7 +118,7 @@ target_link_libraries(testtool_test_pool
 
 # --- pfctl tests ---
 list(APPEND testtool_test_pfctl_libraries ${testtool_libraries})
-list(FILTER testtool_test_pfctl_libraries EXCLUDE REGEX "^(msg|pfctl_worker|testtool).cpp$")
+list(FILTER testtool_test_pfctl_libraries EXCLUDE REGEX "^(msg|testtool).cpp$")
 
 file(GLOB testtool_test_pfctl_src "tests/pfctl_test.cpp" "tests/pfctl_test.h")
 add_executable(testtool_test_pfctl ${testtool_test_pfctl_src})

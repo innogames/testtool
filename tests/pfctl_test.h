@@ -7,9 +7,12 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <vector>
+#include <event2/event.h>
 
 #include "cmake_dirs.h"
 #include "pfctl.h"
+#include "pfctl_async.h"
 
 using namespace std;
 using json = nlohmann::json;
@@ -21,6 +24,11 @@ class PfctlTest : public ::testing::Test {
 protected:
   string state_file;
   string mock_pfctl_path;
+  struct event_base *base_;
+  PfctlAsync *pfctl_;
+  bool done_;
+  bool last_success_;
+  vector<string> last_output_;
 
   virtual void SetUp() override {
     // Point pfctl_command to mock script
@@ -45,10 +53,52 @@ protected:
     ofstream f(state_file);
     f << R"({"tables": {}, "kill_log": []})";
     f.close();
+
+    // Initialize libevent base and PfctlAsync
+    base_ = event_base_new();
+    pfctl_ = new PfctlAsync(base_);
+    done_ = false;
+    last_success_ = false;
   }
 
   virtual void TearDown() override {
+    delete pfctl_;
+    event_base_free(base_);
     filesystem::remove(state_file);
+  }
+
+  // Run the event loop until done_ flag is set by a callback
+  void RunUntilDone() {
+    while (!done_) {
+      event_base_loop(base_, EVLOOP_ONCE);
+    }
+  }
+
+  // Run a single pfctl command asynchronously and wait for completion
+  bool RunCommand(vector<string> args, vector<string> *output = nullptr) {
+    done_ = false;
+    last_success_ = false;
+    last_output_.clear();
+    pfctl_->run_command(std::move(args), [this](bool success, vector<string> out) {
+      last_success_ = success;
+      last_output_ = std::move(out);
+      done_ = true;
+    });
+    RunUntilDone();
+    if (output) *output = last_output_;
+    return last_success_;
+  }
+
+  // Run pf_sync_table_async and wait for completion
+  bool RunSyncTable(const string &table, SyncedLbNode *nodes) {
+    done_ = false;
+    last_success_ = false;
+    pf_sync_table_async(pfctl_, table, nodes, [this](bool success) {
+      last_success_ = success;
+      done_ = true;
+    });
+    RunUntilDone();
+    return last_success_;
   }
 
   // Helper to read mock state

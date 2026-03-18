@@ -3,7 +3,6 @@
 //
 
 #include <boost/exception/diagnostic_information.hpp>
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <openssl/ssl.h>
@@ -12,10 +11,10 @@
 #include "healthcheck_dummy.h"
 #include "lb_node.h"
 #include "lb_pool.h"
+#include "pfctl_async.h"
 #include "testtool_test.h"
 
 using namespace std;
-using namespace boost::interprocess;
 
 using json = nlohmann::json;
 
@@ -23,7 +22,7 @@ using json = nlohmann::json;
 struct event_base *eventBase = NULL;
 SSL_CTX *sctx = NULL;
 int verbose = 0;
-boost::interprocess::message_queue *pfctl_mq;
+PfctlAsync *pfctl_async = nullptr;
 
 extern bool _pf_is_in_table;
 extern set<string> sent_up_lb_nodes;

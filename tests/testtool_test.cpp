@@ -2,25 +2,25 @@
 // Tests for testtool
 //
 
-#include <boost/interprocess/ipc/message_queue.hpp>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <openssl/ssl.h>
 #include <string>
+#include <cstring>
 
 #include "healthcheck_dummy.h"
 #include "lb_node.h"
 #include "msg.h"
+#include "pfctl.h"
+#include "pfctl_async.h"
 #include "testtool_test.h"
 
 using namespace std;
-using namespace boost::interprocess;
 
 // Check if an IP address is in the given table. Global variable used for
 // faking state input for tests.
 bool _pf_is_in_table = false;
 bool pf_is_in_table(string *table, string *address, bool *answer) {
-  // Make compiler happy
   (void)(table);
   (void)(address);
   *answer = _pf_is_in_table;
@@ -47,18 +47,28 @@ void log(MessageType loglevel, Healthcheck *hc, string msg) {
 }
 
 set<string> sent_up_lb_nodes;
-bool send_message(message_queue *mq, string pool_name, string table_name,
-                  set<LbNode *> all_lb_nodes, set<LbNode *> up_lb_nodes) {
-  // Make compiler happy
-  (void)(mq);
-  (void)(pool_name);
-  (void)(table_name);
-  (void)(all_lb_nodes);
 
-  for (LbNode *up_lb_node : up_lb_nodes)
-    sent_up_lb_nodes.insert(up_lb_node->name);
+// Mock pf_sync_table_async for pool logic tests
+void pf_sync_table_async(PfctlAsync *pfctl_async, std::string table,
+                          SyncedLbNode *synced_lb_nodes,
+                          PfSyncDoneCallback done_callback) {
+  (void)(pfctl_async);
+  (void)(table);
 
-  return true;
+  sent_up_lb_nodes.clear();
+  for (int i = 0; i < MAX_NODES; i++) {
+    for (int proto = 0; proto < 2; proto++) {
+      if (strlen(synced_lb_nodes[i].ip_address[proto]) == 0)
+        continue;
+      if (synced_lb_nodes[i].wanted_state == LbNodeState::STATE_UP &&
+          synced_lb_nodes[i].admin_state == LbNodeAdminState::STATE_ENABLED) {
+        sent_up_lb_nodes.insert(
+            std::string(synced_lb_nodes[i].ip_address[proto]));
+      }
+    }
+  }
+
+  done_callback(true);
 }
 
 void TesttoolTest::SetUp() {
