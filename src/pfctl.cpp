@@ -19,6 +19,10 @@
 #include <string>
 #include <sys/wait.h>
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#endif
+
 #include "msg.h"
 #include "pfctl.h"
 #include "pfctl_worker.h"
