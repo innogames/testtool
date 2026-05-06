@@ -164,6 +164,8 @@ bool pf_kill_src_nodes_to(string *address) {
 
 bool pf_kill_states_to_rdr(string *table, string *address) {
   vector<string> cmd;
+
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
   cmd.push_back("-k");
   cmd.push_back("table");
   cmd.push_back("-k");
@@ -176,6 +178,17 @@ bool pf_kill_states_to_rdr(string *table, string *address) {
   cmd.push_back("kill");
   cmd.push_back("-k");
   cmd.push_back("rststates");
+#else
+  cmd.push_back("-k");
+  cmd.push_back("label");
+  cmd.push_back("-k");
+  cmd.push_back(*table);
+  cmd.push_back("-k");
+  cmd.push_back("gateway");
+  cmd.push_back("-k");
+  cmd.push_back(*address);
+  cmd.push_back("-I");
+#endif
 
   return pfctl_run_command(&cmd, NULL);
 }
