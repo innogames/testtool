@@ -109,6 +109,7 @@ bool pf_table_del(string *table, set<string> *addresses) {
   return pfctl_run_command(&cmd, NULL);
 }
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
 bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
   vector<string> cmd;
   cmd.push_back("-K");
@@ -128,6 +129,38 @@ bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
 
   return pfctl_run_command(&cmd, NULL);
 }
+#else
+bool pf_kill_src_nodes_to(string *address) {
+  //
+  // On FreeBSD 15 we don't have the universal killer for source nodes.
+  // Use the normal kill pfctl command and kill hosts by redirection address.
+  // Table name is not checked. Hopefully we don't share LB Nodes between
+  // LB Pools.
+  //
+  // TODO: Move the IOCTL for killing source nodes to Netlink so that we can
+  //       migrate the whole thing to Netlink and re-implement the missing
+  //       functionality without having to patch pfctl.
+
+  vector<string> cmd_4;
+  vector<string> cmd_6;
+  bool ret_4;
+  bool ret_6;
+
+  cmd_4.push_back("-K");
+  cmd_4.push_back("0.0.0.0");
+  cmd_4.push_back("-K");
+  cmd_4.push_back(*address);
+  ret_4 = pfctl_run_command(&cmd_4, NULL);
+
+  cmd_6.push_back("-K");
+  cmd_6.push_back("::/0");
+  cmd_6.push_back("-K");
+  cmd_6.push_back(*address);
+  ret_6 =  pfctl_run_command(&cmd_4, NULL);
+
+  return (ret_4 && ret_6);
+}
+#endif
 
 bool pf_kill_states_to_rdr(string *table, string *address) {
   vector<string> cmd;
@@ -223,7 +256,11 @@ bool pf_table_rebalance(string *table, set<string> *skip_addresses) {
 
   for (auto address : addresses) {
     if (skip_addresses->find(address) == skip_addresses->end()) {
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
       ret = pf_kill_src_nodes_to(table, &address, false);
+#else
+      ret = pf_kill_src_nodes_to(&address);
+#endif
       if (!ret) {
         return false;
       }
