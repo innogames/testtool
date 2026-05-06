@@ -299,7 +299,7 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
     return false;
 
   // Rebalance table if new hosts are added. Kill src_nodes to old entries
-  if (to_add.size())
+  if (!to_add.empty())
     pf_table_rebalance(&table, &to_add);
 
   return true;
