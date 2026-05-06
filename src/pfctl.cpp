@@ -333,17 +333,21 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
       if (to_del.count(lb_node_ip_address) == 0)
         continue;
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
       // Kill src_nodes. And linked states if necessary.
       pf_kill_src_nodes_to(&table, &lb_node_ip_address, with_states);
+#endif
 
       if (with_states) {
         // Kill unlinked states if necessary.
         pf_kill_states_to_rdr(&table, &lb_node_ip_address);
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
         // Kill nodes again, there might be some which were created after last
         // kill due to belonging to states with deferred src_nodes. See
         // TECH-6711 and around.
         pf_kill_src_nodes_to(&table, &lb_node_ip_address, true);
+#endif
       }
     }
   }
