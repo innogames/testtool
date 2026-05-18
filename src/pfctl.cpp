@@ -19,6 +19,10 @@
 #include <string>
 #include <sys/wait.h>
 
+#ifdef __FreeBSD__
+#include <sys/param.h>
+#endif
+
 #include "msg.h"
 #include "pfctl.h"
 #include "pfctl_worker.h"
@@ -105,6 +109,7 @@ bool pf_table_del(string *table, set<string> *addresses) {
   return pfctl_run_command(&cmd, NULL);
 }
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
 bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
   vector<string> cmd;
   cmd.push_back("-K");
@@ -124,9 +129,37 @@ bool pf_kill_src_nodes_to(string *table, string *address, bool with_states) {
 
   return pfctl_run_command(&cmd, NULL);
 }
+#else
+bool pf_kill_src_nodes_to(string *address) {
+  //
+  // On FreeBSD 15 we don't have the universal killer for source nodes.
+  // Use the normal kill pfctl command and kill hosts by redirection address.
+  // Table name is not checked. Hopefully we don't share LB Nodes between
+  // LB Pools.
+  //
+  // TODO: Move the IOCTL for killing source nodes to Netlink so that we can
+  //       migrate the whole thing to Netlink and re-implement the missing
+  //       functionality without having to patch pfctl.
+
+  vector<string> cmd;
+
+  cmd.push_back("-K");
+  if (address->find(":") != std::string::npos) {
+    cmd.push_back("::/0");
+  } else {
+    cmd.push_back("0.0.0.0");
+  }
+  cmd.push_back("-K");
+  cmd.push_back(*address);
+
+  return pfctl_run_command(&cmd, NULL);
+}
+#endif
 
 bool pf_kill_states_to_rdr(string *table, string *address) {
   vector<string> cmd;
+
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
   cmd.push_back("-k");
   cmd.push_back("table");
   cmd.push_back("-k");
@@ -139,6 +172,17 @@ bool pf_kill_states_to_rdr(string *table, string *address) {
   cmd.push_back("kill");
   cmd.push_back("-k");
   cmd.push_back("rststates");
+#else
+  cmd.push_back("-k");
+  cmd.push_back("label");
+  cmd.push_back("-k");
+  cmd.push_back(*table);
+  cmd.push_back("-k");
+  cmd.push_back("gateway");
+  cmd.push_back("-k");
+  cmd.push_back(*address);
+  cmd.push_back("-I");
+#endif
 
   return pfctl_run_command(&cmd, NULL);
 }
@@ -219,7 +263,11 @@ bool pf_table_rebalance(string *table, set<string> *skip_addresses) {
 
   for (auto address : addresses) {
     if (skip_addresses->find(address) == skip_addresses->end()) {
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
       ret = pf_kill_src_nodes_to(table, &address, false);
+#else
+      ret = pf_kill_src_nodes_to(&address);
+#endif
       if (!ret) {
         return false;
       }
@@ -279,17 +327,21 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
       if (to_del.count(lb_node_ip_address) == 0)
         continue;
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
       // Kill src_nodes. And linked states if necessary.
       pf_kill_src_nodes_to(&table, &lb_node_ip_address, with_states);
+#endif
 
       if (with_states) {
         // Kill unlinked states if necessary.
         pf_kill_states_to_rdr(&table, &lb_node_ip_address);
 
+#if defined(__FreeBSD__) && __FreeBSD_version < 1500000
         // Kill nodes again, there might be some which were created after last
         // kill due to belonging to states with deferred src_nodes. See
         // TECH-6711 and around.
         pf_kill_src_nodes_to(&table, &lb_node_ip_address, true);
+#endif
       }
     }
   }
@@ -299,7 +351,7 @@ bool pf_sync_table(string table, SyncedLbNode *synced_lb_nodes) {
     return false;
 
   // Rebalance table if new hosts are added. Kill src_nodes to old entries
-  if (to_add.size())
+  if (!to_add.empty())
     pf_table_rebalance(&table, &to_add);
 
   return true;
