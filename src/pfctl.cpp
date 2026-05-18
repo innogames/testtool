@@ -141,24 +141,18 @@ bool pf_kill_src_nodes_to(string *address) {
   //       migrate the whole thing to Netlink and re-implement the missing
   //       functionality without having to patch pfctl.
 
-  vector<string> cmd_4;
-  vector<string> cmd_6;
-  bool ret_4;
-  bool ret_6;
+  vector<string> cmd;
 
-  cmd_4.push_back("-K");
-  cmd_4.push_back("0.0.0.0");
-  cmd_4.push_back("-K");
-  cmd_4.push_back(*address);
-  ret_4 = pfctl_run_command(&cmd_4, NULL);
+  cmd.push_back("-K");
+  if (address->find(":") != std::string::npos) {
+    cmd.push_back("::/0");
+  } else {
+    cmd.push_back("0.0.0.0");
+  }
+  cmd.push_back("-K");
+  cmd.push_back(*address);
 
-  cmd_6.push_back("-K");
-  cmd_6.push_back("::/0");
-  cmd_6.push_back("-K");
-  cmd_6.push_back(*address);
-  ret_6 =  pfctl_run_command(&cmd_4, NULL);
-
-  return (ret_4 && ret_6);
+  return pfctl_run_command(&cmd, NULL);
 }
 #endif
 
