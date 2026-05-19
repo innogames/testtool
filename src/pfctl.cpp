@@ -33,12 +33,14 @@ using namespace std::chrono;
 extern bool pf_action;
 extern int verbose_pfctl;
 
+string pfctl_command = "/sbin/pfctl";
+
 bool pfctl_run_command(vector<string> *args, vector<string> *lines) {
   int ret = 0;
   FILE *fp;
   char buffer[1024];
 
-  string cmd = "/sbin/pfctl -q";
+  string cmd = pfctl_command + " -q";
 
   for (auto arg : *args) {
     cmd += " " + arg;
