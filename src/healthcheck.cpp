@@ -19,6 +19,7 @@
 #include "healthcheck_dns.h"
 #include "healthcheck_dummy.h"
 #include "healthcheck_http.h"
+#include "healthcheck_mysql.h"
 #include "healthcheck_ping.h"
 #include "healthcheck_postgres.h"
 #include "healthcheck_tcp.h"
@@ -125,6 +126,8 @@ Healthcheck *Healthcheck::healthcheck_factory(const nlohmann::json &config,
   else if (type == "postgres")
     new_healthcheck =
         new Healthcheck_postgres(config, _parent_lbnode, ip_address);
+  else if (type == "mysql")
+    new_healthcheck = new Healthcheck_mysql(config, _parent_lbnode, ip_address);
   else if (type == "dns")
     new_healthcheck = new Healthcheck_dns(config, _parent_lbnode, ip_address);
   else if (type == "dummy")

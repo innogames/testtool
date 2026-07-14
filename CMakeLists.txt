@@ -56,6 +56,15 @@ find_package(PostgreSQL REQUIRED)
 list(APPEND _include_dirs ${PostgreSQL_INCLUDE_DIRS})
 list(APPEND _libs ${PostgreSQL_LIBRARIES})
 
+# libmariadb (MySQL/MariaDB client with non-blocking API)
+if (APPLE)
+  set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/opt/mariadb-connector-c/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
+pkg_check_modules(MARIADB REQUIRED libmariadb)
+list(APPEND _include_dirs ${MARIADB_INCLUDE_DIRS})
+list(APPEND _libs ${MARIADB_LIBRARIES})
+list(APPEND _link_dirs ${MARIADB_LIBRARY_DIRS})
+
 # yaml-cpp
 if (APPLE)
   set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/opt/yaml-cpp/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")

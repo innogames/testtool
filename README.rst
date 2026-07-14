@@ -151,6 +151,41 @@ Type-specific attributes:
 * `hc_dbname`: Database name to connect
 * `hc_query`: Query to execute on the database server
 
+MySQL
+-----
+
+The check connects to a MySQL, MariaDB or Percona database and executes
+a query.
+
+Expected: A single row with a single column that is "1"
+
+Fails on:
+
+* Connection timeout
+* Connection failure
+* Authentication failure
+* Any failure to run the given query
+* Query returning no rows
+* Query returning more than one rows
+* Query return no columns
+* Query returning more than one columns
+* Anything else than "1" returned by the query
+
+Type-specific attributes:
+
+* `hc_port`: Port number to connect to
+* `hc_user`: Username to connect the database server
+* `hc_password`: Password to connect the database server
+* `hc_dbname`: Database name to connect
+* `hc_tls`: Require a TLS-encrypted connection
+* `hc_query`: Query to execute on the database server
+
+To connect without a password, like the Postgres check, omit `hc_password`,
+set `hc_tls`, and create an empty-password account that requires TLS --- the
+equivalent of a Postgres `hostssl ... trust` rule::
+
+    CREATE USER 'monitor'@'192.0.2.0/255.255.255.0'
+      IDENTIFIED WITH caching_sha2_password BY '' REQUIRE SSL;
 License
 -------
 
