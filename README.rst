@@ -155,7 +155,7 @@ MySQL
 -----
 
 The check connects to a MySQL, MariaDB or Percona database and executes
-a query.
+a query.  The connection is always TLS-encrypted.
 
 Expected: A single row with a single column that is "1"
 
@@ -163,6 +163,7 @@ Fails on:
 
 * Connection timeout
 * Connection failure
+* Server not supporting TLS
 * Authentication failure
 * Any failure to run the given query
 * Query returning no rows
@@ -177,15 +178,15 @@ Type-specific attributes:
 * `hc_user`: Username to connect the database server
 * `hc_password`: Password to connect the database server
 * `hc_dbname`: Database name to connect
-* `hc_tls`: Require a TLS-encrypted connection
 * `hc_query`: Query to execute on the database server
 
-To connect without a password, like the Postgres check, omit `hc_password`,
-set `hc_tls`, and create an empty-password account that requires TLS --- the
-equivalent of a Postgres `hostssl ... trust` rule::
+To connect without a password, like the Postgres check, omit `hc_password`
+and create an empty-password account that requires TLS --- the equivalent
+of a Postgres `hostssl ... trust` rule::
 
     CREATE USER 'monitor'@'192.0.2.0/255.255.255.0'
       IDENTIFIED WITH caching_sha2_password BY '' REQUIRE SSL;
+
 License
 -------
 

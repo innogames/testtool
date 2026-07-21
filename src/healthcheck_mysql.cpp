@@ -44,6 +44,10 @@ Healthcheck_mysql::Healthcheck_mysql(const nlohmann::json &config,
   this->type = "mysql";
 
   this->port = safe_get<int>(config, "hc_port", 3306);
+  // The port is passed on to an unsigned parameter, a negative value
+  // would silently wrap to a huge port number.
+  if (this->port < 1 || this->port > 65535)
+    this->port = 3306;
   // This must stay a literal IP address.  mysql_real_connect_start()
   // resolves host names synchronously, which would block the single
   // event loop; passing an already-resolved address avoids that.
@@ -52,7 +56,6 @@ Healthcheck_mysql::Healthcheck_mysql(const nlohmann::json &config,
   this->user = safe_get<string>(config, "hc_user", "");
   this->password = safe_get<string>(config, "hc_password", "");
   this->query = safe_get<string>(config, "hc_query", "");
-  this->use_tls = safe_get<bool>(config, "hc_tls", false);
 
   // The password is intentionally kept out of the log prefix.
   this->log_prefix = fmt::sprintf("query: '%s' port: %d host: %s", this->query,
@@ -91,14 +94,18 @@ int Healthcheck_mysql::schedule_healthcheck(struct timespec *now) {
 
 /// Wait for whatever libmariadb asked for and continue
 ///
-/// The non-blocking API returns a bit mask telling us which conditions it
-/// wants to be woken up for.  Socket readiness (read and/or write) is armed
-/// as a libevent I/O watch.  When the mask carries neither read nor write
-/// (e.g. a pure MYSQL_WAIT_TIMEOUT internal staged delay, or a lone
-/// MYSQL_WAIT_EXCEPT which libevent cannot watch for directly) we must NOT
-/// fabricate a socket watch: doing so could either never fire (false
-/// timeout) or, against a half-closed peer whose socket stays readable,
-/// spin the event loop.  Instead we honour the library's timed wait.
+/// The non-blocking API returns a bit mask of the conditions it wants to
+/// be woken up for: socket readability or writability, a socket
+/// exception, and/or the expiry of its internal timeout whose duration
+/// is available from mysql_get_timeout_value_ms().  All of them map onto
+/// a single libevent event: exceptions surface as readability, and the
+/// timeout is armed on the same event, so whichever condition occurs
+/// first drives the next step.  The check's own timeout_event bounds the
+/// whole check regardless of what is armed here.
+///
+/// This function should not fail, but we cannot just continue if it
+/// does.  We have to set the health check as failed, even though it
+/// probably has nothing to do with the target server.
 void Healthcheck_mysql::register_step(int status,
                                       void (Healthcheck_mysql::*method)()) {
   short flag = 0;
@@ -107,11 +114,37 @@ void Healthcheck_mysql::register_step(int status,
     flag |= EV_READ;
   if (status & MYSQL_WAIT_WRITE)
     flag |= EV_WRITE;
+  if (status & MYSQL_WAIT_EXCEPT)
+    flag |= EV_READ;
 
-  if (flag != 0)
-    this->register_io_event(flag, method);
-  else
-    this->register_timer_step(method);
+  struct timeval tv;
+  struct timeval *tvp = NULL;
+  if (status & MYSQL_WAIT_TIMEOUT) {
+    unsigned int ms = mysql_get_timeout_value_ms(this->conn);
+    tv.tv_sec = ms / 1000;
+    tv.tv_usec = (ms % 1000) * 1000;
+    tvp = &tv;
+  }
+
+  // The check should fail with a timeout before this limit is
+  // reached.  It is useful at least for development to detect
+  // endless loops.  100 is a limit high enough to catch them,
+  // low enough to be hit before the timeout.  Only this single check
+  // is failed: a misbehaving backend must not take down health
+  // checking for every other pool in this single-process daemon.
+  if (this->event_counter++ > 100)
+    return this->end_check(HealthcheckResult::HC_FAIL, "too many events");
+
+  this->callback_method = method;
+  this->io_event =
+      event_new(eventBase, flag ? mysql_get_socket(this->conn) : -1, flag,
+                &Healthcheck_mysql::handle_io_event, this);
+
+  if (this->io_event == NULL)
+    return this->end_check(HealthcheckResult::HC_PANIC, "cannot create event");
+
+  if (event_add(this->io_event, tvp) != 0)
+    return this->end_check(HealthcheckResult::HC_PANIC, "cannot add event");
 }
 
 /// Translate the fired libevent flag into a libmariadb wait status
@@ -152,15 +185,26 @@ void Healthcheck_mysql::start_conn() {
     return this->end_check(HealthcheckResult::HC_PANIC,
                            "cannot non-block db connection");
 
-  // Require an encrypted connection when hc_tls is set.  This only
-  // enforces that the transport is encrypted; the server certificate is
-  // not verified.
-  if (this->use_tls) {
-    my_bool ssl_enforce = 1;
-    if (mysql_options(this->conn, MYSQL_OPT_SSL_ENFORCE, &ssl_enforce))
-      return this->end_check(HealthcheckResult::HC_PANIC,
-                             "cannot enforce db tls");
-  }
+  // Bound every network read and write on this connection, including
+  // the synchronous COM_QUIT that mysql_close() sends on teardown.
+  // Without these bounds the library polls without a timeout on paths
+  // outside its non-blocking machinery, which could freeze the event
+  // loop against a peer that stopped reading.  The check timeout is
+  // rounded up to the API's granularity of full seconds.
+  unsigned int rw_timeout = (this->timeout_to_ms() + 999) / 1000;
+  if (rw_timeout < 1)
+    rw_timeout = 1;
+  if (mysql_options(this->conn, MYSQL_OPT_READ_TIMEOUT, &rw_timeout) ||
+      mysql_options(this->conn, MYSQL_OPT_WRITE_TIMEOUT, &rw_timeout))
+    return this->end_check(HealthcheckResult::HC_PANIC,
+                           "cannot set db timeouts");
+
+  // Always require an encrypted connection.  This only enforces that
+  // the transport is encrypted; the server certificate is not verified.
+  my_bool ssl_enforce = 1;
+  if (mysql_options(this->conn, MYSQL_OPT_SSL_ENFORCE, &ssl_enforce))
+    return this->end_check(HealthcheckResult::HC_PANIC,
+                           "cannot enforce db tls");
 
   // Empty strings are turned into NULL so that libmariadb applies its
   // own defaults (e.g. no default database) instead of trying to use
@@ -314,7 +358,7 @@ void Healthcheck_mysql::end_check(HealthcheckResult result, string message) {
       message += fmt::sprintf(" db error: %s", error);
 
     if (verbose >= 2)
-      message += fmt::sprintf("Last event flag 0x%02x after %d events",
+      message += fmt::sprintf(" Last event flag 0x%02x after %d events",
                               this->event_flag, this->event_counter);
   }
 
@@ -336,79 +380,16 @@ void Healthcheck_mysql::end_check(HealthcheckResult result, string message) {
   }
 
   if (this->conn != NULL) {
-    // The socket is in non-blocking mode (MYSQL_OPT_NONBLOCK), so the
-    // best-effort COM_QUIT that mysql_close() writes cannot stall the
-    // event loop: a full send buffer yields EWOULDBLOCK rather than
-    // blocking.  This keeps teardown a single synchronous step.
+    // mysql_close() sends a best-effort COM_QUIT over the library's
+    // synchronous path, which polls the socket without regard to the
+    // non-blocking mode.  That poll is bounded by the read and write
+    // timeouts set in start_conn(); without them it could stall the
+    // event loop indefinitely against a peer that stopped reading.
     mysql_close(this->conn);
     this->conn = NULL;
   }
 
   Healthcheck::end_check(result, message);
-}
-
-/// Helper method to register methods to libevent
-///
-/// This function should not fail, but we cannot just continue if it does.
-/// We have to set health check as failed, even though probably it has
-/// nothing to do with the target server.
-void Healthcheck_mysql::register_io_event(short flag,
-                                          void (Healthcheck_mysql::*method)()) {
-
-  // There are two events the caller can register.
-  assert(!(flag & ~(EV_READ | EV_WRITE)));
-
-  // The check should fail with a timeout before this limit is
-  // reached.  It is useful at least for development to detect
-  // endless loops.  100 is a limit high enough to catch them,
-  // low enough to be hit before the timeout.  Unlike a real internal
-  // error we only fail this single check here: a misbehaving backend
-  // that somehow spins us must not take down health checking for every
-  // other pool in this single-process daemon.
-  if (this->event_counter++ > 100)
-    return this->end_check(HealthcheckResult::HC_FAIL, "too many events");
-
-  this->callback_method = method;
-  this->io_event = event_new(eventBase, mysql_get_socket(this->conn), flag,
-                             &Healthcheck_mysql::handle_io_event, this);
-
-  if (this->io_event == NULL)
-    return this->end_check(HealthcheckResult::HC_PANIC, "cannot create event");
-
-  // Note that we are registering it without a timeout.
-  if (event_add(this->io_event, 0) != 0)
-    return this->end_check(HealthcheckResult::HC_PANIC, "cannot add event");
-}
-
-/// Helper method to register a timed wait to libevent
-///
-/// libmariadb asks for this (MYSQL_WAIT_TIMEOUT) when it wants to be woken
-/// up after a delay rather than on socket readiness.  We arm a one-shot
-/// timer of the length it requests and then drive the same callback, which
-/// will feed MYSQL_WAIT_TIMEOUT back through *_cont().  The check's own
-/// timeout_event still bounds the whole thing, so this timer can only make
-/// the check finish sooner, never later.
-void Healthcheck_mysql::register_timer_step(
-    void (Healthcheck_mysql::*method)()) {
-
-  // Same endless-loop guard as register_io_event(); fail only this check.
-  if (this->event_counter++ > 100)
-    return this->end_check(HealthcheckResult::HC_FAIL, "too many events");
-
-  unsigned int ms = mysql_get_timeout_value_ms(this->conn);
-  struct timeval tv;
-  tv.tv_sec = ms / 1000;
-  tv.tv_usec = (ms % 1000) * 1000;
-
-  this->callback_method = method;
-  this->io_event =
-      event_new(eventBase, -1, 0, &Healthcheck_mysql::handle_io_event, this);
-
-  if (this->io_event == NULL)
-    return this->end_check(HealthcheckResult::HC_PANIC, "cannot create event");
-
-  if (event_add(this->io_event, &tv) != 0)
-    return this->end_check(HealthcheckResult::HC_PANIC, "cannot add event");
 }
 
 /// Helper method to register the timeout event to libevent
@@ -442,8 +423,8 @@ void Healthcheck_mysql::handle_io_event(int fd, short flag, void *arg) {
   Healthcheck_mysql *hc = (Healthcheck_mysql *)arg;
 
   // For a socket wait we don't need the file descriptor, but as it is
-  // passed by libevent, lets check that it is the correct one.  A timed
-  // wait (register_timer_step) uses fd -1 and fires EV_TIMEOUT instead.
+  // passed by libevent, lets check that it is the correct one.  A pure
+  // timed wait uses fd -1 and fires EV_TIMEOUT instead.
   if (flag & (EV_READ | EV_WRITE))
     assert(mysql_get_socket(hc->conn) == fd);
 

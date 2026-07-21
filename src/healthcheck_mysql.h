@@ -35,8 +35,6 @@ protected:
   void handle_result();
   void end_check(HealthcheckResult result, string message);
   void register_step(int status, void (Healthcheck_mysql::*method)());
-  void register_io_event(short flag, void (Healthcheck_mysql::*method)());
-  void register_timer_step(void (Healthcheck_mysql::*method)());
   void register_timeout_event();
   int event_flag_to_wait_status();
   static void handle_io_event(int fd, short flag, void *arg);
@@ -50,7 +48,6 @@ protected:
   string user;
   string password;
   string query;
-  bool use_tls;
   MYSQL *conn;
   MYSQL *conn_ret; // Out-param of mysql_real_connect_start()/_cont()
   int query_ret;   // Out-param of mysql_real_query_start()/_cont()
