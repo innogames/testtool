@@ -17,6 +17,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <mysql.h>
 #include <nlohmann/json.hpp>
 #include <openssl/err.h>
 #include <openssl/ssl.h>
@@ -388,6 +389,23 @@ void finish_libssl() {
   SSL_CTX_free(sctx);
 }
 
+int init_libmysql() {
+  // In this single-threaded daemon mysql_init() would initialise the
+  // client library implicitly, but doing it explicitly here keeps
+  // initialisation deterministic and lets us free global client
+  // resources cleanly on shutdown.
+  if (mysql_library_init(0, NULL, NULL)) {
+    return false;
+  }
+
+  log(MessageType::MSG_INFO,
+      fmt::sprintf("MySQL client version: %s", mysql_get_client_info()));
+
+  return true;
+}
+
+void finish_libmysql() { mysql_library_end(); }
+
 void usage() {
   cout << "Hi, I'm testtool-ng and my arguments are:" << endl;
   cout << " -f  - specify an alternate configuration file to load" << endl;
@@ -443,6 +461,11 @@ int main(int argc, char *argv[]) {
     log(MessageType::MSG_CRIT, "Unable to initialise OpenSSL, terminating!");
     exit(EXIT_FAILURE);
   }
+  if (!init_libmysql()) {
+    log(MessageType::MSG_CRIT,
+        "Unable to initialise MySQL client, terminating!");
+    exit(EXIT_FAILURE);
+  }
   init_libevent();
 
   struct event *ev_sigint =
@@ -486,6 +509,7 @@ int main(int argc, char *argv[]) {
 
   finish_libevent();
   finish_libssl();
+  finish_libmysql();
   stop_pfctl_worker();
   log(MessageType::MSG_INFO, "Waiting for pfctl worker");
   wait(NULL);
